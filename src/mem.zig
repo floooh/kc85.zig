@@ -1,7 +1,8 @@
 //------------------------------------------------------------------------------
 //  mem.zig
 //
-//  A virtual memory system for 16-bit home computers with bank switching.
+//  A virtual memory system for home computers with 16-bit address space
+//  and optional bank switching.
 //------------------------------------------------------------------------------
 const assert = @import("std").debug.assert;
 
@@ -17,7 +18,7 @@ const num_banks = 4;        // max number of memory bank layers
 const unmapped_page: [page_size]u8 = [_]u8{0xFF} ** page_size;
 var junk_page: [page_size]u8 = [_]u8{0} ** page_size;
 
-// an memory bank page with optional mappings to host memory
+// a memory bank page with optional mappings to host memory
 const BankPage = struct {
     read: ?[]const u8 = null,
     write: ?[] u8 = null,
