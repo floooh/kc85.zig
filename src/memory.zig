@@ -45,7 +45,7 @@ pub const Memory = struct {
         self.w8(addr +% 1, @truncate(u8, val >> 8));
     }
 
-    // write a whole range of bytes to mapped memory
+    /// write a whole range of bytes to mapped memory
     pub fn writeBytes(self: *Memory, addr: u16, bytes: []const u8) void {
         var a = addr;
         for (bytes) |byte| {
@@ -76,7 +76,6 @@ pub const Memory = struct {
         }
     }
 };
-
 
 const page_shift = 10;      // page size is 1 KB
 const page_size = 1<<page_shift;
