@@ -32,7 +32,7 @@ pub const Pins = struct {
     pub const D7 = 1<<23;
     pub const DataMask = 0xFF0000;
 
-    // CPU pins
+    // Z80 CPU pins
     pub const CPU = struct {
 
         // system control pins
