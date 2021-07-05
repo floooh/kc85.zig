@@ -9,5 +9,7 @@ pub fn main() anyerror!void {
     mem.mapRAM(0, 0x0000, &ram);
     mem.w8(0x3FFF, 0x7F);
 
-    std.log.info("All your codebase are belong to us: {X}", .{ mem.r8(0x3FFF) });
+    const bla = mem.pages[0].read[0];
+
+    std.log.info("All your codebase are belong to us: {X} {X}", .{ mem.r8(0x3FFF), bla });
 }

@@ -119,4 +119,4 @@ pub const Pins = struct {
         pub const PB6 = 1<<62;
         pub const PB7 = 1<<63;
     };
-}
+};
