@@ -155,7 +155,8 @@ fn inc8(r: *[NumRegs]u8, reg: u3) void {
     const val: u8 = r[reg];
     const res: u8 = val +% 1;
     var f: u8 = szFlags(res) | (res & (XF|YF)) | ((res ^ val) & HF);
-    if (res == 0x80) { f |= VF; }
+    // set VF if bit 7 flipped from 0 to 1
+    f |= ((val ^ res) & (res & 0x80) >> 5) & VF;
     r[F] = f | (r[F] & CF);
     r[reg] = res;
 }
@@ -164,6 +165,8 @@ fn dec8(r: *[NumRegs]u8, reg: u3) void {
     const val: u8 = r[reg];
     const res: u8 = val -% 1;
     var f: u8 = NF | szFlags(res) | (res & (XF|YF)) | ((res ^ val) & HF);
+    // set VF if but 7 flipped from 1 to 0
+    f |= ((val ^ res) & (val & 0x80) >> 5) & VF;
     if (res == 0x7F) { f |= VF; }
     r[F] = f | (r[F] & CF);
     r[reg] = res;
