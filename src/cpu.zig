@@ -1,28 +1,30 @@
 const pins = @import("pins.zig").Pins;
 
 // status flag bits
-pub const CF: u8 = (1<<0);
-pub const NF: u8 = (1<<1);
-pub const VF: u8 = (1<<2);
-pub const PF: u8 = VF;
-pub const XF: u8 = (1<<3);
-pub const HF: u8 = (1<<4);
-pub const YF: u8 = (1<<5);
-pub const ZF: u8 = (1<<6);
-pub const SF: u8 = (1<<7);
+const CF: u8 = (1<<0);
+const NF: u8 = (1<<1);
+const VF: u8 = (1<<2);
+const PF: u8 = VF;
+const XF: u8 = (1<<3);
+const HF: u8 = (1<<4);
+const YF: u8 = (1<<5);
+const ZF: u8 = (1<<6);
+const SF: u8 = (1<<7);
 
-// a packed 16-bit register pair
-const R16 = struct {
-    h: u8,          // B, D, H, F
-    l: u8,          // C, E, L, A
-};
+// register bank indices
+const B = 0;
+const C = 1;
+const D = 2;
+const E = 3;
+const H = 4;
+const L = 5;
+const F = 6;
+const A = 7;
+const NumRegs = 8;
 
 pub const CPU = struct {
 
-    bc: R16 = .{ .h = 0xFF, .l = 0xFF },
-    de: R16 = .{ .h = 0xFF, .l = 0xFF },
-    hl: R16 = .{ .h = 0xFF, .l = 0xFF },
-    fa: R16 = .{ .h = 0xFF, .l = 0xFF },
+    regs: [8]u8 = [_]u8{0xFF} ** 8,
 
     wz: u16 = 0xFFFF,
     ix: u16 = 0xFFFF,
@@ -81,194 +83,252 @@ fn szpFlags(val: u8) u8 {
 }
 
 // ALU functions
-fn add8(fa: R16, val: u8) R16 {
-    const acc: usize = fa.l;
+fn add8(r: *[NumRegs]u8, val: u8) void {
+    const acc: usize = r[A];
     const res: usize = acc + val;
-    return R16{ .h = addFlags(acc, val, res), .l = @truncate(u8, res) };
+    r[F] = addFlags(acc, val, res);
+    r[A] = @truncate(u8, res);
 }
 
-fn adc8(fa: R16, val: u8) R16 {
-    const acc: usize = fa.l;
-    const res: usize = acc + val + (fa.h & CF);
-    return R16{ .h = addFlags(acc, val, res), .l = @truncate(u8, res) };
+fn adc8(r: *[NumRegs]u8, val: u8) void {
+    const acc: usize = r[A];
+    const res: usize = acc + val + (r[F] & CF);
+    r[F] = addFlags(acc, val, res);
+    r[A] = @truncate(u8, res);
 }
 
-fn sub8(fa: R16, val: u8) R16 {
-    const acc: usize = fa.l;
+fn sub8(r: *[NumRegs]u8, val: u8) void {
+    const acc: usize = r[A];
     const res: usize = acc -% val; 
-    return R16{ .h = subFlags(acc, val, res), .l = @truncate(u8, res) };
+    r[F] = subFlags(acc, val, res);
+    r[A] = @truncate(u8, res);
 }
     
-fn sbc8(fa: R16, val: u8) R16 {
-    const acc: usize = fa.l;
-    const res: usize = acc -% val -% (fa.h & CF);
-    return R16{ .h = subFlags(acc, val, res), .l = @truncate(u8, res) };
+fn sbc8(r: *[NumRegs]u8, val: u8) void {
+    const acc: usize = r[A];
+    const res: usize = acc -% val -% (r[F] & CF);
+    r[F] = subFlags(acc, val, res);
+    r[A] = @truncate(u8, res);
 }
     
-fn and8(fa: R16, val: u8) R16 {
-    const a = fa.l & val;
-    return R16{ .h = szpFlags(a) | HF, .l = a };
+fn and8(r: *[NumRegs]u8, val: u8) void {
+    r[A] &= val;
+    r[F] = szpFlags(r[A]) | HF;
 }
     
-fn xor8(fa: R16, val: u8) R16 {
-    const a = fa.l ^ val;
-    return R16{ .h = szpFlags(a), .l = a };
+fn xor8(r: *[NumRegs]u8, val: u8) void {
+    r[A] ^= val;
+    r[F] = szpFlags(r[A]);
 }
 
-fn or8(fa: R16, val: u8) R16 {
-    const a = fa.l | val;
-    return R16{ .h = szpFlags(a), .l = a };
+fn or8(r: *[NumRegs]u8, val: u8) void {
+    r[A] |= val;
+    r[F] = szpFlags(r[A]);
 }
 
-fn cp8(fa: R16, val: u8) R16 {
-    const acc: usize = fa.l;
+fn cp8(r: *[NumRegs]u8, val: u8) void {
+    const acc: usize = r[A];
     const res: usize = acc -% val;
-    return R16{ .h = cpFlags(acc, val, res), .l = fa.l };
+    r[F] = cpFlags(acc, val, res);
 }
     
-fn alu8(fa: R16, y: u3, val: u8) R16 {
-    return switch(y) {
-        0 => add8(fa, val),
-        1 => adc8(fa, val),
-        2 => sub8(fa, val),
-        3 => sbc8(fa, val),
-        4 => and8(fa, val),
-        5 => xor8(fa, val),
-        6 => or8(fa, val),
-        7 => cp8(fa, val)
-    };
+fn alu8(r: *[NumRegs]u8, y: u3, val: u8) void {
+    switch(y) {
+        0 => add8(r, val),
+        1 => adc8(r, val),
+        2 => sub8(r, val),
+        3 => sbc8(r, val),
+        4 => and8(r, val),
+        5 => xor8(r, val),
+        6 => or8(r, val),
+        7 => cp8(r, val),
+    }
+}
+
+fn neg8(r: *[NumRegs]u8) void {
+    const val = r[A];
+    r[A] = 0;
+    sub8(r, val);
+}
+
+fn inc8(r: *[NumRegs]u8, reg: u3) void {
+    const val: u8 = r[reg];
+    const res: u8 = val +% 1;
+    var f: u8 = szFlags(res) | (res & (XF|YF)) | ((res ^ val) & HF);
+    if (res == 0x80) { f |= VF; }
+    r[F] = f | (r[F] & CF);
+    r[reg] = res;
+}
+
+fn dec8(r: *[NumRegs]u8, reg: u3) void {
+    const val: u8 = r[reg];
+    const res: u8 = val -% 1;
+    var f: u8 = NF | szFlags(res) | (res & (XF|YF)) | ((res ^ val) & HF);
+    if (res == 0x7F) { f |= VF; }
+    r[F] = f | (r[F] & CF);
+    r[reg] = res;
 }
 
 //=== TESTS ====================================================================
 const expect = @import("std").testing.expect;
 
+fn makeRegs() [NumRegs]u8 {
+    var res: [NumRegs]u8 = [_]u8{0xFF} ** NumRegs;
+    res[F] = 0;
+    return res;
+}
+
 fn flags(f: u8, mask: u8) bool {
     return (f & ~(XF|YF)) == mask;
 }
 
-fn testAF(fa: R16, val: u8, mask: u8) bool {
-    return (fa.l == val) and ((fa.h & ~(XF|YF)) == mask);
+fn testRF(r: *const [NumRegs]u8, reg: u3, val: u8, mask: u8) bool {
+    return (r[reg] == val) and ((r[F] & ~(XF|YF)) == mask);
 }
 
-test "initial state" {
-    var cpu = CPU{};
-    try expect(cpu.fa.h == 0xFF);
-    try expect(cpu.fa.l == 0xFF);
-    try expect(cpu.bc.h == 0xFF);
-    try expect(cpu.bc.l == 0xFF);
-    try expect(cpu.de.h == 0xFF);
-    try expect(cpu.de.l == 0xFF);
-    try expect(cpu.hl.h == 0xFF);
-    try expect(cpu.hl.l == 0xFF);
-
-    try expect(cpu.wz == 0xFFFF);
-    try expect(cpu.ix == 0xFFFF);
-    try expect(cpu.iy == 0xFFFF);
-    try expect(cpu.sp == 0xFFFF);
-    try expect(cpu.pc == 0);
-    try expect(cpu.ir == 0);
-    try expect(cpu.im == 0);
-    try expect(cpu.iff1 == false);
-    try expect(cpu.iff2 == false);
+fn testAF(r: *const [NumRegs]u8, val: u8, mask: u8) bool {
+    return testRF(r, A, val, mask);
 }
 
 test "add8" {
-    var fa = R16{ .h=0, .l=0xF };
-    fa = add8(fa, fa.l);    try expect(testAF(fa, 0x1E, HF));
-    fa = add8(fa, 0xE0);    try expect(testAF(fa, 0xFE, SF));
-    fa.l = 0x81; 
-    fa = add8(fa, 0x80);    try expect(testAF(fa, 0x01, VF|CF));
-    fa = add8(fa, 0xFF);    try expect(testAF(fa, 0x00, ZF|HF|CF));
-    fa = add8(fa, 0x40);    try expect(testAF(fa, 0x40, 0));
-    fa = add8(fa, 0x80);    try expect(testAF(fa, 0xC0, SF));
-    fa = add8(fa, 0x33);    try expect(testAF(fa, 0xF3, SF));
-    fa = add8(fa, 0x44);    try expect(testAF(fa, 0x37, CF));
+    var r = makeRegs();
+    r[A] = 0xF;
+    add8(&r, r[A]); try expect(testAF(&r, 0x1E, HF));
+    add8(&r, 0xE0); try expect(testAF(&r, 0xFE, SF));
+    r[A] = 0x81; 
+    add8(&r, 0x80); try expect(testAF(&r, 0x01, VF|CF));
+    add8(&r, 0xFF); try expect(testAF(&r, 0x00, ZF|HF|CF));
+    add8(&r, 0x40); try expect(testAF(&r, 0x40, 0));
+    add8(&r, 0x80); try expect(testAF(&r, 0xC0, SF));
+    add8(&r, 0x33); try expect(testAF(&r, 0xF3, SF));
+    add8(&r, 0x44); try expect(testAF(&r, 0x37, CF));
 }
 
 test "adc8" {
-    var fa = R16{ .h=0, .l=0 };
-    fa = adc8(fa, 0x00);    try expect(testAF(fa, 0x00, ZF));
-    fa = adc8(fa, 0x41);    try expect(testAF(fa, 0x41, 0));
-    fa = adc8(fa, 0x61);    try expect(testAF(fa, 0xA2, SF|VF));
-    fa = adc8(fa, 0x81);    try expect(testAF(fa, 0x23, VF|CF));
-    fa = adc8(fa, 0x41);    try expect(testAF(fa, 0x65, 0));
-    fa = adc8(fa, 0x61);    try expect(testAF(fa, 0xC6, SF|VF));
-    fa = adc8(fa, 0x81);    try expect(testAF(fa, 0x47, VF|CF));
-    fa = adc8(fa, 0x01);    try expect(testAF(fa, 0x49, 0));
+    var r = makeRegs();
+    r[A] = 0;
+    adc8(&r, 0x00); try expect(testAF(&r, 0x00, ZF));
+    adc8(&r, 0x41); try expect(testAF(&r, 0x41, 0));
+    adc8(&r, 0x61); try expect(testAF(&r, 0xA2, SF|VF));
+    adc8(&r, 0x81); try expect(testAF(&r, 0x23, VF|CF));
+    adc8(&r, 0x41); try expect(testAF(&r, 0x65, 0));
+    adc8(&r, 0x61); try expect(testAF(&r, 0xC6, SF|VF));
+    adc8(&r, 0x81); try expect(testAF(&r, 0x47, VF|CF));
+    adc8(&r, 0x01); try expect(testAF(&r, 0x49, 0));
 }
 
 test "sub8" {
-    var fa = R16{ .h=0, .l=0x04 };
-    fa = sub8(fa, 0x04);    try expect(testAF(fa, 0x00, ZF|NF));
-    fa = sub8(fa, 0x01);    try expect(testAF(fa, 0xFF, SF|HF|NF|CF));
-    fa = sub8(fa, 0xF8);    try expect(testAF(fa, 0x07, NF));
-    fa = sub8(fa, 0x0F);    try expect(testAF(fa, 0xF8, SF|HF|NF|CF));
-    fa = sub8(fa, 0x79);    try expect(testAF(fa, 0x7F, HF|VF|NF));
-    fa = sub8(fa, 0xC0);    try expect(testAF(fa, 0xBF, SF|VF|NF|CF));
-    fa = sub8(fa, 0xBF);    try expect(testAF(fa, 0x00, ZF|NF));
-    fa = sub8(fa, 0x01);    try expect(testAF(fa, 0xFF, SF|HF|NF|CF));
-    fa = sub8(fa, 0xFE);    try expect(testAF(fa, 0x01, NF));
+    var r = makeRegs();
+    r[A] = 0x04;
+    sub8(&r, 0x04); try expect(testAF(&r, 0x00, ZF|NF));
+    sub8(&r, 0x01); try expect(testAF(&r, 0xFF, SF|HF|NF|CF));
+    sub8(&r, 0xF8); try expect(testAF(&r, 0x07, NF));
+    sub8(&r, 0x0F); try expect(testAF(&r, 0xF8, SF|HF|NF|CF));
+    sub8(&r, 0x79); try expect(testAF(&r, 0x7F, HF|VF|NF));
+    sub8(&r, 0xC0); try expect(testAF(&r, 0xBF, SF|VF|NF|CF));
+    sub8(&r, 0xBF); try expect(testAF(&r, 0x00, ZF|NF));
+    sub8(&r, 0x01); try expect(testAF(&r, 0xFF, SF|HF|NF|CF));
+    sub8(&r, 0xFE); try expect(testAF(&r, 0x01, NF));
 }
 
 test "sbc8" {
-    var fa = R16{ .h=0, .l=0x04 };
-    fa = sbc8(fa, 0x04);    try expect(testAF(fa, 0x00, ZF|NF));
-    fa = sbc8(fa, 0x01);    try expect(testAF(fa, 0xFF, SF|HF|NF|CF));
-    fa = sbc8(fa, 0xF8);    try expect(testAF(fa, 0x06, NF));
-    fa = sbc8(fa, 0x0F);    try expect(testAF(fa, 0xF7, SF|HF|NF|CF));
-    fa = sbc8(fa, 0x79);    try expect(testAF(fa, 0x7D, HF|VF|NF));
-    fa = sbc8(fa, 0xC0);    try expect(testAF(fa, 0xBD, SF|VF|NF|CF));
-    fa = sbc8(fa, 0xBF);    try expect(testAF(fa, 0xFD, SF|HF|NF|CF));
-    fa = sbc8(fa, 0x01);    try expect(testAF(fa, 0xFB, SF|NF));
-    fa = sbc8(fa, 0xFE);    try expect(testAF(fa, 0xFD, SF|HF|NF|CF));
+    var r = makeRegs();
+    r[A] = 0x04;
+    sbc8(&r, 0x04); try expect(testAF(&r, 0x00, ZF|NF));
+    sbc8(&r, 0x01); try expect(testAF(&r, 0xFF, SF|HF|NF|CF));
+    sbc8(&r, 0xF8); try expect(testAF(&r, 0x06, NF));
+    sbc8(&r, 0x0F); try expect(testAF(&r, 0xF7, SF|HF|NF|CF));
+    sbc8(&r, 0x79); try expect(testAF(&r, 0x7D, HF|VF|NF));
+    sbc8(&r, 0xC0); try expect(testAF(&r, 0xBD, SF|VF|NF|CF));
+    sbc8(&r, 0xBF); try expect(testAF(&r, 0xFD, SF|HF|NF|CF));
+    sbc8(&r, 0x01); try expect(testAF(&r, 0xFB, SF|NF));
+    sbc8(&r, 0xFE); try expect(testAF(&r, 0xFD, SF|HF|NF|CF));
 }
 
 test "cp8" {
-    var fa = R16{ .h=0, .l=0x04 };
-    fa = cp8(fa, 0x04);     try expect(testAF(fa, 0x04, ZF|NF));
-    fa = cp8(fa, 0x05);     try expect(testAF(fa, 0x04, SF|HF|NF|CF));
-    fa = cp8(fa, 0x03);     try expect(testAF(fa, 0x04, NF));
-    fa = cp8(fa, 0xFF);     try expect(testAF(fa, 0x04, HF|NF|CF));
-    fa = cp8(fa, 0xAA);     try expect(testAF(fa, 0x04, HF|NF|CF));
-    fa = cp8(fa, 0x80);     try expect(testAF(fa, 0x04, SF|VF|NF|CF));
-    fa = cp8(fa, 0x7F);     try expect(testAF(fa, 0x04, SF|HF|NF|CF));
-    fa = cp8(fa, 0x04);     try expect(testAF(fa, 0x04, ZF|NF));
+    var r = makeRegs();
+    r[A] = 0x04;
+    cp8(&r, 0x04); try expect(testAF(&r, 0x04, ZF|NF));
+    cp8(&r, 0x05); try expect(testAF(&r, 0x04, SF|HF|NF|CF));
+    cp8(&r, 0x03); try expect(testAF(&r, 0x04, NF));
+    cp8(&r, 0xFF); try expect(testAF(&r, 0x04, HF|NF|CF));
+    cp8(&r, 0xAA); try expect(testAF(&r, 0x04, HF|NF|CF));
+    cp8(&r, 0x80); try expect(testAF(&r, 0x04, SF|VF|NF|CF));
+    cp8(&r, 0x7F); try expect(testAF(&r, 0x04, SF|HF|NF|CF));
+    cp8(&r, 0x04); try expect(testAF(&r, 0x04, ZF|NF));
 }
 
 test "and8" {
-    var fa = R16{ .h=0, .l=0xFF };
-    fa = and8(fa, 0x01);    try expect(testAF(fa, 0x01, HF));       fa.l = 0xFF;
-    fa = and8(fa, 0x03);    try expect(testAF(fa, 0x03, HF|PF));    fa.l = 0xFF;
-    fa = and8(fa, 0x04);    try expect(testAF(fa, 0x04, HF));       fa.l = 0xFF;
-    fa = and8(fa, 0x08);    try expect(testAF(fa, 0x08, HF));       fa.l = 0xFF;
-    fa = and8(fa, 0x10);    try expect(testAF(fa, 0x10, HF));       fa.l = 0xFF;
-    fa = and8(fa, 0x20);    try expect(testAF(fa, 0x20, HF));       fa.l = 0xFF;
-    fa = and8(fa, 0x40);    try expect(testAF(fa, 0x40, HF));       fa.l = 0xFF;
-    fa = and8(fa, 0xAA);    try expect(testAF(fa, 0xAA, SF|HF|PF));
+    var r = makeRegs();
+    r[A] = 0xFF;
+    and8(&r, 0x01); try expect(testAF(&r, 0x01, HF));       r[A] = 0xFF;
+    and8(&r, 0x03); try expect(testAF(&r, 0x03, HF|PF));    r[A] = 0xFF;
+    and8(&r, 0x04); try expect(testAF(&r, 0x04, HF));       r[A] = 0xFF;
+    and8(&r, 0x08); try expect(testAF(&r, 0x08, HF));       r[A] = 0xFF;
+    and8(&r, 0x10); try expect(testAF(&r, 0x10, HF));       r[A] = 0xFF;
+    and8(&r, 0x20); try expect(testAF(&r, 0x20, HF));       r[A] = 0xFF;
+    and8(&r, 0x40); try expect(testAF(&r, 0x40, HF));       r[A] = 0xFF;
+    and8(&r, 0xAA); try expect(testAF(&r, 0xAA, SF|HF|PF));
 }
 
 test "xor8" {
-    var fa = R16{ .h=0, .l=0 };
-    fa = xor8(fa, 0x00);    try expect(testAF(fa, 0x00, ZF|PF));
-    fa = xor8(fa, 0x01);    try expect(testAF(fa, 0x01, 0));
-    fa = xor8(fa, 0x03);    try expect(testAF(fa, 0x02, 0));
-    fa = xor8(fa, 0x07);    try expect(testAF(fa, 0x05, PF));
-    fa = xor8(fa, 0x0F);    try expect(testAF(fa, 0x0A, PF));
-    fa = xor8(fa, 0x1F);    try expect(testAF(fa, 0x15, 0));
-    fa = xor8(fa, 0x3F);    try expect(testAF(fa, 0x2A, 0));
-    fa = xor8(fa, 0x7F);    try expect(testAF(fa, 0x55, PF));
-    fa = xor8(fa, 0xFF);    try expect(testAF(fa, 0xAA, SF|PF));
+    var r = makeRegs();
+    r[A] = 0x00;
+    xor8(&r, 0x00); try expect(testAF(&r, 0x00, ZF|PF));
+    xor8(&r, 0x01); try expect(testAF(&r, 0x01, 0));
+    xor8(&r, 0x03); try expect(testAF(&r, 0x02, 0));
+    xor8(&r, 0x07); try expect(testAF(&r, 0x05, PF));
+    xor8(&r, 0x0F); try expect(testAF(&r, 0x0A, PF));
+    xor8(&r, 0x1F); try expect(testAF(&r, 0x15, 0));
+    xor8(&r, 0x3F); try expect(testAF(&r, 0x2A, 0));
+    xor8(&r, 0x7F); try expect(testAF(&r, 0x55, PF));
+    xor8(&r, 0xFF); try expect(testAF(&r, 0xAA, SF|PF));
 }
 
 test "or8" {
-    var fa = R16{ .h=0, .l=0 };
-    fa = or8(fa, 0x00);     try expect(testAF(fa, 0x00, ZF|PF));
-    fa = or8(fa, 0x01);     try expect(testAF(fa, 0x01, 0));
-    fa = or8(fa, 0x02);     try expect(testAF(fa, 0x03, PF));
-    fa = or8(fa, 0x04);     try expect(testAF(fa, 0x07, 0));
-    fa = or8(fa, 0x08);     try expect(testAF(fa, 0x0F, PF));
-    fa = or8(fa, 0x10);     try expect(testAF(fa, 0x1F, 0));
-    fa = or8(fa, 0x20);     try expect(testAF(fa, 0x3F, PF));
-    fa = or8(fa, 0x40);     try expect(testAF(fa, 0x7F, 0));
-    fa = or8(fa, 0x80);     try expect(testAF(fa, 0xFF, SF|PF));
+    var r = makeRegs();
+    r[A] = 0x00;
+    or8(&r, 0x00); try expect(testAF(&r, 0x00, ZF|PF));
+    or8(&r, 0x01); try expect(testAF(&r, 0x01, 0));
+    or8(&r, 0x02); try expect(testAF(&r, 0x03, PF));
+    or8(&r, 0x04); try expect(testAF(&r, 0x07, 0));
+    or8(&r, 0x08); try expect(testAF(&r, 0x0F, PF));
+    or8(&r, 0x10); try expect(testAF(&r, 0x1F, 0));
+    or8(&r, 0x20); try expect(testAF(&r, 0x3F, PF));
+    or8(&r, 0x40); try expect(testAF(&r, 0x7F, 0));
+    or8(&r, 0x80); try expect(testAF(&r, 0xFF, SF|PF));
+}
+
+test "neg8" {
+    var r = makeRegs();
+    r[A]=0x01; neg8(&r); try expect(testAF(&r, 0xFF, SF|HF|NF|CF));
+    r[A]=0x00; neg8(&r); try expect(testAF(&r, 0x00, ZF|NF));
+    r[A]=0x80; neg8(&r); try expect(testAF(&r, 0x80, SF|PF|NF|CF));
+    r[A]=0xC0; neg8(&r); try expect(testAF(&r, 0x40, NF|CF));
+}
+
+test "inc8 dec8" {
+    var r = makeRegs();
+    r[A] = 0x00;
+    r[B] = 0xFF;
+    r[C] = 0x0F;
+    r[D] = 0x0E;
+    r[E] = 0x7F;
+    r[H] = 0x3E;
+    r[L] = 0x23;
+    inc8(&r, A); try expect(testRF(&r, A, 0x01, 0));
+    dec8(&r, A); try expect(testRF(&r, A, 0x00, ZF|NF));
+    inc8(&r, B); try expect(testRF(&r, B, 0x00, ZF|HF));
+    dec8(&r, B); try expect(testRF(&r, B, 0xFF, SF|HF|NF));
+    inc8(&r, C); try expect(testRF(&r, C, 0x10, HF));
+    dec8(&r, C); try expect(testRF(&r, C, 0x0F, HF|NF));
+    inc8(&r, D); try expect(testRF(&r, D, 0x0F, 0));
+    dec8(&r, D); try expect(testRF(&r, D, 0x0E, NF));
+    r[F] |= CF;
+    inc8(&r, E); try expect(testRF(&r, E, 0x80, SF|HF|VF|CF)); 
+    dec8(&r, E); try expect(testRF(&r, E, 0x7F, HF|VF|NF|CF));
+    inc8(&r, H); try expect(testRF(&r, H, 0x3F, CF));
+    dec8(&r, H); try expect(testRF(&r, H, 0x3E, NF|CF));
+    inc8(&r, L); try expect(testRF(&r, L, 0x24, CF));
+    dec8(&r, L); try expect(testRF(&r, L, 0x23, NF|CF));
 }
