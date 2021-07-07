@@ -1,4 +1,57 @@
-const pins = @import("pins.zig").Pins;
+// address bus pins
+pub const A0:  u64 = 1<<0;
+pub const A1:  u64 = 1<<1;
+pub const A2:  u64 = 1<<2;
+pub const A3:  u64 = 1<<3;
+pub const A4:  u64 = 1<<4;
+pub const A5:  u64 = 1<<5;
+pub const A6:  u64 = 1<<6;
+pub const A7:  u64 = 1<<7;
+pub const A8:  u64 = 1<<8;
+pub const A9:  u64 = 1<<9;
+pub const A10: u64 = 1<<10;
+pub const A11: u64 = 1<<11;
+pub const A12: u64 = 1<<12;
+pub const A13: u64 = 1<<13;
+pub const A14: u64 = 1<<14;
+pub const A15: u64 = 1<<15;
+pub const AddrPinMask: u64 = 0xFFFF;
+
+// data bus pins
+pub const D0: u64 = 1<<16;
+pub const D1: u64 = 1<<17;
+pub const D2: u64 = 1<<18;
+pub const D3: u64 = 1<<19;
+pub const D4: u64 = 1<<20;
+pub const D5: u64 = 1<<21;
+pub const D6: u64 = 1<<22;
+pub const D7: u64 = 1<<23;
+pub const DataPinShift = 16;
+pub const DataPinMask: u64 = 0xFF0000;
+
+// system control pins
+pub const M1:   u64 = 1<<24;     // machine cycle 1
+pub const MREQ: u64 = 1<<25;     // memory request
+pub const IORQ: u64 = 1<<26;     // IO request
+pub const RD:   u64 = 1<<27;     // read request
+pub const WR:   u64 = 1<<28;     // write requst
+pub const RFSH: u64 = 1<<29;     // memory refresh (not implemented)
+pub const CtrlPinMask = M1|MREQ|IORQ|RD|WR|RFSH;
+
+// CPU control pins
+pub const HALT:  u64 = 1<<30;    // halt and catch fire
+pub const INT:   u64 = 1<<31;    // maskable interrupt requested
+pub const NMI:   u64 = 1<<32;    // non-maskable interrupt requested
+pub const RESET: u64 = 1<<33;    // reset requested
+
+// virtual pins
+pub const WAIT0: u64 = 1<<34;    // 3 virtual pins to inject up to 8 wait cycles
+pub const WAIT1: u64 = 1<<35;
+pub const WAIT2: u64 = 1<<36;
+pub const IEIO:  u64 = 1<<37;    // interrupt daisy chain: interrupt-enable-I/O
+pub const RETI:  u64 = 1<<38;    // interrupt daisy chain: RETI decoded
+pub const WaitPinShift = 34;
+pub const WaitPinMask = WAIT0|WAIT1|WAIT2;
 
 // status flag bits
 const CF: u8 = (1<<0);
@@ -28,20 +81,108 @@ const NumRegs = 12;
 
 const Regs = [NumRegs]u8;
 
-pub const CPU = struct {
+pub const TickFunc = fn(usize, u64) u64;
+
+pub const State = struct {
 
     regs: Regs = [_]u8{0xFF} ** NumRegs,
 
     WZ: u16 = 0xFFFF,
     SP: u16 = 0xFFFF,
     PC: u16 = 0x0000,
-    IE: u16 = 0x0000,
-
-    IM: u8 = 0,
+    I:  u8 = 0x00,
+    R:  u8 = 0x00,
+    IM: u8 = 0x00,
 
     iff1: bool = false,
     iff2: bool = false,
 };
+
+const PinsAndTicks = struct {
+    pins: u64,
+    ticks: u64,
+};
+
+// set wait ticks on pin mask
+pub fn setWait(pins: u64, wait_ticks: u3) u64 {
+    return (pins & ~WaitPinMask) | @as(u64, wait_ticks) << WaitPinShift;
+}
+
+// extract wait ticks from pin mask
+pub fn getWait(pins: u64) u3 {
+    return @truncate(u3, pins >> WaitPinShift);
+}
+
+// set address pins in pin mask
+pub fn setAddr(pins: u64, addr: u16) u64 {
+    return (pins & ~AddrPinMask) | addr;
+}
+
+// get address from pin mask
+pub fn getAddr(pins: u64) u16 {
+    return @truncate(u16, pins);
+}
+
+// set data pins in pin mask
+pub fn setData(pins: u64, data: u8) u64 {
+    return (pins & ~DataPinMask) | (@as(u64, data) << DataPinShift);
+}
+
+// get data pins in pin mask
+pub fn getData(pins: u64) u8 {
+    return @truncate(u8, pins >> DataPinShift);
+}
+
+// set address and data pins in pin mask
+pub fn setAddrData(pins: u64, addr: u16, data: u8) u64 {
+    return (pins & ~(DataPinMask|AddrPinMask)) | (@as(u64, data) << DataPinShift) | addr;
+}
+
+// invoke tick callback with control pins set
+fn tick(pt: PinsAndTicks, num_ticks: usize, pin_mask: u64, tick_func: TickFunc) PinsAndTicks {
+    return .{
+        .pins = tick_func(num_ticks, (pt.pins & ~CtrlPinMask) | pin_mask),
+        .ticks = pt.ticks + num_ticks
+    };
+}
+
+// invoke tick callback with pin mask and wait state detection
+fn tickWait(pt: PinsAndTicks, num_ticks: usize, pin_mask: u64, tick_func: TickFunc) PinsAndTicks {
+    return .{
+        .pins = tick_func(num_ticks, (pt.pins & ~(CtrlPinMask|WaitPinMask) | pin_mask)),
+        .ticks = pt.ticks + num_ticks + getWait(pins)
+    };
+}
+
+// perform a memory-read machine cycle (3 clock cycles)
+fn memRead(addr: u16, pt: PinsAndTicks, tick_func: TickFunc) PinsAndTicks {
+    return tickWait(.{ .pins = setAddr(pins, addr), .ticks = pt.ticks }, 3, MREQ|RD, tick_func);
+}
+
+// perform a memory-write machine cycle (3 clock cycles)
+fn memWrite(addr: u16, data: u8, pt: PinsAndTicks, tick_func: TickFunc) PinsAndTicks {
+    return tickWait(.{ .pins = setAddrData(pins, addr, data), .ticks = pt.ticks }, 3, MREQ|WR, tick_func);
+}
+
+// perform an IO input machine cycle (4 clock cycles)
+fn ioIn(addr: u16, pt: PinsAndTicks, tick_func: TickFunc) PinsAndTicks {
+    return tickWait(.{ .pins = setAddr(pins, addr), .ticks = pt.ticks }, 4, IORQ|RD, tick_func);
+}
+
+// perform a IO output machine cycle (4 clock cycles)
+fn ioOut(addr: u16, data: u8, pt: PinsAndTicks, tick_func: TickFunc) PinsAndTicks {
+    return tickWait(.{ .pins = setAddrData(pins, addr, data), .ticks = pt.ticks }, 4, IORQ|WR, tick_func);
+}
+
+// helper function to increment R register
+fn bumpR(r: u8) u8 {
+    return (r & 0x80) | ((r +% 1) & 0x7F);
+}
+
+// perform an instruction fetch machine cycle (without bumping PC and R, and without refresh cycle)
+fn fetch(pc: u16, pt: PinsAndTicks, tick_func: TickFunc) PinsAndTicks {
+    return tickWait(.{ .pins = setAddr(pins, pc), .ticks = pt.ticks }, 4, M1|MREQ|RD, tick_func);
+}
 
 // flag computation functions
 fn szFlags(val: usize) u8 {
@@ -182,6 +323,58 @@ fn testRF(r: *const Regs, reg: u3, val: u8, mask: u8) bool {
 
 fn testAF(r: *const Regs, val: u8, mask: u8) bool {
     return testRF(r, A, val, mask);
+}
+
+test "set/get data" {
+    var pins: u64 = 0;
+    pins = setData(pins, 0xFF);
+    try expect(getData(pins) == 0xFF);
+    pins = setData(pins, 1);
+    try expect(getData(pins) == 1);
+}
+
+test "set/get address" {
+    var pins: u64 = 0;
+    pins = setAddr(pins, 0x1234);
+    try expect(getAddr(pins) == 0x1234);
+    pins = setAddr(pins, 0x4321);
+    try expect(getAddr(pins) == 0x4321);
+}
+
+test "setAddrData" {
+    var pins: u64 = 0;
+    pins = setAddrData(pins, 0x1234, 0x54);
+    try expect(pins == 0x541234);
+    try expect(getAddr(pins) == 0x1234);
+    try expect(getData(pins) == 0x54);
+}
+
+test "set/get wait ticks" {
+    var pins: u64 = 0x221111;
+    pins = setWait(pins, 7);
+    try expect(getWait(pins) == 7);
+    pins = setWait(pins, 1);
+    try expect(getWait(pins) == 1);
+    try expect(getAddr(pins) == 0x1111);
+    try expect(getData(pins) == 0x22);
+}
+
+test "tick" {
+    const inner = struct {
+        fn tick_func(ticks: usize, pins: u64) u64 {
+            if (ticks == 3 and getData(pins) == 0x54 and getAddr(pins) == 0x1234 and (pins & M1|MREQ|RD) == M1|MREQ|RD) {
+                // success
+                return setData(pins, 0x23);
+            }
+            else {
+                return 0;
+            }
+        }
+    };
+    var pt = PinsAndTicks{ .pins = setAddrData(0, 0x1234, 0x54), .ticks = 0 };
+    pt = tick(pt, 3, M1|MREQ|RD, inner.tick_func);
+    try expect(getData(pt.pins) == 0x23);
+    try expect(pt.ticks == 3);
 }
 
 test "add8" {
