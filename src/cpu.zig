@@ -20,36 +20,27 @@ const H = 4;
 const L = 5;
 const F = 6;
 const A = 7;
-const NumRegs = 8;
+const IXH = 8;
+const IXL = 9;
+const IYH = 10;
+const IYL = 11;
+const NumRegs = 12;
+
+const Regs = [NumRegs]u8;
 
 pub const CPU = struct {
 
-    regs: [8]u8 = [_]u8{0xFF} ** 8,
+    regs: Regs = [_]u8{0xFF} ** NumRegs,
 
-    wz: u16 = 0xFFFF,
-    ix: u16 = 0xFFFF,
-    iy: u16 = 0xFFFF,
-    sp: u16 = 0xFFFF,
-    pc: u16 = 0x0000,
-    ir: u16 = 0x0000,
+    WZ: u16 = 0xFFFF,
+    SP: u16 = 0xFFFF,
+    PC: u16 = 0x0000,
+    IE: u16 = 0x0000,
 
-    im: u8 = 0,
+    IM: u8 = 0,
 
     iff1: bool = false,
     iff2: bool = false,
-
-    pub const TickFunc = fn(num_ticks: usize, pins: u64) u64;
-
-    /// set CPU into reset state
-    pub fn reset(self: *CPU) void {
-        self = .{};
-    }
-    
-    /// execute instructions for at least 'num_ticks', return number of executed ticks
-    pub fn exec(self: *CPU, num_ticks: usize, tick_func: TickFunc) usize {
-
-    }
-
 };
 
 // flag computation functions
@@ -83,56 +74,56 @@ fn szpFlags(val: u8) u8 {
 }
 
 // ALU functions
-fn add8(r: *[NumRegs]u8, val: u8) void {
+fn add8(r: *Regs, val: u8) void {
     const acc: usize = r[A];
     const res: usize = acc + val;
     r[F] = addFlags(acc, val, res);
     r[A] = @truncate(u8, res);
 }
 
-fn adc8(r: *[NumRegs]u8, val: u8) void {
+fn adc8(r: *Regs, val: u8) void {
     const acc: usize = r[A];
     const res: usize = acc + val + (r[F] & CF);
     r[F] = addFlags(acc, val, res);
     r[A] = @truncate(u8, res);
 }
 
-fn sub8(r: *[NumRegs]u8, val: u8) void {
+fn sub8(r: *Regs, val: u8) void {
     const acc: usize = r[A];
     const res: usize = acc -% val; 
     r[F] = subFlags(acc, val, res);
     r[A] = @truncate(u8, res);
 }
     
-fn sbc8(r: *[NumRegs]u8, val: u8) void {
+fn sbc8(r: *Regs, val: u8) void {
     const acc: usize = r[A];
     const res: usize = acc -% val -% (r[F] & CF);
     r[F] = subFlags(acc, val, res);
     r[A] = @truncate(u8, res);
 }
     
-fn and8(r: *[NumRegs]u8, val: u8) void {
+fn and8(r: *Regs, val: u8) void {
     r[A] &= val;
     r[F] = szpFlags(r[A]) | HF;
 }
     
-fn xor8(r: *[NumRegs]u8, val: u8) void {
+fn xor8(r: *Regs, val: u8) void {
     r[A] ^= val;
     r[F] = szpFlags(r[A]);
 }
 
-fn or8(r: *[NumRegs]u8, val: u8) void {
+fn or8(r: *Regs, val: u8) void {
     r[A] |= val;
     r[F] = szpFlags(r[A]);
 }
 
-fn cp8(r: *[NumRegs]u8, val: u8) void {
+fn cp8(r: *Regs, val: u8) void {
     const acc: usize = r[A];
     const res: usize = acc -% val;
     r[F] = cpFlags(acc, val, res);
 }
     
-fn alu8(r: *[NumRegs]u8, y: u3, val: u8) void {
+fn alu8(r: *Regs, y: u3, val: u8) void {
     switch(y) {
         0 => add8(r, val),
         1 => adc8(r, val),
@@ -145,13 +136,13 @@ fn alu8(r: *[NumRegs]u8, y: u3, val: u8) void {
     }
 }
 
-fn neg8(r: *[NumRegs]u8) void {
+fn neg8(r: *Regs) void {
     const val = r[A];
     r[A] = 0;
     sub8(r, val);
 }
 
-fn inc8(r: *[NumRegs]u8, reg: u3) void {
+fn inc8(r: *Regs, reg: u3) void {
     const val: u8 = r[reg];
     const res: u8 = val +% 1;
     var f: u8 = szFlags(res) | (res & (XF|YF)) | ((res ^ val) & HF);
@@ -161,7 +152,7 @@ fn inc8(r: *[NumRegs]u8, reg: u3) void {
     r[reg] = res;
 }
 
-fn dec8(r: *[NumRegs]u8, reg: u3) void {
+fn dec8(r: *Regs, reg: u3) void {
     const val: u8 = r[reg];
     const res: u8 = val -% 1;
     var f: u8 = NF | szFlags(res) | (res & (XF|YF)) | ((res ^ val) & HF);
@@ -175,8 +166,8 @@ fn dec8(r: *[NumRegs]u8, reg: u3) void {
 //=== TESTS ====================================================================
 const expect = @import("std").testing.expect;
 
-fn makeRegs() [NumRegs]u8 {
-    var res: [NumRegs]u8 = [_]u8{0xFF} ** NumRegs;
+fn makeRegs() Regs {
+    var res: Regs = [_]u8{0xFF} ** NumRegs;
     res[F] = 0;
     return res;
 }
@@ -185,11 +176,11 @@ fn flags(f: u8, mask: u8) bool {
     return (f & ~(XF|YF)) == mask;
 }
 
-fn testRF(r: *const [NumRegs]u8, reg: u3, val: u8, mask: u8) bool {
+fn testRF(r: *const Regs, reg: u3, val: u8, mask: u8) bool {
     return (r[reg] == val) and ((r[F] & ~(XF|YF)) == mask);
 }
 
-fn testAF(r: *const [NumRegs]u8, val: u8, mask: u8) bool {
+fn testAF(r: *const Regs, val: u8, mask: u8) bool {
     return testRF(r, A, val, mask);
 }
 
