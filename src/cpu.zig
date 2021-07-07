@@ -299,7 +299,6 @@ fn dec8(r: *Regs, reg: u3) void {
     var f: u8 = NF | szFlags(res) | (res & (XF|YF)) | ((res ^ val) & HF);
     // set VF if but 7 flipped from 1 to 0
     f |= ((val ^ res) & (val & 0x80) >> 5) & VF;
-    if (res == 0x7F) { f |= VF; }
     r[F] = f | (r[F] & CF);
     r[reg] = res;
 }
