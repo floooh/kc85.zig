@@ -1,6 +1,5 @@
 const std = @import("std");
 const Memory = @import("memory.zig").Memory;
-const Z80CPU = @import("z80cpu.zig").Z80CPU;
 
 pub fn main() anyerror!void {
 

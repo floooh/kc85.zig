@@ -150,28 +150,28 @@ fn tick(pt: PinsAndTicks, num_ticks: usize, pin_mask: u64, tick_func: TickFunc) 
 fn tickWait(pt: PinsAndTicks, num_ticks: usize, pin_mask: u64, tick_func: TickFunc) PinsAndTicks {
     return .{
         .pins = tick_func(num_ticks, (pt.pins & ~(CtrlPinMask|WaitPinMask) | pin_mask)),
-        .ticks = pt.ticks + num_ticks + getWait(pins)
+        .ticks = pt.ticks + num_ticks + getWait(pt.pins)
     };
 }
 
 // perform a memory-read machine cycle (3 clock cycles)
-fn memRead(addr: u16, pt: PinsAndTicks, tick_func: TickFunc) PinsAndTicks {
-    return tickWait(.{ .pins = setAddr(pins, addr), .ticks = pt.ticks }, 3, MREQ|RD, tick_func);
+fn memRead(pt: PinsAndTicks, addr: u16, tick_func: TickFunc) PinsAndTicks {
+    return tickWait(.{ .pins = setAddr(pt.pins, addr), .ticks = pt.ticks }, 3, MREQ|RD, tick_func);
 }
 
 // perform a memory-write machine cycle (3 clock cycles)
-fn memWrite(addr: u16, data: u8, pt: PinsAndTicks, tick_func: TickFunc) PinsAndTicks {
-    return tickWait(.{ .pins = setAddrData(pins, addr, data), .ticks = pt.ticks }, 3, MREQ|WR, tick_func);
+fn memWrite(pt: PinsAndTicks, addr: u16, data: u8, tick_func: TickFunc) PinsAndTicks {
+    return tickWait(.{ .pins = setAddrData(pt.pins, addr, data), .ticks = pt.ticks }, 3, MREQ|WR, tick_func);
 }
 
 // perform an IO input machine cycle (4 clock cycles)
-fn ioIn(addr: u16, pt: PinsAndTicks, tick_func: TickFunc) PinsAndTicks {
-    return tickWait(.{ .pins = setAddr(pins, addr), .ticks = pt.ticks }, 4, IORQ|RD, tick_func);
+fn ioIn(pt: PinsAndTicks, addr: u16, tick_func: TickFunc) PinsAndTicks {
+    return tickWait(.{ .pins = setAddr(pt.pins, addr), .ticks = pt.ticks }, 4, IORQ|RD, tick_func);
 }
 
 // perform a IO output machine cycle (4 clock cycles)
-fn ioOut(addr: u16, data: u8, pt: PinsAndTicks, tick_func: TickFunc) PinsAndTicks {
-    return tickWait(.{ .pins = setAddrData(pins, addr, data), .ticks = pt.ticks }, 4, IORQ|WR, tick_func);
+fn ioOut(pt: PinsAndTicks, addr: u16, data: u8, tick_func: TickFunc) PinsAndTicks {
+    return tickWait(.{ .pins = setAddrData(pt.pins, addr, data), .ticks = pt.ticks }, 4, IORQ|WR, tick_func);
 }
 
 // helper function to increment R register
@@ -180,8 +180,8 @@ fn bumpR(r: u8) u8 {
 }
 
 // perform an instruction fetch machine cycle (without bumping PC and R, and without refresh cycle)
-fn fetch(pc: u16, pt: PinsAndTicks, tick_func: TickFunc) PinsAndTicks {
-    return tickWait(.{ .pins = setAddr(pins, pc), .ticks = pt.ticks }, 4, M1|MREQ|RD, tick_func);
+fn fetch(pt: PinsAndTicks, pc: u16, tick_func: TickFunc) PinsAndTicks {
+    return tickWait(.{ .pins = setAddr(pt.pins, pc), .ticks = pt.ticks }, 4, M1|MREQ|RD, tick_func);
 }
 
 // flag computation functions
@@ -374,6 +374,117 @@ test "tick" {
     pt = tick(pt, 3, M1|MREQ|RD, inner.tick_func);
     try expect(getData(pt.pins) == 0x23);
     try expect(pt.ticks == 3);
+}
+
+test "tickWait" {
+    const inner = struct {
+        fn tick_func(ticks: usize, pins: u64) u64 {
+            return setWait(pins, 5);
+        }
+    };
+    // make sure that any stuck wait ticks are deleted
+    var pt = PinsAndTicks{ .pins = setWait(0, 7), .ticks = 0 };
+    pt = tickWait(pt, 3, M1|MREQ|RD, inner.tick_func);
+    try expect(getWait(pt.pins) == 5);
+    try expect(pt.ticks == 8);
+}
+
+test "memRead" {
+    const inner = struct {
+        fn tick_func(ticks: usize, pins: u64) u64 {
+            if ((pins & MREQ|RD) == MREQ|RD and getAddr(pins) == 0x1234) {
+                // success
+                return setData(pins, 0x23);
+            }
+            else {
+                return pins;
+            }
+        }
+    };
+    var pt = PinsAndTicks{ .pins = 0, .ticks = 0 };
+    pt = memRead(pt, 0x1234, inner.tick_func);
+    try expect(getData(pt.pins) == 0x23);
+    try expect(pt.ticks == 3);
+}
+
+test "memWrite" {
+    const inner = struct {
+        fn tick_func(ticks: usize, pins: u64) u64 {
+            if ((pins & MREQ|WR) == MREQ|WR and getAddr(pins) == 0x1234 and getData(pins) == 0x56) {
+                // success
+                return setData(pins, 0x23);
+            }
+            else {
+                return pins;
+            }
+        }
+    };
+    var pt = PinsAndTicks{ .pins = 0, .ticks = 0 };
+    pt = memWrite(pt, 0x1234, 0x56, inner.tick_func);
+    try expect(getData(pt.pins) == 0x23);
+    try expect(pt.ticks == 3);
+}
+
+test "ioIn" {
+    const inner = struct {
+        fn tick_func(ticks: usize, pins: u64) u64 {
+            if ((pins & IORQ|RD) == IORQ|RD and getAddr(pins) == 0x1234) {
+                // success
+                return setData(pins, 0x23);       
+            }
+            else {
+                return pins;
+            }
+        }
+    };
+    var pt = PinsAndTicks{ .pins = 0, .ticks = 0 };
+    pt = ioIn(pt, 0x1234, inner.tick_func);
+    try expect(getData(pt.pins) == 0x23);
+    try expect(pt.ticks == 4);
+}
+
+test "ioOut" {
+    const inner = struct {
+        fn tick_func(ticks: usize, pins: u64) u64 {
+            if ((pins & IORQ|WR) == IORQ|WR and getAddr(pins) == 0x1234 and getData(pins) == 0x56) {
+                // success
+                return setData(pins, 0x23);
+            }
+            else {
+                return pins;
+            }
+        }
+    };
+    var pt = PinsAndTicks{ .pins = 0, .ticks = 0 };
+    pt = ioOut(pt, 0x1234, 0x56, inner.tick_func);
+    try expect(getData(pt.pins) == 0x23);
+    try expect(pt.ticks == 4);
+}
+
+test "bumpR" {
+    // only 7 bits are incremented, and the topmost bit is sticky
+    try expect(bumpR(0x00) == 1);
+    try expect(bumpR(0x7F) == 0);
+    try expect(bumpR(0x80) == 0x81);
+    try expect(bumpR(0xFF) == 0x80);
+}
+
+test "fetch" {
+    const inner = struct {
+        fn tick_func(ticks:usize, pins: u64) u64 {
+            if ((pins & M1|MREQ|RD) == M1|MREQ|RD and getAddr(pins) == 0x1234) {
+                // success
+                return setData(pins, 0x23);
+            }
+            else {
+                return pins;
+            }
+        }
+    };
+    var pt = PinsAndTicks{ .pins = 0, .ticks = 0 };
+    pt = fetch(pt, 0x1234, inner.tick_func);
+    try expect(getData(pt.pins) == 0x23);
+    try expect(pt.ticks == 4);
 }
 
 test "add8" {
