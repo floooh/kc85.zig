@@ -35,11 +35,11 @@ fn tick(num_ticks: usize, p: u64) u64 {
     if ((pins & MREQ) != 0) {
         if ((pins & RD) != 0) {
             // a memory read access
-            pins = setData(pins, mem[z80.getAddr(pins)]);
+            pins = setData(pins, mem[getAddr(pins)]);
         }
-        else if ((pins & z80.WR) != 0) {
+        else if ((pins & WR) != 0) {
             // a memory write access
-            mem[getAddr(pins)] = z80.getData(pins);
+            mem[getAddr(pins)] = getData(pins);
         }
     }
     else if ((pins & IORQ) != 0) {
