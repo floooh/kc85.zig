@@ -54,15 +54,15 @@ pub const WaitPinShift = 34;
 pub const WaitPinMask = WAIT0|WAIT1|WAIT2;
 
 // status flag bits
-const CF: u8 = (1<<0);
-const NF: u8 = (1<<1);
-const VF: u8 = (1<<2);
-const PF: u8 = VF;
-const XF: u8 = (1<<3);
-const HF: u8 = (1<<4);
-const YF: u8 = (1<<5);
-const ZF: u8 = (1<<6);
-const SF: u8 = (1<<7);
+pub const CF: u8 = (1<<0);
+pub const NF: u8 = (1<<1);
+pub const VF: u8 = (1<<2);
+pub const PF: u8 = VF;
+pub const XF: u8 = (1<<3);
+pub const HF: u8 = (1<<4);
+pub const YF: u8 = (1<<5);
+pub const ZF: u8 = (1<<6);
+pub const SF: u8 = (1<<7);
 
 // 8-bit register indices
 pub const B = 0;
@@ -124,43 +124,21 @@ pub fn exec(cpu: *State, num_ticks: usize, tick_func: TickFunc) usize {
 
         switch (x) {
             0 => switch (z) {
-                6 => {  // LD r[y],n
-                    imm8(cpu, tick_func);
-                    if (y == 6) {
-                        writeM(cpu, tick_func);
-                    }
-                    else {
-                        cpu.regs[y] = getData(cpu.pins);
-                    }
-                },
-                else => unreachable
+                6 => ld_r_n(cpu, y, tick_func),
+                else => unreachable // FIXME!
             },
-            // LD r[y],r[z] and HALT
+            // LD quadrant
             1 => {
-                if (y == 6 and z == 6) {
-                    cpu.pins |= HALT;
-                    cpu.PC -%= 1;
-                }
-                else {
-                    const src: u8 = if (z != 6) cpu.regs[z] else blk:{
-                        readM(cpu, tick_func); 
-                        break :blk getData(cpu.pins);
-                    };
-                    if (y == 6) {
-                        cpu.pins = setData(cpu.pins, src);
-                        writeM(cpu, tick_func);
-                    }
-                    else {
-                        cpu.regs[y] = src;
-                    }
-                }
+                if (y == 6 and z == 6) { halt(cpu); }
+                else { ld_r_r(cpu, y, z, tick_func); }
             },
-            // ALU ops
+            // ALU quadrant
             2 => {
-
+                alu_r(cpu, y, z, tick_func);
             },
-            3 => {
-
+            3 => switch (z) {
+                6 => alu_n(cpu, y, tick_func),
+                else => unreachable // FIXME!
             }
         }
     }
@@ -286,6 +264,74 @@ fn imm8(cpu: *State, tick_func: TickFunc) void {
     cpu.PC +%= 1;
 }
 
+// get 8-bit register or (HL/IX+d/IY+d) value
+fn src8(cpu: *State, z: u3, tick_func: TickFunc) u8 {
+    return if (z != 6) cpu.regs[z] else blk:{
+        readM(cpu, tick_func); 
+        break :blk getData(cpu.pins);
+    };
+}
+
+// HALT impl
+fn halt(cpu: *State) void {
+    cpu.pins |= HALT;
+    cpu.PC -%= 1;
+}
+
+// LD r,r impl
+fn ld_r_r(cpu: *State, y: u3, z: u3, tick_func: TickFunc) void {
+    const src = src8(cpu, z, tick_func);
+    if (y == 6) {
+        cpu.pins = setData(cpu.pins, src);
+        writeM(cpu, tick_func);
+    }
+    else {
+        cpu.regs[y] = src;
+    }
+}
+
+// LD r,n impl
+fn ld_r_n(cpu: *State, y: u3, tick_func: TickFunc) void {
+    imm8(cpu, tick_func);
+    if (y == 6) {
+        writeM(cpu, tick_func);
+    }
+    else {
+        cpu.regs[y] = getData(cpu.pins);
+    }
+}
+
+// ALU r impl
+fn alu_r(cpu: *State, y: u3, z: u3, tick_func: TickFunc) void {
+    const src = src8(cpu, z, tick_func);
+    switch(y) {
+        0 => add8(&cpu.regs, src),
+        1 => adc8(&cpu.regs, src),
+        2 => sub8(&cpu.regs, src),
+        3 => sbc8(&cpu.regs, src),
+        4 => and8(&cpu.regs, src),
+        5 => xor8(&cpu.regs, src),
+        6 => or8(&cpu.regs, src),
+        7 => cp8(&cpu.regs, src),
+    }
+}
+
+// ALU n impl
+fn alu_n(cpu: *State, y: u3, tick_func: TickFunc) void {
+    imm8(cpu, tick_func);
+    const src = getData(cpu.pins);
+    switch(y) {
+        0 => add8(&cpu.regs, src),
+        1 => adc8(&cpu.regs, src),
+        2 => sub8(&cpu.regs, src),
+        3 => sbc8(&cpu.regs, src),
+        4 => and8(&cpu.regs, src),
+        5 => xor8(&cpu.regs, src),
+        6 => or8(&cpu.regs, src),
+        7 => cp8(&cpu.regs, src),
+    }
+}
+
 // flag computation functions
 fn szFlags(val: usize) u8 {
     if ((val & 0xFF) == 0) {
@@ -366,19 +412,6 @@ fn cp8(r: *Regs, val: u8) void {
     r[F] = cpFlags(acc, val, res);
 }
     
-fn alu8(r: *Regs, y: u3, val: u8) void {
-    switch(y) {
-        0 => add8(r, val),
-        1 => adc8(r, val),
-        2 => sub8(r, val),
-        3 => sbc8(r, val),
-        4 => and8(r, val),
-        5 => xor8(r, val),
-        6 => or8(r, val),
-        7 => cp8(r, val),
-    }
-}
-
 fn neg8(r: *Regs) void {
     const val = r[A];
     r[A] = 0;

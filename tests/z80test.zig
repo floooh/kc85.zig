@@ -22,11 +22,11 @@ fn T(cond: bool) void {
 }
 
 fn start(name: []const u8) void {
-    print("=> {s} ... \t\t", .{name});
+    print("=> {s} ... ", .{name});
 }
 
 fn ok() void {
-    print("ok\n", .{});
+    print("OK\n", .{});
 }
 
 // tick callback which handles memory and IO requests
@@ -56,7 +56,7 @@ fn tick(num_ticks: usize, p: u64) u64 {
     return pins;
 }
 
-fn makeZ80() z80.State {
+fn makeCPU() z80.State {
     var cpu = z80.State{ };
     cpu.regs[A] = 0xFF;
     cpu.regs[F] = 0x00;
@@ -74,6 +74,10 @@ fn copy(start_addr: u16, bytes: []const u8) void {
 fn step(cpu: *z80.State) usize {
     // FIXME: needs to loop until opdone for prefixed instructions
     return z80.exec(cpu, 0, tick);
+}
+
+fn flags(cpu: *z80.State, expected: u8) bool {
+    return (cpu.regs[F] & ~(XF|YF)) == expected;
 }
 
 fn LD_r_sn() void {
@@ -143,8 +147,8 @@ fn LD_r_sn() void {
         0x7D,           // LD A,L        
     };
     
-    var cpu = makeZ80();
     copy(0x0000, &prog);
+    var cpu = makeCPU();
     T(step(&cpu) == 7); T(cpu.regs[A] == 0x12);
     T(step(&cpu) == 4); T(cpu.regs[B] == 0x12);
     T(step(&cpu) == 4); T(cpu.regs[C] == 0x12);
@@ -207,12 +211,53 @@ fn LD_r_sn() void {
     T(step(&cpu) == 4); T(cpu.regs[H] == 0x18);
     T(step(&cpu) == 4); T(cpu.regs[L] == 0x18);
     T(step(&cpu) == 4); T(cpu.regs[A] == 0x18);
+    ok();
+}
 
+fn ADD_A_rn() void {
+    start("ADD_A_rn");
+    const prog = [_]u8{
+        0x3E, 0x0F,     // LD A,0x0F
+        0x87,           // ADD A,A
+        0x06, 0xE0,     // LD B,0xE0
+        0x80,           // ADD A,B
+        0x3E, 0x81,     // LD A,0x81
+        0x0E, 0x80,     // LD C,0x80
+        0x81,           // ADD A,C
+        0x16, 0xFF,     // LD D,0xFF
+        0x82,           // ADD A,D
+        0x1E, 0x40,     // LD E,0x40
+        0x83,           // ADD A,E
+        0x26, 0x80,     // LD H,0x80
+        0x84,           // ADD A,H
+        0x2E, 0x33,     // LD L,0x33
+        0x85,           // ADD A,L
+        0xC6, 0x44,     // ADD A,0x44
+    };
+    copy(0x0000, &prog);
+    var cpu = makeCPU();
+    
+    T(7==step(&cpu)); T(0x0F == cpu.regs[A]); T(flags(&cpu, 0));
+    T(4==step(&cpu)); T(0x1E == cpu.regs[A]); T(flags(&cpu, HF));
+    T(7==step(&cpu)); T(0xE0 == cpu.regs[B]);
+    T(4==step(&cpu)); T(0xFE == cpu.regs[A]); T(flags(&cpu, SF));
+    T(7==step(&cpu)); T(0x81 == cpu.regs[A]);
+    T(7==step(&cpu)); T(0x80 == cpu.regs[C]);
+    T(4==step(&cpu)); T(0x01 == cpu.regs[A]); T(flags(&cpu, VF|CF));
+    T(7==step(&cpu)); T(0xFF == cpu.regs[D]);
+    T(4==step(&cpu)); T(0x00 == cpu.regs[A]); T(flags(&cpu, ZF|HF|CF));
+    T(7==step(&cpu)); T(0x40 == cpu.regs[E]);
+    T(4==step(&cpu)); T(0x40 == cpu.regs[A]); T(flags(&cpu, 0));
+    T(7==step(&cpu)); T(0x80 == cpu.regs[H]);
+    T(4==step(&cpu)); T(0xC0 == cpu.regs[A]); T(flags(&cpu, SF));
+    T(7==step(&cpu)); T(0x33 == cpu.regs[L]);
+    T(4==step(&cpu)); T(0xF3 == cpu.regs[A]); T(flags(&cpu, SF));
+    T(7==step(&cpu)); T(0x37 == cpu.regs[A]); T(flags(&cpu, CF));
     ok();
 }
 
 pub fn main() void {
     LD_r_sn();
-    
+    ADD_A_rn();
 }
 
