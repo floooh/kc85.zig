@@ -1,7 +1,7 @@
 const std = @import("std");
 const Memory = @import("memory.zig").Memory;
 
-pub fn main() anyerror!void {
+pub fn main() void {
 
     var ram = [_]u8{0} ** 0x10000;
     var mem = Memory{};

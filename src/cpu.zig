@@ -65,21 +65,21 @@ const ZF: u8 = (1<<6);
 const SF: u8 = (1<<7);
 
 // 8-bit register indices
-const B = 0;
-const C = 1;
-const D = 2;
-const E = 3;
-const H = 4;
-const L = 5;
-const F = 6;
-const A = 7;
-const NumRegs = 8;
+pub const B = 0;
+pub const C = 1;
+pub const D = 2;
+pub const E = 3;
+pub const H = 4;
+pub const L = 5;
+pub const F = 6;
+pub const A = 7;
+pub const NumRegs = 8;
 
 // 16-bit register indices
-const BC = 0;
-const DE = 1;
-const HL = 2;
-const FA = 3;
+pub const BC = 0;
+pub const DE = 1;
+pub const HL = 2;
+pub const FA = 3;
 
 const Regs = [NumRegs]u8;
 
@@ -110,13 +110,11 @@ const PinsAndTicks = struct {
 // run the emulation for at least 'num_ticks', return number of executed ticks
 pub fn exec(cpu: *State, num_ticks: usize, tick_func: TickFunc) usize {
     var pt = PinsAndTicks{ .pins = cpu.pins, .ticks = 0 };
-    var pc = cpu.PC;
-    while (pt.ticks < num_ticks) {
+    var running = true;
+    while (running): (running = pt.ticks < num_ticks) {
 
         // fetch next opcode byte
-        pt.pins = setAddr(pt.pins, pc); pc +%= 1;
-        pt = fetch(pt, tick_func);
-        cpu.R = bumpR(cpu.R);
+        pt = fetch(cpu, pt, tick_func);
 
         // FIXME: special case ED
         // FIXME: HL <=> IX/IY mapping
@@ -124,33 +122,40 @@ pub fn exec(cpu: *State, num_ticks: usize, tick_func: TickFunc) usize {
         // decode opcode (see http://www.z80.info/decoding.htm)
         // |xx|yyy|zzz|
         const op = getData(pt.pins);
-        const x: u2 = (op >> 6) & 3;
-        const y: u3 = (op >> 3) & 7;
-        const z: u3 = op & 7;
+        const x = @truncate(u2, (op >> 6) & 3);
+        const y = @truncate(u3, (op >> 3) & 7);
+        const z = @truncate(u3, op & 7);
 
         switch (x) {
-            0 => {
-
+            0 => switch (z) {
+                6 => {  // LD r[y],n
+                    pt = imm8(cpu, pt, tick_func);
+                    if (y == 6) {
+                        pt = writeM(cpu, pt, tick_func);
+                    }
+                    else {
+                        cpu.regs[y] = getData(pt.pins);
+                    }
+                },
+                else => unreachable
             },
             // LD r[y],r[z] and HALT
             1 => {
                 if (y == 6 and z == 6) {
                     pt.pins |= HALT;
-                    pc -%= 1;
+                    cpu.PC -%= 1;
                 }
                 else {
-                    const src: u8 = if (z == 6) blk:{
+                    const src: u8 = if (z != 6) cpu.regs[z] else blk:{
                         pt = readM(cpu, pt, tick_func); 
                         break :blk getData(pt.pins);
-                    } else {
-                        state.regs[z]; 
                     };
                     if (y == 6) {
                         pt.pins = setData(pt.pins, src);
                         pt = writeM(cpu, pt, tick_func);
                     }
                     else {
-                        state.regs[y] = src;
+                        cpu.regs[y] = src;
                     }
                 }
             },
@@ -163,8 +168,7 @@ pub fn exec(cpu: *State, num_ticks: usize, tick_func: TickFunc) usize {
             }
         }
     }
-    state.pins = pt.pins;
-    state.PC = pc;
+    cpu.pins = pt.pins;
     return pt.ticks;
 }
 
@@ -244,11 +248,6 @@ fn bumpR(r: u8) u8 {
     return (r & 0x80) | ((r +% 1) & 0x7F);
 }
 
-// perform an instruction fetch machine cycle (without bumping PC and R, and without refresh cycle)
-fn fetch(pt: PinsAndTicks, tick_func: TickFunc) PinsAndTicks {
-    return tickWait(pt, 4, M1|MREQ|RD, tick_func);
-}
-
 // get 16 bit register
 fn getR16(r: *Regs, reg: u2) u16 {
     const h = r[@as(u3,reg)*2 + 0];
@@ -277,6 +276,23 @@ fn readM(cpu: *State, pt: PinsAndTicks, tick_func: TickFunc) PinsAndTicks {
 // perform a write machine cycle at (HL/IX+d/IY+d)
 fn writeM(cpu: *State, pt: PinsAndTicks, tick_func: TickFunc) PinsAndTicks {
     return memWrite(addrM(cpu, pt, 5), tick_func);
+}
+
+// perform an instruction fetch machine cycle 
+fn fetch(cpu: *State, pt: PinsAndTicks, tick_func: TickFunc) PinsAndTicks {
+    const pt2 = PinsAndTicks{ .pins = setAddr(pt.pins, cpu.PC), .ticks = pt.ticks };
+    const pt3 = tickWait(pt2, 4, M1|MREQ|RD, tick_func);
+    cpu.PC +%= 1;
+    cpu.R = bumpR(cpu.R);
+    return pt3;
+}
+
+// read 8-bit immediate
+fn imm8(cpu: *State, pt: PinsAndTicks, tick_func: TickFunc) PinsAndTicks {
+    const pt2 = PinsAndTicks{ .pins = setAddr(pt.pins, cpu.PC), .ticks = pt.ticks };
+    const pt3 = memRead(pt2, tick_func);
+    cpu.PC +%= 1;
+    return pt3;
 }
 
 // flag computation functions
@@ -570,11 +586,16 @@ test "bumpR" {
 test "fetch" {
     clearMem();
     mem[0x2345] = 0x42;
-    var pt = PinsAndTicks{ .pins = setAddr(0, 0x2345), .ticks = 0 };
-    pt = fetch(pt, testTick);
+    var cpu = State{};
+    cpu.PC = 0x2345;
+    cpu.R = 0;
+    var pt = PinsAndTicks{ .pins = 0, .ticks = 0 };
+    pt = fetch(&cpu, pt, testTick);
     try expect((pt.pins & CtrlPinMask) == M1|MREQ|RD);
     try expect(getData(pt.pins) == 0x42);
     try expect(pt.ticks == 4);
+    try expect(cpu.PC == 0x2346);
+    try expect(cpu.R == 1);
 }
 
 test "readM (HL)" {
@@ -592,8 +613,14 @@ test "readM (HL)" {
 }
 
 test "writeM (HL)" {
-    mem[0] = 0x23;
-    try expect(mem[0] == 0x23);
+    clearMem();
+    var cpu = State{};
+    setR16(&cpu.regs, HL, 0x1234);
+    var pt = PinsAndTicks{ .pins = setData(0, 0x23), .ticks = 0 };
+    pt = writeM(&cpu, pt, testTick);
+    try expect((pt.pins & CtrlPinMask) == MREQ|WR);
+    try expect(mem[0x1234] == 0x23);
+    try expect(pt.ticks == 3);
 }
 
 test "add8" {
