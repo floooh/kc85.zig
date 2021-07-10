@@ -181,8 +181,7 @@ fn _exec(cpu: *CPU, num_ticks: usize, tick_func: TickFunc) usize {
     while (running): (running = cpu.ticks < num_ticks) {
 
         // fetch next opcode byte
-        fetch(cpu, tick_func);
-        const op = getData(cpu.pins);
+        const op = fetch(cpu, tick_func);
 
         // FIXME: special case ED
 
@@ -287,7 +286,7 @@ fn ioOut(cpu: *CPU, tick_func: TickFunc) void {
     tickWait(cpu, 4, IORQ|WR, tick_func);
 }
 
-// generate effective address for (HL), (IX+d), (IY+d), result in address bus pins
+// generate effective address for (HL), (IX+d), (IY+d) and put into cpu.addr
 fn addr(cpu: *CPU, extra_ticks: usize, tick_func: TickFunc) void {
     cpu.addr = loadHLIXIY(cpu);
     if (0 != cpu.ixiy) {
@@ -297,15 +296,15 @@ fn addr(cpu: *CPU, extra_ticks: usize, tick_func: TickFunc) void {
         cpu.WZ = cpu.addr;
         tick(cpu, extra_ticks, 0, tick_func);
     }
-    cpu.pins = setAddr(cpu.pins, cpu.addr);
 }
 
 // perform an instruction fetch machine cycle 
-fn fetch(cpu: *CPU, tick_func: TickFunc) void {
+fn fetch(cpu: *CPU, tick_func: TickFunc) u8 {
     cpu.pins = setAddr(cpu.pins, cpu.PC);
     tickWait(cpu, 4, M1|MREQ|RD, tick_func);
     bumpPC(cpu);
     bumpR(cpu);
+    return getData(cpu.pins);
 }
 
 // read 8-bit immediate
@@ -343,7 +342,7 @@ fn load8(cpu: *CPU, z: u3, tick_func: TickFunc) u8 {
     }
 }
 
-// store to 8-bit register or effective address (HL)/(IX+d)/(IY+d)
+// store into 8-bit register or effective address (HL)/(IX+d)/(IY+d)
 fn store8(cpu: *CPU, y: u3, val: u8, tick_func: TickFunc) void {
     if (y != 6) {
         cpu.regs[y] = val;
@@ -354,7 +353,7 @@ fn store8(cpu: *CPU, y: u3, val: u8, tick_func: TickFunc) void {
     }
 }
 
-// store HL, IX or IY, depending on current index mode
+// store into HL, IX or IY, depending on current index mode
 fn storeHLIXIY(cpu: *CPU, val: u16) void {
     switch (cpu.ixiy) {
         0     => setR16(&cpu.regs, HL, val),
@@ -364,20 +363,16 @@ fn storeHLIXIY(cpu: *CPU, val: u16) void {
     }
 }
 
-// store 16-bit value to register (with special handling for SP and IX/IY)
+// store 16-bit value into register (with special handling for SP and IX/IY)
 fn store16SP(cpu: *CPU, reg: u2, val: u16) void {
-    if (reg == 3) {
-        cpu.SP = val;
-    }
-    else if (reg == HL) {
-        storeHLIXIY(cpu, val);
-    }
-    else {
-        setR16(&cpu.regs, reg, val);
+    switch (reg) {
+        FA   => { cpu.SP = val; },
+        HL   => { storeHLIXIY(cpu, val); },
+        else => { setR16(&cpu.regs, reg, val); }
     }
 }
 
-// load HL, IX or IY, depending on current index mode
+// load from HL, IX or IY, depending on current index mode
 fn loadHLIXIY(cpu: *CPU) u16 {
     return switch (cpu.ixiy) {
         0     => getR16(&cpu.regs, HL),
@@ -389,15 +384,11 @@ fn loadHLIXIY(cpu: *CPU) u16 {
 
 // load 16-bit value from register (with special handling for SP and IX/IY)
 fn load16SP(cpu: *CPU, reg: u2) u16 {
-    if (reg == 3) {
-        return cpu.SP;
-    }
-    else if (reg == HL) {
-        return loadHLIXIY(cpu);
-    }
-    else {
-        return getR16(&cpu.regs, reg);
-    }
+    return switch(reg) {
+        FA   => cpu.SP,
+        HL   => loadHLIXIY(cpu),
+        else => getR16(&cpu.regs, reg),
+    };
 }
 
 // HALT impl
@@ -417,10 +408,10 @@ fn opLD_r_r(cpu: *CPU, y: u3, z: u3, tick_func: TickFunc) void {
 
 // LD r,n impl
 fn opLD_r_n(cpu: *CPU, y: u3, tick_func: TickFunc) void {
-    const val = imm8(cpu, tick_func);
     if (y == 6) {
-        addr(cpu, 5, tick_func);
+        addr(cpu, 2, tick_func);
     }
+    const val = imm8(cpu, tick_func);
     store8(cpu, y, val, tick_func);
 }
 
@@ -430,37 +421,20 @@ fn opALU_r(cpu: *CPU, y: u3, z: u3, tick_func: TickFunc) void {
         addr(cpu, 5, tick_func);
     }
     const val = load8(cpu, z, tick_func);
-    switch(y) {
-        0 => add8(&cpu.regs, val),
-        1 => adc8(&cpu.regs, val),
-        2 => sub8(&cpu.regs, val),
-        3 => sbc8(&cpu.regs, val),
-        4 => and8(&cpu.regs, val),
-        5 => xor8(&cpu.regs, val),
-        6 => or8(&cpu.regs, val),
-        7 => cp8(&cpu.regs, val),
-    }
+    alu8(&cpu.regs, y, val);
 }
 
 // ALU n impl
 fn opALU_n(cpu: *CPU, y: u3, tick_func: TickFunc) void {
     const val = imm8(cpu, tick_func);
-    switch(y) {
-        0 => add8(&cpu.regs, val),
-        1 => adc8(&cpu.regs, val),
-        2 => sub8(&cpu.regs, val),
-        3 => sbc8(&cpu.regs, val),
-        4 => and8(&cpu.regs, val),
-        5 => xor8(&cpu.regs, val),
-        6 => or8(&cpu.regs, val),
-        7 => cp8(&cpu.regs, val),
-    }
+    alu8(&cpu.regs, y, val);
 }
 
 // INC r impl
 fn opINC_r(cpu: *CPU, y: u3, tick_func: TickFunc) void {
     if (y == 6) {
         addr(cpu, 5, tick_func);
+        tick(cpu, 1, 0, tick_func); // filler tick
     }
     const val = load8(cpu, y, tick_func);
     const res = inc8(&cpu.regs, val);
@@ -471,6 +445,7 @@ fn opINC_r(cpu: *CPU, y: u3, tick_func: TickFunc) void {
 fn opDEC_r(cpu: *CPU, y: u3, tick_func: TickFunc) void {
     if (y == 6) {
         addr(cpu, 5, tick_func);
+        tick(cpu, 1, 0, tick_func); // filler tick
     }
     const val = load8(cpu, y, tick_func);
     const res = dec8(&cpu.regs, val);
@@ -562,7 +537,20 @@ fn cp8(r: *Regs, val: u8) void {
     const res: usize = acc -% val;
     r[F] = cpFlags(acc, val, res);
 }
-    
+
+fn alu8(r: *Regs, y: u3, val: u8) void {
+    switch(y) {
+        0 => add8(r, val),
+        1 => adc8(r, val),
+        2 => sub8(r, val),
+        3 => sbc8(r, val),
+        4 => and8(r, val),
+        5 => xor8(r, val),
+        6 => or8(r, val),
+        7 => cp8(r, val),
+    }
+}
+
 fn neg8(r: *Regs) void {
     const val = r[A];
     r[A] = 0;
@@ -760,7 +748,8 @@ test "fetch" {
     clearMem();
     mem[0x2345] = 0x42;
     var cpu = CPU{ .PC = 0x2345, .R = 0 };
-    fetch(&cpu, testTick);
+    const op = fetch(&cpu, testTick);
+    try expect(op == 0x42);
     try expect((cpu.pins & CtrlPinMask) == M1|MREQ|RD);
     try expect(getData(cpu.pins) == 0x42);
     try expect(cpu.ticks == 4);
