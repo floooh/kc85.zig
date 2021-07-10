@@ -65,8 +65,8 @@ pub const Pins = struct {
     }
 
     // set address pins in pin mask
-    pub fn setAddr(pins: u64, addr: u16) u64 {
-        return (pins & ~AddrPinMask) | addr;
+    pub fn setAddr(pins: u64, a: u16) u64 {
+        return (pins & ~AddrPinMask) | a;
     }
 
     // get address from pin mask
@@ -85,8 +85,8 @@ pub const Pins = struct {
     }
 
     // set address and data pins in pin mask
-    pub fn setAddrData(pins: u64, addr: u16, data: u8) u64 {
-        return (pins & ~(DataPinMask|AddrPinMask)) | (@as(u64, data) << DataPinShift) | addr;
+    pub fn setAddrData(pins: u64, a: u16, d: u8) u64 {
+        return (pins & ~(DataPinMask|AddrPinMask)) | (@as(u64, d) << DataPinShift) | a;
     }
 };
 
@@ -141,6 +141,8 @@ pub const CPU = struct {
     I:  u8 = 0x00,
     R:  u8 = 0x00,
     IM: u8 = 0x00,
+    
+    addr: u16 = 0,  // effective address for (HL), (IX+d), (IY+d)
 
     iff1: bool = false,
     iff2: bool = false,
@@ -148,6 +150,11 @@ pub const CPU = struct {
     /// run the emulator for at least 'num_ticks', return number of executed ticks
     pub fn exec(cpu: *CPU, num_ticks: usize, tick_func: TickFunc) usize {
         return _exec(cpu, num_ticks, tick_func);
+    }
+    
+    /// get 16-bit register value (BC, DE, HL, FA)
+    pub fn r16(cpu: *CPU, reg: u2) u16 {
+        return getR16(&cpu.regs, reg);
     }
 };
 
@@ -173,23 +180,29 @@ fn _exec(cpu: *CPU, num_ticks: usize, tick_func: TickFunc) usize {
         const x = @truncate(u2, (op >> 6) & 3);
         const y = @truncate(u3, (op >> 3) & 7);
         const z = @truncate(u3, op & 7);
+        const p = @truncate(u2, (y >> 1));
+        const q = @truncate(u1, y);
 
         switch (x) {
             0 => switch (z) {
-                6 => ld_r_n(cpu, y, tick_func),
+                1 => switch (q) {
+                    0 => opLD_rp_nn(cpu, p, tick_func),
+                    1 => unreachable // FIXME!
+                },
+                4 => opINC_r(cpu, y, tick_func),
+                5 => opDEC_r(cpu, y, tick_func),
+                6 => opLD_r_n(cpu, y, tick_func),
                 else => unreachable // FIXME!
             },
-            // LD quadrant
             1 => {
-                if (y == 6 and z == 6) { halt(cpu); }
-                else { ld_r_r(cpu, y, z, tick_func); }
+                if (y == 6 and z == 6) { opHALT(cpu); }
+                else { opLD_r_r(cpu, y, z, tick_func); }
             },
-            // ALU quadrant
             2 => {
-                alu_r(cpu, y, z, tick_func);
+                opALU_r(cpu, y, z, tick_func);
             },
             3 => switch (z) {
-                6 => alu_n(cpu, y, tick_func),
+                6 => opALU_n(cpu, y, tick_func),
                 else => unreachable // FIXME!
             }
         }
@@ -212,8 +225,13 @@ fn getR16(r: *Regs, reg: u2) u16 {
 
 
 // helper function to increment R register
-fn bumpR(r: u8) u8 {
-    return (r & 0x80) | ((r +% 1) & 0x7F);
+fn bumpR(cpu: *CPU) void {
+    cpu.R = (cpu.R & 0x80) | ((cpu.R +% 1) & 0x7F);
+}
+
+// helper function to bump PC register with wraparound
+fn bumpPC(cpu: *CPU) void {
+    cpu.PC +%= 1;
 }
 
 // invoke tick callback with control pins set
@@ -249,105 +267,169 @@ fn ioOut(cpu: *CPU, tick_func: TickFunc) void {
 }
 
 // generate effective address for (HL), (IX+d), (IY+d), result in address bus pins
-fn addrM(cpu: *CPU, extra_ticks: usize, tick_func: TickFunc) void {
-    var addr = getR16(&cpu.regs, HL);
+fn addr(cpu: *CPU, extra_ticks: usize, tick_func: TickFunc) void {
+    cpu.addr = getR16(&cpu.regs, HL);
     // FIXME handle IX+d, IY+d
-    cpu.pins = setAddr(cpu.pins, addr);
-}
-
-// perform a read machine cycle at (HL/IX+d/IY+d), result in data bus pins
-fn readM(cpu: *CPU, tick_func: TickFunc) void {
-    addrM(cpu, 5, tick_func);
-    memRead(cpu, tick_func);
-}
-
-// perform a write machine cycle at (HL/IX+d/IY+d)
-fn writeM(cpu: *CPU, tick_func: TickFunc) void {
-    addrM(cpu, 5, tick_func);
-    memWrite(cpu, tick_func);
+    cpu.pins = setAddr(cpu.pins, cpu.addr);
 }
 
 // perform an instruction fetch machine cycle 
 fn fetch(cpu: *CPU, tick_func: TickFunc) void {
     cpu.pins = setAddr(cpu.pins, cpu.PC);
     tickWait(cpu, 4, M1|MREQ|RD, tick_func);
-    cpu.PC +%= 1;
-    cpu.R = bumpR(cpu.R);
+    bumpPC(cpu);
+    bumpR(cpu);
 }
 
 // read 8-bit immediate
-fn imm8(cpu: *CPU, tick_func: TickFunc) void {
+fn imm8(cpu: *CPU, tick_func: TickFunc) u8 {
     cpu.pins = setAddr(cpu.pins, cpu.PC);
+    bumpPC(cpu);
     memRead(cpu, tick_func);
-    cpu.PC +%= 1;
+    return getData(cpu.pins);
 }
 
-// get 8-bit register or (HL/IX+d/IY+d) value
-fn src8(cpu: *CPU, z: u3, tick_func: TickFunc) u8 {
-    return if (z != 6) cpu.regs[z] else blk:{
-        readM(cpu, tick_func); 
-        break :blk getData(cpu.pins);
-    };
+// read 16-bit immediate
+fn imm16(cpu: *CPU, tick_func: TickFunc) u16 {
+    cpu.pins = setAddr(cpu.pins, cpu.PC);
+    bumpPC(cpu);
+    memRead(cpu, tick_func);
+    const z: u16 = getData(cpu.pins);
+    cpu.pins = setAddr(cpu.pins, cpu.PC);
+    bumpPC(cpu);
+    memRead(cpu, tick_func);
+    const w: u16 = getData(cpu.pins);
+    const wz = (w<<8) | z;
+    cpu.WZ = wz;
+    return wz;
+}
+
+// load from 8-bit register or effective address (HL)/(IX+d)/IY+d)
+fn load8(cpu: *CPU, z: u3, tick_func: TickFunc) u8 {
+    if (z != 6) {
+        return cpu.regs[z];
+    }
+    else {
+        cpu.pins = setAddr(cpu.pins, cpu.addr);
+        memRead(cpu, tick_func);
+        return getData(cpu.pins);
+    }
+}
+
+// store to 8-bit register or effective address (HL)/(IX+d)/(IY+d)
+fn store8(cpu: *CPU, y: u3, val: u8, tick_func: TickFunc) void {
+    if (y != 6) {
+        cpu.regs[y] = val;
+    }
+    else {
+        cpu.pins = setAddrData(cpu.pins, cpu.addr, val);
+        memWrite(cpu, tick_func);
+    }
+}
+
+// store 16-bit value to register (with special handling for SP and IX/IY)
+fn store16SP(cpu: *CPU, reg: u2, val: u16) void {
+    if (reg == 3) {
+        cpu.SP = val;
+    }
+    else {
+        // FIXME: IX/IY
+        setR16(&cpu.regs, reg, val);
+    }
+}
+
+// load 16-bit value from register (with special handling for SP and IX/IY)
+fn load16SP(cpu: *CPU, reg: u2) u16 {
+    if (reg == 3) {
+        return cpu.SP;
+    }
+    else {
+        // FIXME: IX/IY
+        return getR(&cpu.regs, reg);
+    }
 }
 
 // HALT impl
-fn halt(cpu: *CPU) void {
+fn opHALT(cpu: *CPU) void {
     cpu.pins |= HALT;
     cpu.PC -%= 1;
 }
 
 // LD r,r impl
-fn ld_r_r(cpu: *CPU, y: u3, z: u3, tick_func: TickFunc) void {
-    const src = src8(cpu, z, tick_func);
-    if (y == 6) {
-        cpu.pins = setData(cpu.pins, src);
-        writeM(cpu, tick_func);
+fn opLD_r_r(cpu: *CPU, y: u3, z: u3, tick_func: TickFunc) void {
+    if ((y == 6) or (z == 6)) {
+        addr(cpu, 5, tick_func);
     }
-    else {
-        cpu.regs[y] = src;
-    }
+    const val = load8(cpu, z, tick_func);
+    store8(cpu, y, val, tick_func);
 }
 
 // LD r,n impl
-fn ld_r_n(cpu: *CPU, y: u3, tick_func: TickFunc) void {
-    imm8(cpu, tick_func);
+fn opLD_r_n(cpu: *CPU, y: u3, tick_func: TickFunc) void {
+    const val = imm8(cpu, tick_func);
     if (y == 6) {
-        writeM(cpu, tick_func);
+        addr(cpu, 5, tick_func);
     }
-    else {
-        cpu.regs[y] = getData(cpu.pins);
-    }
+    store8(cpu, y, val, tick_func);
 }
 
 // ALU r impl
-fn alu_r(cpu: *CPU, y: u3, z: u3, tick_func: TickFunc) void {
-    const src = src8(cpu, z, tick_func);
+fn opALU_r(cpu: *CPU, y: u3, z: u3, tick_func: TickFunc) void {
+    if (z == 6) {
+        addr(cpu, 5, tick_func);
+    }
+    const val = load8(cpu, z, tick_func);
     switch(y) {
-        0 => add8(&cpu.regs, src),
-        1 => adc8(&cpu.regs, src),
-        2 => sub8(&cpu.regs, src),
-        3 => sbc8(&cpu.regs, src),
-        4 => and8(&cpu.regs, src),
-        5 => xor8(&cpu.regs, src),
-        6 => or8(&cpu.regs, src),
-        7 => cp8(&cpu.regs, src),
+        0 => add8(&cpu.regs, val),
+        1 => adc8(&cpu.regs, val),
+        2 => sub8(&cpu.regs, val),
+        3 => sbc8(&cpu.regs, val),
+        4 => and8(&cpu.regs, val),
+        5 => xor8(&cpu.regs, val),
+        6 => or8(&cpu.regs, val),
+        7 => cp8(&cpu.regs, val),
     }
 }
 
 // ALU n impl
-fn alu_n(cpu: *CPU, y: u3, tick_func: TickFunc) void {
-    imm8(cpu, tick_func);
-    const src = getData(cpu.pins);
+fn opALU_n(cpu: *CPU, y: u3, tick_func: TickFunc) void {
+    const val = imm8(cpu, tick_func);
     switch(y) {
-        0 => add8(&cpu.regs, src),
-        1 => adc8(&cpu.regs, src),
-        2 => sub8(&cpu.regs, src),
-        3 => sbc8(&cpu.regs, src),
-        4 => and8(&cpu.regs, src),
-        5 => xor8(&cpu.regs, src),
-        6 => or8(&cpu.regs, src),
-        7 => cp8(&cpu.regs, src),
+        0 => add8(&cpu.regs, val),
+        1 => adc8(&cpu.regs, val),
+        2 => sub8(&cpu.regs, val),
+        3 => sbc8(&cpu.regs, val),
+        4 => and8(&cpu.regs, val),
+        5 => xor8(&cpu.regs, val),
+        6 => or8(&cpu.regs, val),
+        7 => cp8(&cpu.regs, val),
     }
+}
+
+// INC r impl
+fn opINC_r(cpu: *CPU, y: u3, tick_func: TickFunc) void {
+    if (y == 6) {
+        addr(cpu, 5, tick_func);
+    }
+    const val = load8(cpu, y, tick_func);
+    const res = inc8(&cpu.regs, val);
+    store8(cpu, y, res, tick_func);
+}
+
+// DEC r impl
+fn opDEC_r(cpu: *CPU, y: u3, tick_func: TickFunc) void {
+    if (y == 6) {
+        addr(cpu, 5, tick_func);
+    }
+    const val = load8(cpu, y, tick_func);
+    const res = dec8(&cpu.regs, val);
+    store8(cpu, y, res, tick_func);
+}
+
+// LD rp,nn
+fn opLD_rp_nn(cpu: *CPU, p: u2, tick_func: TickFunc) void {
+    const val = imm16(cpu, tick_func);
+    store16SP(cpu, p, val);
 }
 
 // flag computation functions
@@ -436,24 +518,22 @@ fn neg8(r: *Regs) void {
     sub8(r, val);
 }
 
-fn inc8(r: *Regs, reg: u3) void {
-    const val: u8 = r[reg];
-    const res: u8 = val +% 1;
+fn inc8(r: *Regs, val: u8) u8 {
+    const res = val +% 1;
     var f: u8 = szFlags(res) | (res & (XF|YF)) | ((res ^ val) & HF);
     // set VF if bit 7 flipped from 0 to 1
     f |= ((val ^ res) & (res & 0x80) >> 5) & VF;
     r[F] = f | (r[F] & CF);
-    r[reg] = res;
+    return res;
 }
 
-fn dec8(r: *Regs, reg: u3) void {
-    const val: u8 = r[reg];
-    const res: u8 = val -% 1;
+fn dec8(r: *Regs, val: u8) u8 {
+    const res = val -% 1;
     var f: u8 = NF | szFlags(res) | (res & (XF|YF)) | ((res ^ val) & HF);
     // set VF if but 7 flipped from 1 to 0
     f |= ((val ^ res) & (val & 0x80) >> 5) & VF;
     r[F] = f | (r[F] & CF);
-    r[reg] = res;
+    return res;
 }
 
 //=== TESTS ====================================================================
@@ -476,21 +556,21 @@ fn clearIO() void {
 // a generic test tick callback
 fn testTick(ticks: usize, i_pins: u64) u64 {
     var pins = i_pins;
-    const addr = getAddr(pins);
+    const a = getAddr(pins);
     if ((pins & MREQ) != 0) {
         if ((pins & RD) != 0) {
-            pins = setData(pins, mem[addr]);
+            pins = setData(pins, mem[a]);
         }
         else if ((pins & WR) != 0) {
-            mem[addr] = getData(pins);
+            mem[a] = getData(pins);
         }
     }
     else if ((pins & IORQ) != 0) {
         if ((pins & RD) != 0) {
-            pins = setData(pins, io[addr]);
+            pins = setData(pins, io[a]);
         }
         else if ((pins & WR) != 0) {
-            mem[addr] = getData(pins);
+            io[a] = getData(pins);
         }
     }
     return pins;
@@ -618,10 +698,11 @@ test "ioOut" {
 
 test "bumpR" {
     // only 7 bits are incremented, and the topmost bit is sticky
-    try expect(bumpR(0x00) == 1);
-    try expect(bumpR(0x7F) == 0);
-    try expect(bumpR(0x80) == 0x81);
-    try expect(bumpR(0xFF) == 0x80);
+    var cpu = CPU{ };
+    cpu.R = 0x00; bumpR(&cpu); try expect(cpu.R == 1);
+    cpu.R = 0x7F; bumpR(&cpu); try expect(cpu.R == 0);
+    cpu.R = 0x80; bumpR(&cpu); try expect(cpu.R == 0x81);
+    cpu.R = 0xFF; bumpR(&cpu); try expect(cpu.R == 0x80);
 }
 
 test "fetch" {
@@ -634,29 +715,6 @@ test "fetch" {
     try expect(cpu.ticks == 4);
     try expect(cpu.PC == 0x2346);
     try expect(cpu.R == 1);
-}
-
-test "readM (HL)" {
-    clearMem();
-    mem[0x1234] = 0x23;
-    var cpu = CPU{};
-    setR16(&cpu.regs, HL, 0x1234);
-    try expect(cpu.regs[H] == 0x12);
-    try expect(cpu.regs[L] == 0x34);
-    readM(&cpu, testTick);
-    try expect((cpu.pins & CtrlPinMask) == MREQ|RD);
-    try expect(getData(cpu.pins) == 0x23);
-    try expect(cpu.ticks == 3);
-}
-
-test "writeM (HL)" {
-    clearMem();
-    var cpu = CPU{ .pins = setData(0, 0x23) };
-    setR16(&cpu.regs, HL, 0x1234);
-    writeM(&cpu, testTick);
-    try expect((cpu.pins & CtrlPinMask) == MREQ|WR);
-    try expect(mem[0x1234] == 0x23);
-    try expect(cpu.ticks == 3);
 }
 
 test "add8" {
@@ -785,19 +843,19 @@ test "inc8 dec8" {
     r[E] = 0x7F;
     r[H] = 0x3E;
     r[L] = 0x23;
-    inc8(&r, A); try expect(testRF(&r, A, 0x01, 0));
-    dec8(&r, A); try expect(testRF(&r, A, 0x00, ZF|NF));
-    inc8(&r, B); try expect(testRF(&r, B, 0x00, ZF|HF));
-    dec8(&r, B); try expect(testRF(&r, B, 0xFF, SF|HF|NF));
-    inc8(&r, C); try expect(testRF(&r, C, 0x10, HF));
-    dec8(&r, C); try expect(testRF(&r, C, 0x0F, HF|NF));
-    inc8(&r, D); try expect(testRF(&r, D, 0x0F, 0));
-    dec8(&r, D); try expect(testRF(&r, D, 0x0E, NF));
+    r[A] = inc8(&r, r[A]); try expect(testRF(&r, A, 0x01, 0));
+    r[A] = dec8(&r, r[A]); try expect(testRF(&r, A, 0x00, ZF|NF));
+    r[B] = inc8(&r, r[B]); try expect(testRF(&r, B, 0x00, ZF|HF));
+    r[B] = dec8(&r, r[B]); try expect(testRF(&r, B, 0xFF, SF|HF|NF));
+    r[C] = inc8(&r, r[C]); try expect(testRF(&r, C, 0x10, HF));
+    r[C] = dec8(&r, r[C]); try expect(testRF(&r, C, 0x0F, HF|NF));
+    r[D] = inc8(&r, r[D]); try expect(testRF(&r, D, 0x0F, 0));
+    r[D] = dec8(&r, r[D]); try expect(testRF(&r, D, 0x0E, NF));
     r[F] |= CF;
-    inc8(&r, E); try expect(testRF(&r, E, 0x80, SF|HF|VF|CF)); 
-    dec8(&r, E); try expect(testRF(&r, E, 0x7F, HF|VF|NF|CF));
-    inc8(&r, H); try expect(testRF(&r, H, 0x3F, CF));
-    dec8(&r, H); try expect(testRF(&r, H, 0x3E, NF|CF));
-    inc8(&r, L); try expect(testRF(&r, L, 0x24, CF));
-    dec8(&r, L); try expect(testRF(&r, L, 0x23, NF|CF));
+    r[E] = inc8(&r, r[E]); try expect(testRF(&r, E, 0x80, SF|HF|VF|CF)); 
+    r[E] = dec8(&r, r[E]); try expect(testRF(&r, E, 0x7F, HF|VF|NF|CF));
+    r[H] = inc8(&r, r[H]); try expect(testRF(&r, H, 0x3F, CF));
+    r[H] = dec8(&r, r[H]); try expect(testRF(&r, H, 0x3E, NF|CF));
+    r[L] = inc8(&r, r[L]); try expect(testRF(&r, L, 0x24, CF));
+    r[L] = dec8(&r, r[L]); try expect(testRF(&r, L, 0x23, NF|CF));
 }
