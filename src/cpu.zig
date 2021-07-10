@@ -128,6 +128,10 @@ pub const TickFunc = fn(usize, u64) u64;
 
 const Regs = [NumRegs]u8;
 
+// flag bits for CPU.ixiy
+const UseIX = (1<<0);
+const UseIY = (1<<1);
+
 pub const CPU = struct {
 
     pins: u64 = 0,
@@ -135,6 +139,8 @@ pub const CPU = struct {
 
     regs: Regs = [_]u8{0xFF} ** NumRegs,
 
+    IX: u16 = 0xFFFF,
+    IY: u16 = 0xFFFF,
     WZ: u16 = 0xFFFF,
     SP: u16 = 0xFFFF,
     PC: u16 = 0x0000,
@@ -144,12 +150,18 @@ pub const CPU = struct {
     
     addr: u16 = 0,  // effective address for (HL), (IX+d), (IY+d)
 
+    ixiy: u2 = 0,   // UseIX or UseIY if indexed prefix 0xDD or 0xFD active
     iff1: bool = false,
     iff2: bool = false,
     
     /// run the emulator for at least 'num_ticks', return number of executed ticks
     pub fn exec(cpu: *CPU, num_ticks: usize, tick_func: TickFunc) usize {
         return _exec(cpu, num_ticks, tick_func);
+    }
+    
+    // return true if not in the middl of an indexed op (DD / FD)
+    pub fn opdone(cpu: *CPU) bool {
+        return 0 == cpu.ixiy;
     }
     
     /// get 16-bit register value (BC, DE, HL, FA)
@@ -173,7 +185,6 @@ fn _exec(cpu: *CPU, num_ticks: usize, tick_func: TickFunc) usize {
         const op = getData(cpu.pins);
 
         // FIXME: special case ED
-        // FIXME: HL <=> IX/IY mapping
 
         // decode opcode (see http://www.z80.info/decoding.htm)
         // |xx|yyy|zzz|
@@ -202,10 +213,20 @@ fn _exec(cpu: *CPU, num_ticks: usize, tick_func: TickFunc) usize {
                 opALU_r(cpu, y, z, tick_func);
             },
             3 => switch (z) {
+                5 => switch (q) {
+                    0 => unreachable,
+                    1 => switch (p) {
+                        0 => unreachable,
+                        1 => { cpu.ixiy = UseIX; continue; }, // no interrupt handling after DD prefix
+                        2 => unreachable,
+                        3 => { cpu.ixiy = UseIY; continue; }, // no interrupt handling after FD prefix
+                    }
+                },
                 6 => opALU_n(cpu, y, tick_func),
                 else => unreachable // FIXME!
             }
         }
+        cpu.ixiy = 0;
     }
     return cpu.ticks;
 }
@@ -268,8 +289,14 @@ fn ioOut(cpu: *CPU, tick_func: TickFunc) void {
 
 // generate effective address for (HL), (IX+d), (IY+d), result in address bus pins
 fn addr(cpu: *CPU, extra_ticks: usize, tick_func: TickFunc) void {
-    cpu.addr = getR16(&cpu.regs, HL);
-    // FIXME handle IX+d, IY+d
+    cpu.addr = loadHLIXIY(cpu);
+    if (0 != cpu.ixiy) {
+        // hmmmmmmmm...
+        const d = @bitCast(u16, @as(i16, @bitCast(i8, imm8(cpu, tick_func))));
+        cpu.addr +%= d;
+        cpu.WZ = cpu.addr;
+        tick(cpu, extra_ticks, 0, tick_func);
+    }
     cpu.pins = setAddr(cpu.pins, cpu.addr);
 }
 
@@ -327,15 +354,37 @@ fn store8(cpu: *CPU, y: u3, val: u8, tick_func: TickFunc) void {
     }
 }
 
+// store HL, IX or IY, depending on current index mode
+fn storeHLIXIY(cpu: *CPU, val: u16) void {
+    switch (cpu.ixiy) {
+        0     => setR16(&cpu.regs, HL, val),
+        UseIX => cpu.IX = val,
+        UseIY => cpu.IY = val,
+        else  => unreachable 
+    }
+}
+
 // store 16-bit value to register (with special handling for SP and IX/IY)
 fn store16SP(cpu: *CPU, reg: u2, val: u16) void {
     if (reg == 3) {
         cpu.SP = val;
     }
+    else if (reg == HL) {
+        storeHLIXIY(cpu, val);
+    }
     else {
-        // FIXME: IX/IY
         setR16(&cpu.regs, reg, val);
     }
+}
+
+// load HL, IX or IY, depending on current index mode
+fn loadHLIXIY(cpu: *CPU) u16 {
+    return switch (cpu.ixiy) {
+        0     => getR16(&cpu.regs, HL),
+        UseIX => return cpu.IX,
+        UseIY => return cpu.IY,
+        else  => unreachable
+    };
 }
 
 // load 16-bit value from register (with special handling for SP and IX/IY)
@@ -343,9 +392,11 @@ fn load16SP(cpu: *CPU, reg: u2) u16 {
     if (reg == 3) {
         return cpu.SP;
     }
+    else if (reg == HL) {
+        return loadHLIXIY(cpu);
+    }
     else {
-        // FIXME: IX/IY
-        return getR(&cpu.regs, reg);
+        return getR16(&cpu.regs, reg);
     }
 }
 
