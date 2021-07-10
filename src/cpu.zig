@@ -1,91 +1,134 @@
-// address bus pins
-pub const A0:  u64 = 1<<0;
-pub const A1:  u64 = 1<<1;
-pub const A2:  u64 = 1<<2;
-pub const A3:  u64 = 1<<3;
-pub const A4:  u64 = 1<<4;
-pub const A5:  u64 = 1<<5;
-pub const A6:  u64 = 1<<6;
-pub const A7:  u64 = 1<<7;
-pub const A8:  u64 = 1<<8;
-pub const A9:  u64 = 1<<9;
-pub const A10: u64 = 1<<10;
-pub const A11: u64 = 1<<11;
-pub const A12: u64 = 1<<12;
-pub const A13: u64 = 1<<13;
-pub const A14: u64 = 1<<14;
-pub const A15: u64 = 1<<15;
-pub const AddrPinMask: u64 = 0xFFFF;
+pub const Pins = struct {
+    // address bus pins
+    pub const A0:  u64 = 1<<0;
+    pub const A1:  u64 = 1<<1;
+    pub const A2:  u64 = 1<<2;
+    pub const A3:  u64 = 1<<3;
+    pub const A4:  u64 = 1<<4;
+    pub const A5:  u64 = 1<<5;
+    pub const A6:  u64 = 1<<6;
+    pub const A7:  u64 = 1<<7;
+    pub const A8:  u64 = 1<<8;
+    pub const A9:  u64 = 1<<9;
+    pub const A10: u64 = 1<<10;
+    pub const A11: u64 = 1<<11;
+    pub const A12: u64 = 1<<12;
+    pub const A13: u64 = 1<<13;
+    pub const A14: u64 = 1<<14;
+    pub const A15: u64 = 1<<15;
+    pub const AddrPinMask: u64 = 0xFFFF;
 
-// data bus pins
-pub const D0: u64 = 1<<16;
-pub const D1: u64 = 1<<17;
-pub const D2: u64 = 1<<18;
-pub const D3: u64 = 1<<19;
-pub const D4: u64 = 1<<20;
-pub const D5: u64 = 1<<21;
-pub const D6: u64 = 1<<22;
-pub const D7: u64 = 1<<23;
-pub const DataPinShift = 16;
-pub const DataPinMask: u64 = 0xFF0000;
+    // data bus pins
+    pub const D0: u64 = 1<<16;
+    pub const D1: u64 = 1<<17;
+    pub const D2: u64 = 1<<18;
+    pub const D3: u64 = 1<<19;
+    pub const D4: u64 = 1<<20;
+    pub const D5: u64 = 1<<21;
+    pub const D6: u64 = 1<<22;
+    pub const D7: u64 = 1<<23;
+    pub const DataPinShift = 16;
+    pub const DataPinMask: u64 = 0xFF0000;
 
-// system control pins
-pub const M1:   u64 = 1<<24;     // machine cycle 1
-pub const MREQ: u64 = 1<<25;     // memory request
-pub const IORQ: u64 = 1<<26;     // IO request
-pub const RD:   u64 = 1<<27;     // read request
-pub const WR:   u64 = 1<<28;     // write requst
-pub const RFSH: u64 = 1<<29;     // memory refresh (not implemented)
-pub const CtrlPinMask = M1|MREQ|IORQ|RD|WR|RFSH;
+    // system control pins
+    pub const M1:   u64 = 1<<24;     // machine cycle 1
+    pub const MREQ: u64 = 1<<25;     // memory request
+    pub const IORQ: u64 = 1<<26;     // IO request
+    pub const RD:   u64 = 1<<27;     // read request
+    pub const WR:   u64 = 1<<28;     // write requst
+    pub const RFSH: u64 = 1<<29;     // memory refresh (not implemented)
+    pub const CtrlPinMask = M1|MREQ|IORQ|RD|WR|RFSH;
 
-// CPU control pins
-pub const HALT:  u64 = 1<<30;    // halt and catch fire
-pub const INT:   u64 = 1<<31;    // maskable interrupt requested
-pub const NMI:   u64 = 1<<32;    // non-maskable interrupt requested
-pub const RESET: u64 = 1<<33;    // reset requested
+    // CPU control pins
+    pub const HALT:  u64 = 1<<30;    // halt and catch fire
+    pub const INT:   u64 = 1<<31;    // maskable interrupt requested
+    pub const NMI:   u64 = 1<<32;    // non-maskable interrupt requested
+    pub const RESET: u64 = 1<<33;    // reset requested
 
-// virtual pins
-pub const WAIT0: u64 = 1<<34;    // 3 virtual pins to inject up to 8 wait cycles
-pub const WAIT1: u64 = 1<<35;
-pub const WAIT2: u64 = 1<<36;
-pub const IEIO:  u64 = 1<<37;    // interrupt daisy chain: interrupt-enable-I/O
-pub const RETI:  u64 = 1<<38;    // interrupt daisy chain: RETI decoded
-pub const WaitPinShift = 34;
-pub const WaitPinMask = WAIT0|WAIT1|WAIT2;
+    // virtual pins
+    pub const WAIT0: u64 = 1<<34;    // 3 virtual pins to inject up to 8 wait cycles
+    pub const WAIT1: u64 = 1<<35;
+    pub const WAIT2: u64 = 1<<36;
+    pub const IEIO:  u64 = 1<<37;    // interrupt daisy chain: interrupt-enable-I/O
+    pub const RETI:  u64 = 1<<38;    // interrupt daisy chain: RETI decoded
+    pub const WaitPinShift = 34;
+    pub const WaitPinMask = WAIT0|WAIT1|WAIT2;
+
+    // set wait ticks on pin mask
+    pub fn setWait(pins: u64, wait_ticks: u3) u64 {
+        return (pins & ~WaitPinMask) | @as(u64, wait_ticks) << WaitPinShift;
+    }
+
+    // extract wait ticks from pin mask
+    pub fn getWait(pins: u64) u3 {
+        return @truncate(u3, pins >> WaitPinShift);
+    }
+
+    // set address pins in pin mask
+    pub fn setAddr(pins: u64, addr: u16) u64 {
+        return (pins & ~AddrPinMask) | addr;
+    }
+
+    // get address from pin mask
+    pub fn getAddr(pins: u64) u16 {
+        return @truncate(u16, pins);
+    }
+
+    // set data pins in pin mask
+    pub fn setData(pins: u64, data: u8) u64 {
+        return (pins & ~DataPinMask) | (@as(u64, data) << DataPinShift);
+    }
+
+    // get data pins in pin mask
+    pub fn getData(pins: u64) u8 {
+        return @truncate(u8, pins >> DataPinShift);
+    }
+
+    // set address and data pins in pin mask
+    pub fn setAddrData(pins: u64, addr: u16, data: u8) u64 {
+        return (pins & ~(DataPinMask|AddrPinMask)) | (@as(u64, data) << DataPinShift) | addr;
+    }
+};
 
 // status flag bits
-pub const CF: u8 = (1<<0);
-pub const NF: u8 = (1<<1);
-pub const VF: u8 = (1<<2);
-pub const PF: u8 = VF;
-pub const XF: u8 = (1<<3);
-pub const HF: u8 = (1<<4);
-pub const YF: u8 = (1<<5);
-pub const ZF: u8 = (1<<6);
-pub const SF: u8 = (1<<7);
+pub const Flags = struct {
+    pub const CF: u8 = (1<<0);
+    pub const NF: u8 = (1<<1);
+    pub const VF: u8 = (1<<2);
+    pub const PF: u8 = VF;
+    pub const XF: u8 = (1<<3);
+    pub const HF: u8 = (1<<4);
+    pub const YF: u8 = (1<<5);
+    pub const ZF: u8 = (1<<6);
+    pub const SF: u8 = (1<<7);
+};
 
 // 8-bit register indices
-pub const B = 0;
-pub const C = 1;
-pub const D = 2;
-pub const E = 3;
-pub const H = 4;
-pub const L = 5;
-pub const F = 6;
-pub const A = 7;
-pub const NumRegs = 8;
+pub const Reg8 = struct {
+    pub const B = 0;
+    pub const C = 1;
+    pub const D = 2;
+    pub const E = 3;
+    pub const H = 4;
+    pub const L = 5;
+    pub const F = 6;
+    pub const A = 7;
+    pub const NumRegs = 8;
+};
 
 // 16-bit register indices
-pub const BC = 0;
-pub const DE = 1;
-pub const HL = 2;
-pub const FA = 3;
-
-const Regs = [NumRegs]u8;
+pub const Reg16 = struct {
+    pub const BC = 0;
+    pub const DE = 1;
+    pub const HL = 2;
+    pub const FA = 3;
+};
 
 pub const TickFunc = fn(usize, u64) u64;
 
-pub const State = struct {
+const Regs = [NumRegs]u8;
+
+pub const CPU = struct {
 
     pins: u64 = 0,
     ticks: usize = 0,
@@ -101,10 +144,19 @@ pub const State = struct {
 
     iff1: bool = false,
     iff2: bool = false,
+    
+    /// run the emulator for at least 'num_ticks', return number of executed ticks
+    pub fn exec(cpu: *CPU, num_ticks: usize, tick_func: TickFunc) usize {
+        return _exec(cpu, num_ticks, tick_func);
+    }
 };
 
-// run the emulation for at least 'num_ticks', return number of executed ticks
-pub fn exec(cpu: *State, num_ticks: usize, tick_func: TickFunc) usize {
+usingnamespace Pins;
+usingnamespace Flags;
+usingnamespace Reg8;
+usingnamespace Reg16;
+
+fn _exec(cpu: *CPU, num_ticks: usize, tick_func: TickFunc) usize {
     cpu.ticks = 0;
     var running = true;
     while (running): (running = cpu.ticks < num_ticks) {
@@ -158,40 +210,6 @@ fn getR16(r: *Regs, reg: u2) u16 {
     return @as(u16,h)<<8 | l;
 }
 
-// set wait ticks on pin mask
-pub fn setWait(pins: u64, wait_ticks: u3) u64 {
-    return (pins & ~WaitPinMask) | @as(u64, wait_ticks) << WaitPinShift;
-}
-
-// extract wait ticks from pin mask
-pub fn getWait(pins: u64) u3 {
-    return @truncate(u3, pins >> WaitPinShift);
-}
-
-// set address pins in pin mask
-pub fn setAddr(pins: u64, addr: u16) u64 {
-    return (pins & ~AddrPinMask) | addr;
-}
-
-// get address from pin mask
-pub fn getAddr(pins: u64) u16 {
-    return @truncate(u16, pins);
-}
-
-// set data pins in pin mask
-pub fn setData(pins: u64, data: u8) u64 {
-    return (pins & ~DataPinMask) | (@as(u64, data) << DataPinShift);
-}
-
-// get data pins in pin mask
-pub fn getData(pins: u64) u8 {
-    return @truncate(u8, pins >> DataPinShift);
-}
-
-// set address and data pins in pin mask
-pub fn setAddrData(pins: u64, addr: u16, data: u8) u64 {
-    return (pins & ~(DataPinMask|AddrPinMask)) | (@as(u64, data) << DataPinShift) | addr;
-}
 
 // helper function to increment R register
 fn bumpR(r: u8) u8 {
@@ -199,58 +217,58 @@ fn bumpR(r: u8) u8 {
 }
 
 // invoke tick callback with control pins set
-fn tick(cpu: *State, num_ticks: usize, pin_mask: u64, tick_func: TickFunc) void {
+fn tick(cpu: *CPU, num_ticks: usize, pin_mask: u64, tick_func: TickFunc) void {
     cpu.pins = tick_func(num_ticks, (cpu.pins & ~CtrlPinMask) | pin_mask);
     cpu.ticks += num_ticks;
 }
 
 // invoke tick callback with pin mask and wait state detection
-fn tickWait(cpu: *State, num_ticks: usize, pin_mask: u64, tick_func: TickFunc) void {
+fn tickWait(cpu: *CPU, num_ticks: usize, pin_mask: u64, tick_func: TickFunc) void {
     cpu.pins = tick_func(num_ticks, (cpu.pins & ~(CtrlPinMask|WaitPinMask) | pin_mask));
     cpu.ticks += num_ticks + getWait(cpu.pins);
 }
 
 // perform a memory-read machine cycle (3 clock cycles)
-fn memRead(cpu: *State, tick_func: TickFunc) void {
+fn memRead(cpu: *CPU, tick_func: TickFunc) void {
     tickWait(cpu, 3, MREQ|RD, tick_func);
 }
 
 // perform a memory-write machine cycle (3 clock cycles)
-fn memWrite(cpu: *State, tick_func: TickFunc) void {
+fn memWrite(cpu: *CPU, tick_func: TickFunc) void {
     tickWait(cpu, 3, MREQ|WR, tick_func);
 }
 
 // perform an IO input machine cycle (4 clock cycles)
-fn ioIn(cpu: *State, tick_func: TickFunc) void {
+fn ioIn(cpu: *CPU, tick_func: TickFunc) void {
     tickWait(cpu, 4, IORQ|RD, tick_func);
 }
 
 // perform a IO output machine cycle (4 clock cycles)
-fn ioOut(cpu: *State, tick_func: TickFunc) void {
+fn ioOut(cpu: *CPU, tick_func: TickFunc) void {
     tickWait(cpu, 4, IORQ|WR, tick_func);
 }
 
 // generate effective address for (HL), (IX+d), (IY+d), result in address bus pins
-fn addrM(cpu: *State, extra_ticks: usize, tick_func: TickFunc) void {
+fn addrM(cpu: *CPU, extra_ticks: usize, tick_func: TickFunc) void {
     var addr = getR16(&cpu.regs, HL);
     // FIXME handle IX+d, IY+d
     cpu.pins = setAddr(cpu.pins, addr);
 }
 
 // perform a read machine cycle at (HL/IX+d/IY+d), result in data bus pins
-fn readM(cpu: *State, tick_func: TickFunc) void {
+fn readM(cpu: *CPU, tick_func: TickFunc) void {
     addrM(cpu, 5, tick_func);
     memRead(cpu, tick_func);
 }
 
 // perform a write machine cycle at (HL/IX+d/IY+d)
-fn writeM(cpu: *State, tick_func: TickFunc) void {
+fn writeM(cpu: *CPU, tick_func: TickFunc) void {
     addrM(cpu, 5, tick_func);
     memWrite(cpu, tick_func);
 }
 
 // perform an instruction fetch machine cycle 
-fn fetch(cpu: *State, tick_func: TickFunc) void {
+fn fetch(cpu: *CPU, tick_func: TickFunc) void {
     cpu.pins = setAddr(cpu.pins, cpu.PC);
     tickWait(cpu, 4, M1|MREQ|RD, tick_func);
     cpu.PC +%= 1;
@@ -258,14 +276,14 @@ fn fetch(cpu: *State, tick_func: TickFunc) void {
 }
 
 // read 8-bit immediate
-fn imm8(cpu: *State, tick_func: TickFunc) void {
+fn imm8(cpu: *CPU, tick_func: TickFunc) void {
     cpu.pins = setAddr(cpu.pins, cpu.PC);
     memRead(cpu, tick_func);
     cpu.PC +%= 1;
 }
 
 // get 8-bit register or (HL/IX+d/IY+d) value
-fn src8(cpu: *State, z: u3, tick_func: TickFunc) u8 {
+fn src8(cpu: *CPU, z: u3, tick_func: TickFunc) u8 {
     return if (z != 6) cpu.regs[z] else blk:{
         readM(cpu, tick_func); 
         break :blk getData(cpu.pins);
@@ -273,13 +291,13 @@ fn src8(cpu: *State, z: u3, tick_func: TickFunc) u8 {
 }
 
 // HALT impl
-fn halt(cpu: *State) void {
+fn halt(cpu: *CPU) void {
     cpu.pins |= HALT;
     cpu.PC -%= 1;
 }
 
 // LD r,r impl
-fn ld_r_r(cpu: *State, y: u3, z: u3, tick_func: TickFunc) void {
+fn ld_r_r(cpu: *CPU, y: u3, z: u3, tick_func: TickFunc) void {
     const src = src8(cpu, z, tick_func);
     if (y == 6) {
         cpu.pins = setData(cpu.pins, src);
@@ -291,7 +309,7 @@ fn ld_r_r(cpu: *State, y: u3, z: u3, tick_func: TickFunc) void {
 }
 
 // LD r,n impl
-fn ld_r_n(cpu: *State, y: u3, tick_func: TickFunc) void {
+fn ld_r_n(cpu: *CPU, y: u3, tick_func: TickFunc) void {
     imm8(cpu, tick_func);
     if (y == 6) {
         writeM(cpu, tick_func);
@@ -302,7 +320,7 @@ fn ld_r_n(cpu: *State, y: u3, tick_func: TickFunc) void {
 }
 
 // ALU r impl
-fn alu_r(cpu: *State, y: u3, z: u3, tick_func: TickFunc) void {
+fn alu_r(cpu: *CPU, y: u3, z: u3, tick_func: TickFunc) void {
     const src = src8(cpu, z, tick_func);
     switch(y) {
         0 => add8(&cpu.regs, src),
@@ -317,7 +335,7 @@ fn alu_r(cpu: *State, y: u3, z: u3, tick_func: TickFunc) void {
 }
 
 // ALU n impl
-fn alu_n(cpu: *State, y: u3, tick_func: TickFunc) void {
+fn alu_n(cpu: *CPU, y: u3, tick_func: TickFunc) void {
     imm8(cpu, tick_func);
     const src = getData(cpu.pins);
     switch(y) {
@@ -542,7 +560,7 @@ test "tick" {
             }
         }
     };
-    var cpu = State{ .pins = setAddrData(0, 0x1234, 0x56) };
+    var cpu = CPU{ .pins = setAddrData(0, 0x1234, 0x56) };
     tick(&cpu, 3, M1|MREQ|RD, inner.tick_func);
     try expect(getData(cpu.pins) == 0x23);
     try expect(cpu.ticks == 3);
@@ -554,7 +572,7 @@ test "tickWait" {
             return setWait(pins, 5);
         }
     };
-    var cpu = State{ .pins = setWait(0, 7) };
+    var cpu = CPU{ .pins = setWait(0, 7) };
     tickWait(&cpu, 3, M1|MREQ|RD, inner.tick_func);
     try expect(getWait(cpu.pins) == 5);
     try expect(cpu.ticks == 8);
@@ -563,7 +581,7 @@ test "tickWait" {
 test "memRead" {
     clearMem();
     mem[0x1234] = 0x23;
-    var cpu = State{ .pins = setAddr(0, 0x1234) };
+    var cpu = CPU{ .pins = setAddr(0, 0x1234) };
     memRead(&cpu, testTick);
     try expect((cpu.pins & CtrlPinMask) == MREQ|RD);
     try expect(getData(cpu.pins) == 0x23);
@@ -572,7 +590,7 @@ test "memRead" {
 
 test "memWrite" {
     clearMem();
-    var cpu = State{ .pins = setAddrData(0, 0x1234, 0x56) };
+    var cpu = CPU{ .pins = setAddrData(0, 0x1234, 0x56) };
     memWrite(&cpu, testTick);
     try expect((cpu.pins & CtrlPinMask) == MREQ|WR);
     try expect(getData(cpu.pins) == 0x56);
@@ -582,7 +600,7 @@ test "memWrite" {
 test "ioIn" {
     clearIO();
     io[0x1234] = 0x23;
-    var cpu = State{ .pins = setAddr(0, 0x1234) };
+    var cpu = CPU{ .pins = setAddr(0, 0x1234) };
     ioIn(&cpu, testTick);
     try expect((cpu.pins & CtrlPinMask) == IORQ|RD);
     try expect(getData(cpu.pins) == 0x23);
@@ -591,7 +609,7 @@ test "ioIn" {
 
 test "ioOut" {
     clearIO();
-    var cpu = State{ .pins = setAddrData(0, 0x1234, 0x56) };
+    var cpu = CPU{ .pins = setAddrData(0, 0x1234, 0x56) };
     ioOut(&cpu, testTick);
     try expect((cpu.pins & CtrlPinMask) == IORQ|WR);
     try expect(getData(cpu.pins) == 0x56);
@@ -609,7 +627,7 @@ test "bumpR" {
 test "fetch" {
     clearMem();
     mem[0x2345] = 0x42;
-    var cpu = State{ .PC = 0x2345, .R = 0 };
+    var cpu = CPU{ .PC = 0x2345, .R = 0 };
     fetch(&cpu, testTick);
     try expect((cpu.pins & CtrlPinMask) == M1|MREQ|RD);
     try expect(getData(cpu.pins) == 0x42);
@@ -621,7 +639,7 @@ test "fetch" {
 test "readM (HL)" {
     clearMem();
     mem[0x1234] = 0x23;
-    var cpu = State{};
+    var cpu = CPU{};
     setR16(&cpu.regs, HL, 0x1234);
     try expect(cpu.regs[H] == 0x12);
     try expect(cpu.regs[L] == 0x34);
@@ -633,7 +651,7 @@ test "readM (HL)" {
 
 test "writeM (HL)" {
     clearMem();
-    var cpu = State{ .pins = setData(0, 0x23) };
+    var cpu = CPU{ .pins = setData(0, 0x23) };
     setR16(&cpu.regs, HL, 0x1234);
     writeM(&cpu, testTick);
     try expect((cpu.pins & CtrlPinMask) == MREQ|WR);

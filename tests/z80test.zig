@@ -5,11 +5,16 @@
 //  https://github.com/floooh/chips-test/blob/master/tests/z80-test.c
 //------------------------------------------------------------------------------
 
-const print = @import("std").debug.print;
-const assert = @import("std").debug.assert;
-const z80 = @import("cpu");
+const print     = @import("std").debug.print;
+const assert    = @import("std").debug.assert;
+const CPU       = @import("cpu").CPU;
+const CPUPins   = @import("cpu").Pins;
+const CPUFlags  = @import("cpu").Flags;
+const CPUReg8   = @import("cpu").Reg8;
 
-usingnamespace z80;
+usingnamespace CPUReg8;
+usingnamespace CPUPins;
+usingnamespace CPUFlags;
 
 // 64 KB memory
 var mem = [_]u8{0} ** 0x10000;
@@ -56,8 +61,8 @@ fn tick(num_ticks: usize, p: u64) u64 {
     return pins;
 }
 
-fn makeCPU() z80.State {
-    var cpu = z80.State{ };
+fn makeCPU() CPU {
+    var cpu = CPU{ };
     cpu.regs[A] = 0xFF;
     cpu.regs[F] = 0x00;
     return cpu;
@@ -71,19 +76,19 @@ fn copy(start_addr: u16, bytes: []const u8) void {
     }
 }
 
-fn step(cpu: *z80.State) usize {
+fn step(cpu: *CPU) usize {
     // FIXME: needs to loop until opdone for prefixed instructions
-    return z80.exec(cpu, 0, tick);
+    return cpu.exec(0, tick);
 }
 
-fn skip(cpu: *z80.State, steps: usize) void {
+fn skip(cpu: *CPU, steps: usize) void {
     var i: usize = 0;
     while (i < steps): (i += 1) {
         _ = step(cpu);
     }
 }
 
-fn flags(cpu: *z80.State, expected: u8) bool {
+fn flags(cpu: *CPU, expected: u8) bool {
     return (cpu.regs[F] & ~(XF|YF)) == expected;
 }
 
