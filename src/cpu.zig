@@ -224,7 +224,16 @@ fn _exec(cpu: *CPU, num_ticks: usize, tick_func: TickFunc) usize {
                 4 => opINC_r(cpu, y, tick_func),
                 5 => opDEC_r(cpu, y, tick_func),
                 6 => opLD_r_n(cpu, y, tick_func),
-                7 => unreachable,
+                7 => switch (y) {
+                    0 => { opRLCA(cpu); },
+                    1 => { opRRCA(cpu); },
+                    2 => { opRLA(cpu); },
+                    3 => { opRRA(cpu); },
+                    4 => unreachable,
+                    5 => unreachable,
+                    6 => unreachable,
+                    7 => unreachable,
+                }
             },
             1 => {
                 if (y == 6 and z == 6) { opHALT(cpu); }
@@ -763,6 +772,42 @@ fn opEX_iSP_HL(cpu: *CPU, tick_func: TickFunc) void {
     memWrite(cpu, tick_func);
     cpu.WZ = @as(u16, h)<<8 | l;
     storeHLIXIY(cpu, cpu.WZ);
+}
+
+// RLCA
+fn opRLCA(cpu: *CPU) void {
+    const a: usize = cpu.regs[A];
+    const r = (a<<1) | (a>>7);
+    const f = cpu.regs[F];
+    cpu.regs[F] = @truncate(u8, ((a>>7) & CF) | (f & (SF|ZF|PF)) | (r & (YF|XF)));
+    cpu.regs[A] = @truncate(u8, r);
+}
+
+// RRCA
+fn opRRCA(cpu: *CPU) void {
+    const a: usize = cpu.regs[A];
+    const r = (a>>1) | (a<<7);
+    const f = cpu.regs[F];
+    cpu.regs[F] = @truncate(u8, (a & CF) | (f & (SF|ZF|PF)) | (r & (YF|XF)));
+    cpu.regs[A] = @truncate(u8, r);
+}
+
+// RLA
+fn opRLA(cpu: *CPU) void {
+    const a: usize = cpu.regs[A];
+    const f = cpu.regs[F];
+    const r = (a<<1) | (f & CF);
+    cpu.regs[F] = @truncate(u8, ((a>>7) & CF) | (f & (SF|ZF|PF)) | (r & (YF|XF)));
+    cpu.regs[A] = @truncate(u8, r);
+}
+
+// RRA
+fn opRRA(cpu: *CPU) void {
+    const a: usize = cpu.regs[A];
+    const f = cpu.regs[F];
+    const r = (a >> 1) | ((f & CF) << 7);
+    cpu.regs[F] = @truncate(u8, (a & CF) | (f & (SF|ZF|PF)) | (r & (YF|XF)));
+    cpu.regs[A] = @truncate(u8, r);
 }
 
 // flag computation functions
