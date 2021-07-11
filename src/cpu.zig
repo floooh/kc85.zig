@@ -254,7 +254,7 @@ fn _exec(cpu: *CPU, num_ticks: usize, tick_func: TickFunc) usize {
                 2 => unreachable,
                 3 => switch (y) {
                     0 => unreachable,
-                    1 => unreachable,
+                    1 => { opCB_prefix(cpu, tick_func); },
                     2 => unreachable,
                     3 => unreachable,
                     4 => { opEX_iSP_HL(cpu, tick_func); },
@@ -321,6 +321,95 @@ fn opED_prefix(cpu: *CPU, tick_func: TickFunc) void {
     }
 }
 
+// return flags for left/right-shift/rotate operations
+fn lsrFlags(d8: usize, r: usize) u8 {
+    return szpFlags(@truncate(u8, r)) | @truncate(u8, d8 >> 7 & CF);
+}
+
+fn rsrFlags(d8: usize, r: usize) u8 {
+    return szpFlags(@truncate(u8, r)) | @truncate(u8, d8 & CF);
+}
+
+// CB-prefix decoding
+fn opCB_prefix(cpu: *CPU, tick_func: TickFunc) void {
+    // special handling for undocumented DD/FD+CB double prefix instructions,
+    // these always load the value from memory (IX+d),
+    // and write the value back, even for normal
+    // "register" instructions
+    // see: http://www.baltazarstudios.com/files/ddcb.html
+    const d: u16 = if (cpu.ixiy != 0) dimm8(cpu, tick_func) else 0;
+    
+    // special opcode fetch without memory refresh and bumpR()
+    const op = fetchCB(cpu, tick_func);
+    const x = @truncate(u2, (op >> 6) & 3);
+    const y = @truncate(u3, (op >> 3) & 7);
+    const z = @truncate(u3, op & 7);
+    
+    // load operand (for indexed ops always from memory)
+    const d8: usize = if ((z == 6) or (cpu.ixiy != 0)) blk: {
+        tick(cpu, 1, 0, tick_func); // filler tick
+        cpu.addr = loadHLIXIY(cpu);
+        if (cpu.ixiy != 0) {
+            tick(cpu, 1, 0, tick_func); // filler tick
+            cpu.addr +%= d;
+            cpu.WZ = cpu.addr;
+        }
+        cpu.pins = setAddr(cpu.pins, cpu.addr);
+        memRead(cpu, tick_func);
+        break: blk getData(cpu.pins);
+    }
+    else load8(cpu, z, tick_func);
+    
+    var f: usize = cpu.regs[F];
+    var r: usize = undefined;
+    switch (x) {
+        0 => switch (y) {
+            // rot/shift
+            0 => { r = d8<<1 | d8>>7;       f = lsrFlags(d8, r); },     // RLC
+            1 => { r = d8>>1 | d8<<7;       f = rsrFlags(d8, r); },     // RRC
+            2 => { r = d8<<1 | (f&CF);      f = lsrFlags(d8, r); },     // RL
+            3 => { r = d8>>1 | ((f&CF)<<7); f = rsrFlags(d8, r); },     // RR
+            4 => { r = d8<<1;               f = lsrFlags(d8, r); },     // SLA
+            5 => { r = d8>>1 | (d8&0x80);   f = rsrFlags(d8, r); },     // SRA
+            6 => { r = d8<<1 | 1;           f = lsrFlags(d8, r); },     // SLL
+            7 => { r = d8>>1;               f = rsrFlags(d8, r); },     // SRL
+        },
+        1 => {
+            // BIT (bit test)
+            r = d8 & (@as(usize,1) << y);
+            f = (f & CF) | HF | if (r==0) ZF|PF else r&SF;
+            if ((z == 6) or (cpu.ixiy != 0)) {
+                f |= (cpu.WZ >> 8) & (YF|XF);
+            }
+            else {
+                f |= d8 & (YF|XF);
+            }
+        },
+        2 => {
+            // RES (bit clear)
+            r = d8 & ~(@as(usize,1) << y);
+        },
+        3 => {
+            // SET (bit set)
+            r = d8 | (@as(usize, 1) << y);
+        }
+    }
+    if (x != 1) {
+        // write result back
+        if ((z == 6) or (cpu.ixiy != 0)) {
+            // (HL), (IX+d), (IY+d): write back to memory, for extended op,
+            // even when the op is actually a register op
+            cpu.pins = setAddrData(cpu.pins, cpu.addr, @truncate(u8, r));
+            memWrite(cpu, tick_func);
+        }
+        if (z != 6) {
+            // write result back to register, never write back to overriden IXH/IYH/IXL/IYL
+            store8HL(cpu, z, @truncate(u8, r), tick_func);
+        }
+    }
+    cpu.regs[F] = @truncate(u8, f);
+}
+
 // set 16 bit register
 fn setR16(r: *Regs, reg: u2, val: u16) void {
     r[@as(u3,reg)*2 + 0] = @truncate(u8, val >> 8);
@@ -382,7 +471,7 @@ fn addr(cpu: *CPU, extra_ticks: usize, tick_func: TickFunc) void {
     cpu.addr = loadHLIXIY(cpu);
     if (0 != cpu.ixiy) {
         // hmmmmmmmm...
-        const d = @bitCast(u16, @as(i16, @bitCast(i8, imm8(cpu, tick_func))));
+        const d = dimm8(cpu, tick_func);
         cpu.addr +%= d;
         cpu.WZ = cpu.addr;
         tick(cpu, extra_ticks, 0, tick_func);
@@ -398,12 +487,28 @@ fn fetch(cpu: *CPU, tick_func: TickFunc) u8 {
     return getData(cpu.pins);
 }
 
+// special opcode fetch without memory refresh and special R handling
+fn fetchCB(cpu: *CPU, tick_func: TickFunc) u8 {
+    cpu.pins = setAddr(cpu.pins, cpu.PC);
+    tickWait(cpu, 4, M1|MREQ|RD, tick_func);
+    bumpPC(cpu);
+    if (0 == cpu.ixiy) {
+        bumpR(cpu);
+    }
+    return getData(cpu.pins);
+}
+
 // read 8-bit immediate
 fn imm8(cpu: *CPU, tick_func: TickFunc) u8 {
     cpu.pins = setAddr(cpu.pins, cpu.PC);
     bumpPC(cpu);
     memRead(cpu, tick_func);
     return getData(cpu.pins);
+}
+
+// read the 8-bit signed address offset for IX/IX+d ops
+fn dimm8(cpu: *CPU, tick_func: TickFunc) u16 {
+    return @bitCast(u16, @as(i16, @bitCast(i8, imm8(cpu, tick_func))));
 }
 
 // read 16-bit immediate
@@ -423,6 +528,31 @@ fn imm16(cpu: *CPU, tick_func: TickFunc) u16 {
 
 // load from 8-bit register or effective address (HL)/(IX+d)/IY+d)
 fn load8(cpu: *CPU, z: u3, tick_func: TickFunc) u8 {
+    return switch (z) {
+        B,C,D,E,A=> cpu.regs[z],
+        H => switch (cpu.ixiy) {
+            0 => cpu.regs[H],
+            UseIX => @truncate(u8, cpu.IX >> 8),
+            UseIY => @truncate(u8, cpu.IY >> 8),
+            else => unreachable,
+        },
+        L => switch (cpu.ixiy) {
+            0 => cpu.regs[L],
+            UseIX => @truncate(u8, cpu.IX),
+            UseIY => @truncate(u8, cpu.IY),
+            else => unreachable,
+        },
+        F => blk: {
+            cpu.pins = setAddr(cpu.pins, cpu.addr);
+            memRead(cpu, tick_func);
+            break: blk getData(cpu.pins);
+
+        }
+    };
+}
+
+// same as load8, but also never replace H,L with IXH,IYH,IXH,IXL
+fn load8HL(cpu: *CPU, z: u3, tick_func: TickFunc) u8 {
     if (z != 6) {
         return cpu.regs[z];
     }
@@ -435,6 +565,29 @@ fn load8(cpu: *CPU, z: u3, tick_func: TickFunc) u8 {
 
 // store into 8-bit register or effective address (HL)/(IX+d)/(IY+d)
 fn store8(cpu: *CPU, y: u3, val: u8, tick_func: TickFunc) void {
+    switch (y) {
+        B,C,D,E,A => { cpu.regs[y] = val; },
+        H => switch (cpu.ixiy) {
+            0 => { cpu.regs[H] = val; },
+            UseIX => { cpu.IX = (cpu.IX & 0x00FF) | (@as(u16,val)<<8); },
+            UseIY => { cpu.IY = (cpu.IY & 0x00FF) | (@as(u16,val)<<8); },
+            else => unreachable,
+        },
+        L => switch (cpu.ixiy) {
+            0 => { cpu.regs[L] = val; },
+            UseIX => { cpu.IX = (cpu.IX & 0xFF00) | val; },
+            UseIY => { cpu.IY = (cpu.IY & 0xFF00) | val; },
+            else => unreachable,
+        },
+        F => {
+            cpu.pins = setAddrData(cpu.pins, cpu.addr, val);
+            memWrite(cpu, tick_func);
+        }
+    }
+}
+
+// same as store8, but never replace H,L with IXH,IYH, IXL, IYL
+fn store8HL(cpu: *CPU, y: u3, val: u8, tick_func: TickFunc) void {
     if (y != 6) {
         cpu.regs[y] = val;
     }
@@ -515,8 +668,8 @@ fn opLD_r_r(cpu: *CPU, y: u3, z: u3, tick_func: TickFunc) void {
     if ((y == 6) or (z == 6)) {
         addr(cpu, 5, tick_func);
     }
-    const val = load8(cpu, z, tick_func);
-    store8(cpu, y, val, tick_func);
+    const val = load8HL(cpu, z, tick_func);
+    store8HL(cpu, y, val, tick_func);
 }
 
 // LD r,n
