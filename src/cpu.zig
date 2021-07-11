@@ -229,10 +229,10 @@ fn _exec(cpu: *CPU, num_ticks: usize, tick_func: TickFunc) usize {
                     1 => { opRRCA(cpu); },
                     2 => { opRLA(cpu); },
                     3 => { opRRA(cpu); },
-                    4 => unreachable,
-                    5 => unreachable,
-                    6 => unreachable,
-                    7 => unreachable,
+                    4 => { opDAA(cpu); },
+                    5 => { opCPL(cpu); },
+                    6 => { opSCF(cpu); },
+                    7 => { opCCF(cpu); },
                 }
             },
             1 => {
@@ -995,6 +995,57 @@ fn opRRD(cpu: *CPU, tick_func: TickFunc) void {
     cpu.regs[A] = a_out;
     cpu.regs[F] = (cpu.regs[F] & CF) | szpFlags(a_out);
     tick(cpu, 4, 0, tick_func); // 4 filler ticks
+}
+
+// DAA
+fn opDAA(cpu: *CPU) void {
+    const a = cpu.regs[A];
+    var v = a;
+    var f = cpu.regs[F];
+    if (0 != (f & NF)) {
+        if (((a & 0xF) > 0x9) or (0 != (f & HF))) {
+            v -%= 0x06;
+        }
+        if ((a > 0x99) or (0 != (f & CF))) {
+            v -%= 0x60;
+        }
+    }
+    else {
+        if (((a & 0xF) > 0x9) or (0 != (f & HF))) {
+            v +%= 0x06;
+        }
+        if ((a > 0x99) or (0 != (f & CF))) {
+            v +%= 0x60;
+        }
+    }
+    f &= CF|NF;
+    f |= if (a > 0x99) CF else 0;
+    f |= (a ^ v) & HF;
+    f |= szpFlags(v);
+    cpu.regs[A] = v;
+    cpu.regs[F] = f;
+}
+
+// CPL
+fn opCPL(cpu: *CPU) void {
+    const a = cpu.regs[A] ^ 0xFF;
+    const f = cpu.regs[F];
+    cpu.regs[A] = a;
+    cpu.regs[F] = HF | NF | (f & (SF|ZF|PF|CF)) | (a & (YF|XF));
+}
+
+// SCF
+fn opSCF(cpu: *CPU) void {
+    const a = cpu.regs[A];
+    const f = cpu.regs[F];
+    cpu.regs[F] = CF | (f & (SF|ZF|PF|CF)) | (a & (YF|XF));
+}
+
+// CCF
+fn opCCF(cpu: *CPU) void {
+    const a = cpu.regs[A];
+    const f = cpu.regs[F];
+    cpu.regs[F] = (((f & CF)<<4) | (f & (SF|ZF|PF|CF)) | (a & (YF|XF))) ^ CF;
 }
 
 // flag computation functions
