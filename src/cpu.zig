@@ -113,7 +113,7 @@ pub const Reg8 = struct {
     pub const L = 5;
     pub const F = 6;
     pub const A = 7;
-    pub const NumRegs = 8;
+    pub const NumRegs8 = 8;
 };
 
 // 16-bit register indices
@@ -122,11 +122,12 @@ pub const Reg16 = struct {
     pub const DE = 1;
     pub const HL = 2;
     pub const FA = 3;
+    pub const NumRegs16 = 4;
 };
 
 pub const TickFunc = fn(usize, u64) u64;
 
-const Regs = [NumRegs]u8;
+const Regs = [NumRegs8]u8;
 
 // flag bits for CPU.ixiy
 const UseIX = (1<<0);
@@ -137,7 +138,7 @@ pub const CPU = struct {
     pins: u64 = 0,
     ticks: usize = 0,
 
-    regs: Regs = [_]u8{0xFF} ** NumRegs,
+    regs: Regs = [_]u8{0xFF} ** NumRegs8,
 
     IX: u16 = 0xFFFF,
     IY: u16 = 0xFFFF,
@@ -147,6 +148,8 @@ pub const CPU = struct {
     I:  u8 = 0x00,
     R:  u8 = 0x00,
     IM: u8 = 0x00,
+
+    ex: [NumRegs16]u16 = [_]u16{0xFFFF} ** NumRegs16,    // shadow registers
     
     addr: u16 = 0,  // effective address for (HL), (IX+d), (IY+d)
 
@@ -193,6 +196,13 @@ fn _exec(cpu: *CPU, num_ticks: usize, tick_func: TickFunc) usize {
 
         switch (x) {
             0 => switch (z) {
+                0 => switch (y) {
+                    0 => unreachable,
+                    1 => { opEX_AF_AF(cpu); },
+                    2 => unreachable,
+                    3 => unreachable,
+                    else => unreachable,
+                },
                 1 => switch (q) {
                     0 => opLD_rp_nn(cpu, p, tick_func),
                     1 => unreachable // FIXME!
@@ -207,10 +217,11 @@ fn _exec(cpu: *CPU, num_ticks: usize, tick_func: TickFunc) usize {
                     6 => opLD_inn_A(cpu, tick_func),
                     7 => opLD_A_inn(cpu, tick_func)
                 },
+                3 => unreachable,
                 4 => opINC_r(cpu, y, tick_func),
                 5 => opDEC_r(cpu, y, tick_func),
                 6 => opLD_r_n(cpu, y, tick_func),
-                else => unreachable // FIXME!
+                7 => unreachable,
             },
             1 => {
                 if (y == 6 and z == 6) { opHALT(cpu); }
@@ -218,15 +229,28 @@ fn _exec(cpu: *CPU, num_ticks: usize, tick_func: TickFunc) usize {
             },
             2 => { opALU_r(cpu, y, z, tick_func); },
             3 => switch (z) {
+                0 => unreachable,
                 1 => switch (q) {
                     0 => { opPOP_rp2(cpu, p, tick_func); },
                     1 => switch (p) {
                         0 => unreachable,
-                        1 => unreachable,
+                        1 => { opEXX(cpu); },
                         2 => unreachable,
                         3 => { opLD_SP_HL(cpu, tick_func); },
                     }
                 },
+                2 => unreachable,
+                3 => switch (y) {
+                    0 => unreachable,
+                    1 => unreachable,
+                    2 => unreachable,
+                    3 => unreachable,
+                    4 => { opEX_iSP_HL(cpu, tick_func); },
+                    5 => { opEX_DE_HL(cpu); },
+                    6 => unreachable,
+                    7 => unreachable,
+                },
+                4 => unreachable,
                 5 => switch (q) {
                     0 => { opPUSH_rp2(cpu, p, tick_func); },
                     1 => switch (p) {
@@ -237,7 +261,7 @@ fn _exec(cpu: *CPU, num_ticks: usize, tick_func: TickFunc) usize {
                     }
                 },
                 6 => opALU_n(cpu, y, tick_func),
-                else => unreachable // FIXME!
+                7 => unreachable,
             }
         }
         cpu.ixiy = 0;
@@ -686,6 +710,46 @@ fn opPOP_rp2(cpu: *CPU, p: u2, tick_func: TickFunc) void {
     store16AF(cpu, p, @as(u16,h)<<8 | l);
 }
 
+// EX DE,HL
+fn opEX_DE_HL(cpu: *CPU) void {
+    const de = getR16(&cpu.regs, DE);
+    const hl = getR16(&cpu.regs, HL);
+    setR16(&cpu.regs, DE, hl);
+    setR16(&cpu.regs, HL, de);
+}
+
+// EX AF,AF'
+fn opEX_AF_AF(cpu: *CPU) void {
+    const fa = getR16(&cpu.regs, FA);
+    setR16(&cpu.regs, FA, cpu.ex[FA]);
+    cpu.ex[FA] = fa;
+}
+
+// EXX
+fn opEXX(cpu: *CPU) void {
+    const bc = getR16(&cpu.regs, BC); setR16(&cpu.regs, BC, cpu.ex[BC]); cpu.ex[BC] = bc;
+    const de = getR16(&cpu.regs, DE); setR16(&cpu.regs, DE, cpu.ex[DE]); cpu.ex[DE] = de;
+    const hl = getR16(&cpu.regs, HL); setR16(&cpu.regs, HL, cpu.ex[HL]); cpu.ex[HL] = hl;
+}
+
+// EX (SP),HL
+fn opEX_iSP_HL(cpu: *CPU, tick_func: TickFunc) void {
+    tick(cpu, 3, 0, tick_func);     // 3 filler ticks
+    cpu.pins = setAddr(cpu.pins, cpu.SP);
+    memRead(cpu, tick_func);
+    const l = getData(cpu.pins);
+    cpu.pins = setAddr(cpu.pins, cpu.SP +% 1);
+    memRead(cpu, tick_func);
+    const h = getData(cpu.pins);
+    const val = loadHLIXIY(cpu);
+    cpu.pins = setAddrData(cpu.pins, cpu.SP, @truncate(u8, val));
+    memWrite(cpu, tick_func);
+    cpu.pins = setAddrData(cpu.pins, cpu.SP +% 1, @truncate(u8, val>>8));
+    memWrite(cpu, tick_func);
+    cpu.WZ = @as(u16, h)<<8 | l;
+    storeHLIXIY(cpu, cpu.WZ);
+}
+
 // flag computation functions
 fn szFlags(val: usize) u8 {
     if ((val & 0xFF) == 0) {
@@ -844,7 +908,7 @@ fn testTick(ticks: usize, i_pins: u64) u64 {
 }
 
 fn makeRegs() Regs {
-    var res: Regs = [_]u8{0xFF} ** NumRegs;
+    var res: Regs = [_]u8{0xFF} ** NumRegs8;
     res[F] = 0;
     return res;
 }

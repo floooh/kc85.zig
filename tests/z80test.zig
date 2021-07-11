@@ -73,6 +73,7 @@ fn makeCPU() CPU {
     var cpu = CPU{ };
     cpu.regs[A] = 0xFF;
     cpu.regs[F] = 0x00;
+    cpu.ex[FA] = 0x00FF;
     return cpu;
 }
 
@@ -655,6 +656,62 @@ fn PUSH_POP_qqIXIY() void {
     T(10==step(&cpu)); T(0x5678 == cpu.r16(HL)); T(0x00FC == cpu.SP);
     T(14==step(&cpu)); T(0x1234 == cpu.IX); T(0x00FE == cpu.SP);
     T(14==step(&cpu)); T(0xEF00 == cpu.IY); T(0x0100 == cpu.SP);
+    ok();
+}
+
+fn EX() void {
+    start("EX");
+    const prog = [_]u8 {
+        0x21, 0x34, 0x12,       // LD HL,0x1234
+        0x11, 0x78, 0x56,       // LD DE,0x5678
+        0xEB,                   // EX DE,HL
+        0x3E, 0x11,             // LD A,0x11
+        0x08,                   // EX AF,AF'
+        0x3E, 0x22,             // LD A,0x22
+        0x08,                   // EX AF,AF'
+        0x01, 0xBC, 0x9A,       // LD BC,0x9ABC
+        0xD9,                   // EXX
+        0x21, 0x11, 0x11,       // LD HL,0x1111
+        0x11, 0x22, 0x22,       // LD DE,0x2222
+        0x01, 0x33, 0x33,       // LD BC,0x3333
+        0xD9,                   // EXX
+        0x31, 0x00, 0x01,       // LD SP,0x0100
+        0xD5,                   // PUSH DE
+        0xE3,                   // EX (SP),HL
+        0xDD, 0x21, 0x99, 0x88, // LD IX,0x8899
+        0xDD, 0xE3,             // EX (SP),IX
+        0xFD, 0x21, 0x77, 0x66, // LD IY,0x6677
+        0xFD, 0xE3,             // EX (SP),IY
+    };
+    copy(0x0000, &prog);
+    var cpu = makeCPU();
+
+    T(10==step(&cpu)); T(0x1234 == cpu.r16(HL));
+    T(10==step(&cpu)); T(0x5678 == cpu.r16(DE));
+    T(4 ==step(&cpu)); T(0x1234 == cpu.r16(DE)); T(0x5678 == cpu.r16(HL));
+    T(7 ==step(&cpu)); T(0x0011 == cpu.r16(FA)); T(0x00FF == cpu.ex[FA]);
+    T(4 ==step(&cpu)); T(0x00FF == cpu.r16(FA)); T(0x0011 == cpu.ex[FA]);
+    T(7 ==step(&cpu)); T(0x0022 == cpu.r16(FA)); T(0x0011 == cpu.ex[FA]);
+    T(4 ==step(&cpu)); T(0x0011 == cpu.r16(FA)); T(0x0022 == cpu.ex[FA]);
+    T(10==step(&cpu)); T(0x9ABC == cpu.r16(BC));
+    T(4 ==step(&cpu));
+    T(0xFFFF == cpu.r16(HL)); T(0x5678 == cpu.ex[HL]);
+    T(0xFFFF == cpu.r16(DE)); T(0x1234 == cpu.ex[DE]);
+    T(0xFFFF == cpu.r16(BC)); T(0x9ABC == cpu.ex[BC]);
+    T(10==step(&cpu)); T(0x1111 == cpu.r16(HL));
+    T(10==step(&cpu)); T(0x2222 == cpu.r16(DE));
+    T(10==step(&cpu)); T(0x3333 == cpu.r16(BC));
+    T(4 ==step(&cpu));
+    T(0x5678 == cpu.r16(HL)); T(0x1111 == cpu.ex[HL]);
+    T(0x1234 == cpu.r16(DE)); T(0x2222 == cpu.ex[DE]);
+    T(0x9ABC == cpu.r16(BC)); T(0x3333 == cpu.ex[BC]);
+    T(10==step(&cpu)); T(0x0100 == cpu.SP);
+    T(11==step(&cpu)); T(0x1234 == mem16(0x00FE));
+    T(19==step(&cpu)); T(0x1234 == cpu.r16(HL)); T(cpu.WZ == cpu.r16(HL)); T(0x5678 == mem16(0x00FE));
+    T(14==step(&cpu)); T(0x8899 == cpu.IX);
+    T(23==step(&cpu)); T(0x5678 == cpu.IX); T(cpu.WZ == cpu.IX); T(0x8899 == mem16(0x00FE));
+    T(14==step(&cpu)); T(0x6677 == cpu.IY);
+    T(23==step(&cpu)); T(0x8899 == cpu.IY); T(cpu.WZ == cpu.IY); T(0x6677 == mem16(0x00FE));
     ok();
 }
 
@@ -1288,6 +1345,7 @@ pub fn main() void {
     LD_inni_HLddIXIY();
     LD_SP_HLIXIY();
     PUSH_POP_qqIXIY();
+    EX();
     ADD_rn();
     ADD_iHLIXIYi();
     ADC_rn();
