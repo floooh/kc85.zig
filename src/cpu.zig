@@ -217,7 +217,10 @@ fn _exec(cpu: *CPU, num_ticks: usize, tick_func: TickFunc) usize {
                     6 => opLD_inn_A(cpu, tick_func),
                     7 => opLD_A_inn(cpu, tick_func)
                 },
-                3 => unreachable,
+                3 => switch (q) {
+                    0 => { opINC_rp(cpu, p, tick_func); },
+                    1 => { opDEC_rp(cpu, p, tick_func); },
+                },
                 4 => opINC_r(cpu, y, tick_func),
                 5 => opDEC_r(cpu, y, tick_func),
                 6 => opLD_r_n(cpu, y, tick_func),
@@ -492,13 +495,13 @@ fn load16AF(cpu: *CPU, reg: u2) u16 {
     };
 }
 
-// HALT impl
+// HALT
 fn opHALT(cpu: *CPU) void {
     cpu.pins |= HALT;
     cpu.PC -%= 1;
 }
 
-// LD r,r impl
+// LD r,r
 fn opLD_r_r(cpu: *CPU, y: u3, z: u3, tick_func: TickFunc) void {
     if ((y == 6) or (z == 6)) {
         addr(cpu, 5, tick_func);
@@ -507,7 +510,7 @@ fn opLD_r_r(cpu: *CPU, y: u3, z: u3, tick_func: TickFunc) void {
     store8(cpu, y, val, tick_func);
 }
 
-// LD r,n impl
+// LD r,n
 fn opLD_r_n(cpu: *CPU, y: u3, tick_func: TickFunc) void {
     if (y == 6) {
         addr(cpu, 2, tick_func);
@@ -516,7 +519,7 @@ fn opLD_r_n(cpu: *CPU, y: u3, tick_func: TickFunc) void {
     store8(cpu, y, val, tick_func);
 }
 
-// ALU r impl
+// ALU r
 fn opALU_r(cpu: *CPU, y: u3, z: u3, tick_func: TickFunc) void {
     if (z == 6) {
         addr(cpu, 5, tick_func);
@@ -525,7 +528,7 @@ fn opALU_r(cpu: *CPU, y: u3, z: u3, tick_func: TickFunc) void {
     alu8(&cpu.regs, y, val);
 }
 
-// ALU n impl
+// ALU n
 fn opALU_n(cpu: *CPU, y: u3, tick_func: TickFunc) void {
     const val = imm8(cpu, tick_func);
     alu8(&cpu.regs, y, val);
@@ -536,7 +539,7 @@ fn opNEG(cpu: *CPU) void {
     neg8(&cpu.regs);
 }
 
-// INC r impl
+// INC r
 fn opINC_r(cpu: *CPU, y: u3, tick_func: TickFunc) void {
     if (y == 6) {
         addr(cpu, 5, tick_func);
@@ -547,7 +550,7 @@ fn opINC_r(cpu: *CPU, y: u3, tick_func: TickFunc) void {
     store8(cpu, y, res, tick_func);
 }
 
-// DEC r impl
+// DEC r
 fn opDEC_r(cpu: *CPU, y: u3, tick_func: TickFunc) void {
     if (y == 6) {
         addr(cpu, 5, tick_func);
@@ -556,6 +559,18 @@ fn opDEC_r(cpu: *CPU, y: u3, tick_func: TickFunc) void {
     const val = load8(cpu, y, tick_func);
     const res = dec8(&cpu.regs, val);
     store8(cpu, y, res, tick_func);
+}
+
+// INC rp
+fn opINC_rp(cpu: *CPU, p: u2, tick_func: TickFunc) void {
+    tick(cpu, 2, 0, tick_func); // 2 filler ticks
+    store16SP(cpu, p, load16SP(cpu, p) +% 1);
+}
+
+// DEC rp
+fn opDEC_rp(cpu: *CPU, p: u2, tick_func: TickFunc) void {
+    tick(cpu, 2, 0, tick_func); // 2 filler tick
+    store16SP(cpu, p, load16SP(cpu, p) -% 1);
 }
 
 // LD rp,nn
