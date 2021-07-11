@@ -311,8 +311,8 @@ fn opED_prefix(cpu: *CPU, tick_func: TickFunc) void {
                 1 => { opLD_R_A(cpu, tick_func); },
                 2 => { opLD_A_I(cpu, tick_func); },
                 3 => { opLD_A_R(cpu, tick_func); },
-                4 => unreachable,
-                5 => unreachable,
+                4 => { opRRD(cpu, tick_func); },
+                5 => { opRLD(cpu, tick_func); },
                 6, 7 => { }, // NONI + NOP
             }
         },
@@ -961,6 +961,40 @@ fn opRRA(cpu: *CPU) void {
     const r = (a >> 1) | ((f & CF) << 7);
     cpu.regs[F] = @truncate(u8, (a & CF) | (f & (SF|ZF|PF)) | (r & (YF|XF)));
     cpu.regs[A] = @truncate(u8, r);
+}
+
+// RLD
+fn opRLD(cpu: *CPU, tick_func: TickFunc) void {
+    cpu.WZ = loadHLIXIY(cpu);
+    cpu.pins = setAddr(cpu.pins, cpu.WZ);
+    memRead(cpu, tick_func);
+    const d_in = getData(cpu.pins);
+    const a_in = cpu.regs[A];
+    const a_out = (a_in & 0xF0) | (d_in >> 4);
+    const d_out = (d_in << 4) | (a_in & 0x0F);
+    cpu.pins = setAddrData(cpu.pins, cpu.WZ, d_out);
+    memWrite(cpu, tick_func);
+    cpu.WZ +%= 1;
+    cpu.regs[A] = a_out;
+    cpu.regs[F] = (cpu.regs[F] & CF) | szpFlags(a_out);
+    tick(cpu, 4, 0, tick_func); // 4 filler ticks
+}
+
+// RRD
+fn opRRD(cpu: *CPU, tick_func: TickFunc) void {
+    cpu.WZ = loadHLIXIY(cpu);
+    cpu.pins = setAddr(cpu.pins, cpu.WZ);
+    memRead(cpu, tick_func);
+    const d_in = getData(cpu.pins);
+    const a_in = cpu.regs[A];
+    const a_out = (a_in & 0xF0) | (d_in & 0x0F);
+    const d_out = (d_in >> 4) | (a_in << 4);
+    cpu.pins = setAddrData(cpu.pins, cpu.WZ, d_out);
+    memWrite(cpu, tick_func);
+    cpu.WZ +%= 1;
+    cpu.regs[A] = a_out;
+    cpu.regs[F] = (cpu.regs[F] & CF) | szpFlags(a_out);
+    tick(cpu, 4, 0, tick_func); // 4 filler ticks
 }
 
 // flag computation functions

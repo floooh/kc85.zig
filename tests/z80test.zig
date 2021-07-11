@@ -1448,6 +1448,293 @@ fn RLC_RL_RRC_RR_r() void {
     ok();
 }
 
+fn RRC_RLC_RR_RL_iHLIXIYi() void {
+    start("RRC/RLC/RR/RL (HL/IX+d/IY+d)");
+    const data = [_]u8{ 0x01, 0xFF, 0x11 };
+    const prog = [_]u8 {
+        0x21, 0x00, 0x10,           // LD HL,0x1000
+        0xDD, 0x21, 0x00, 0x10,     // LD IX,0x1001
+        0xFD, 0x21, 0x03, 0x10,     // LD IY,0x1003
+        0xCB, 0x0E,                 // RRC (HL)
+        0x7E,                       // LD A,(HL)
+        0xCB, 0x06,                 // RLC (HL)
+        0x7E,                       // LD A,(HL)
+        0xDD, 0xCB, 0x01, 0x0E,     // RRC (IX+1)
+        0xDD, 0x7E, 0x01,           // LD A,(IX+1)
+        0xDD, 0xCB, 0x01, 0x06,     // RLC (IX+1)
+        0xDD, 0x7E, 0x01,           // LD A,(IX+1)
+        0xFD, 0xCB, 0xFF, 0x0E,     // RRC (IY-1)
+        0xFD, 0x7E, 0xFF,           // LD A,(IY-1)
+        0xFD, 0xCB, 0xFF, 0x06,     // RLC (IY-1)
+        0xFD, 0x7E, 0xFF,           // LD A,(IY-1)
+        0xCB, 0x1E,                 // RR (HL)
+        0x7E,                       // LD A,(HL)
+        0xCB, 0x16,                 // RL (HL)
+        0x7E,                       // LD A,(HL)
+        0xDD, 0xCB, 0x01, 0x1E,     // RR (IX+1)
+        0xDD, 0x7E, 0x01,           // LD A,(IX+1)
+        0xDD, 0xCB, 0x01, 0x16,     // RL (IX+1)
+        0xDD, 0x7E, 0x01,           // LD A,(IX+1)
+        0xFD, 0xCB, 0xFF, 0x16,     // RL (IY-1)
+        0xFD, 0x7E, 0xFF,           // LD A,(IY-1)
+        0xFD, 0xCB, 0xFF, 0x1E,     // RR (IY-1)
+        0xFD, 0x7E, 0xFF,           // LD A,(IY-1)
+    };
+    copy(0x1000, &data);
+    copy(0x0000, &prog);
+    var cpu = makeCPU();
+    
+    skip(&cpu, 3);
+    T(15==step(&cpu)); T(0x80 == mem[0x1000]); T(flags(&cpu, SF|CF));
+    T(7 ==step(&cpu)); T(0x80 == cpu.regs[A]);
+    T(15==step(&cpu)); T(0x01 == mem[0x1000]); T(flags(&cpu, CF));
+    T(7 ==step(&cpu)); T(0x01 == cpu.regs[A]);
+    T(23==step(&cpu)); T(0xFF == mem[0x1001]); T(flags(&cpu, SF|PF|CF));
+    T(19==step(&cpu)); T(0xFF == cpu.regs[A]);
+    T(23==step(&cpu)); T(0xFF == mem[0x1001]); T(flags(&cpu, SF|PF|CF));
+    T(19==step(&cpu)); T(0xFF == cpu.regs[A]);
+    T(23==step(&cpu)); T(0x88 == mem[0x1002]); T(flags(&cpu, SF|PF|CF));
+    T(19==step(&cpu)); T(0x88 == cpu.regs[A]);
+    T(23==step(&cpu)); T(0x11 == mem[0x1002]); T(flags(&cpu, PF|CF));
+    T(19==step(&cpu)); T(0x11 == cpu.regs[A]);
+    T(15==step(&cpu)); T(0x80 == mem[0x1000]); T(flags(&cpu, SF|CF));
+    T(7 ==step(&cpu)); T(0x80 == cpu.regs[A]);
+    T(15==step(&cpu)); T(0x01 == mem[0x1000]); T(flags(&cpu, CF));
+    T(7 ==step(&cpu)); T(0x01 == cpu.regs[A]);
+    T(23==step(&cpu)); T(0xFF == mem[0x1001]); T(flags(&cpu, SF|PF|CF));
+    T(19==step(&cpu)); T(0xFF == cpu.regs[A]);
+    T(23==step(&cpu)); T(0xFF == mem[0x1001]); T(flags(&cpu, SF|PF|CF));
+    T(19==step(&cpu)); T(0xFF == cpu.regs[A]);
+    T(23==step(&cpu)); T(0x23 == mem[0x1002]); T(flags(&cpu, 0));
+    T(19==step(&cpu)); T(0x23 == cpu.regs[A]);
+    T(23==step(&cpu)); T(0x11 == mem[0x1002]); T(flags(&cpu, PF|CF));
+    T(19==step(&cpu)); T(0x11 == cpu.regs[A]);
+    ok();
+}
+
+fn SLA_r() void {
+    start("SLA_r");
+    const prog = [_]u8 {
+        0x3E, 0x01,         // LD A,0x01
+        0x06, 0x80,         // LD B,0x80
+        0x0E, 0xAA,         // LD C,0xAA
+        0x16, 0xFE,         // LD D,0xFE
+        0x1E, 0x7F,         // LD E,0x7F
+        0x26, 0x11,         // LD H,0x11
+        0x2E, 0x00,         // LD L,0x00
+        0xCB, 0x27,         // SLA A
+        0xCB, 0x20,         // SLA B
+        0xCB, 0x21,         // SLA C
+        0xCB, 0x22,         // SLA D
+        0xCB, 0x23,         // SLA E
+        0xCB, 0x24,         // SLA H
+        0xCB, 0x25,         // SLA L
+    };
+    copy(0x0000, &prog);
+    var cpu = makeCPU();
+
+    skip(&cpu, 7);
+    T(8==step(&cpu)); T(0x02 == cpu.regs[A]); T(flags(&cpu, 0));
+    T(8==step(&cpu)); T(0x00 == cpu.regs[B]); T(flags(&cpu, ZF|PF|CF));
+    T(8==step(&cpu)); T(0x54 == cpu.regs[C]); T(flags(&cpu, CF));
+    T(8==step(&cpu)); T(0xFC == cpu.regs[D]); T(flags(&cpu, SF|PF|CF));
+    T(8==step(&cpu)); T(0xFE == cpu.regs[E]); T(flags(&cpu, SF));
+    T(8==step(&cpu)); T(0x22 == cpu.regs[H]); T(flags(&cpu, PF));
+    T(8==step(&cpu)); T(0x00 == cpu.regs[L]); T(flags(&cpu, ZF|PF));
+    ok();
+}
+
+fn SLA_iHLIXIYi() void {
+    start("SLA (HL/IX+d/IY+d)");
+    const data = [_]u8 { 0x01, 0x80, 0xAA };
+    const prog = [_]u8 {
+        0x21, 0x00, 0x10,           // LD HL,0x1000
+        0xDD, 0x21, 0x00, 0x10,     // LD IX,0x1001
+        0xFD, 0x21, 0x03, 0x10,     // LD IY,0x1003
+        0xCB, 0x26,                 // SLA (HL)
+        0x7E,                       // LD A,(HL)
+        0xDD, 0xCB, 0x01, 0x26,     // SLA (IX+1)
+        0xDD, 0x7E, 0x01,           // LD A,(IX+1)
+        0xFD, 0xCB, 0xFF, 0x26,     // SLA (IY-1)
+        0xFD, 0x7E, 0xFF,           // LD A,(IY-1)
+    };
+    copy(0x1000, &data);
+    copy(0x000, &prog);
+    var cpu = makeCPU();
+    
+    skip(&cpu, 3);
+    T(15==step(&cpu)); T(0x02 == mem[0x1000]); T(flags(&cpu, 0));
+    T(7 ==step(&cpu)); T(0x02 == cpu.regs[A]);
+    T(23==step(&cpu)); T(0x00 == mem[0x1001]); T(flags(&cpu, ZF|PF|CF));
+    T(19==step(&cpu)); T(0x00 == cpu.regs[A]);
+    T(23==step(&cpu)); T(0x54 == mem[0x1002]); T(flags(&cpu, CF));
+    T(19==step(&cpu)); T(0x54 == cpu.regs[A]);
+    ok();
+}
+
+fn SRA_r() void {
+    start("SRA r");
+    const prog = [_]u8 {
+        0x3E, 0x01,         // LD A,0x01
+        0x06, 0x80,         // LD B,0x80
+        0x0E, 0xAA,         // LD C,0xAA
+        0x16, 0xFE,         // LD D,0xFE
+        0x1E, 0x7F,         // LD E,0x7F
+        0x26, 0x11,         // LD H,0x11
+        0x2E, 0x00,         // LD L,0x00
+        0xCB, 0x2F,         // SRA A
+        0xCB, 0x28,         // SRA B
+        0xCB, 0x29,         // SRA C
+        0xCB, 0x2A,         // SRA D
+        0xCB, 0x2B,         // SRA E
+        0xCB, 0x2C,         // SRA H
+        0xCB, 0x2D,         // SRA L
+    };
+    copy(0x0000, &prog);
+    var cpu = makeCPU();
+    
+    skip(&cpu, 7);
+    T(8==step(&cpu)); T(0x00 == cpu.regs[A]); T(flags(&cpu, ZF|PF|CF));
+    T(8==step(&cpu)); T(0xC0 == cpu.regs[B]); T(flags(&cpu, SF|PF));
+    T(8==step(&cpu)); T(0xD5 == cpu.regs[C]); T(flags(&cpu, SF));
+    T(8==step(&cpu)); T(0xFF == cpu.regs[D]); T(flags(&cpu, SF|PF));
+    T(8==step(&cpu)); T(0x3F == cpu.regs[E]); T(flags(&cpu, PF|CF));
+    T(8==step(&cpu)); T(0x08 == cpu.regs[H]); T(flags(&cpu, CF));
+    T(8==step(&cpu)); T(0x00 == cpu.regs[L]); T(flags(&cpu, ZF|PF));
+    ok();
+}
+
+fn SRA_iHLIXIYi() void {
+    start("SRA (HL/IX+d/IY+d)");
+    const data = [_]u8 { 0x01, 0x80, 0xAA };
+    const prog = [_]u8 {
+        0x21, 0x00, 0x10,           // LD HL,0x1000
+        0xDD, 0x21, 0x00, 0x10,     // LD IX,0x1001
+        0xFD, 0x21, 0x03, 0x10,     // LD IY,0x1003
+        0xCB, 0x2E,                 // SRA (HL)
+        0x7E,                       // LD A,(HL)
+        0xDD, 0xCB, 0x01, 0x2E,     // SRA (IX+1)
+        0xDD, 0x7E, 0x01,           // LD A,(IX+1)
+        0xFD, 0xCB, 0xFF, 0x2E,     // SRA (IY-1)
+        0xFD, 0x7E, 0xFF,           // LD A,(IY-1)
+    };
+    copy(0x1000, &data);
+    copy(0x000, &prog);
+    var cpu = makeCPU();
+
+    skip(&cpu, 3);
+    T(15==step(&cpu)); T(0x00 == mem[0x1000]); T(flags(&cpu, ZF|PF|CF));
+    T(7 ==step(&cpu)); T(0x00 == cpu.regs[A]);
+    T(23==step(&cpu)); T(0xC0 == mem[0x1001]); T(flags(&cpu, SF|PF));
+    T(19==step(&cpu)); T(0xC0 == cpu.regs[A]);
+    T(23==step(&cpu)); T(0xD5 == mem[0x1002]); T(flags(&cpu, SF));
+    T(19==step(&cpu)); T(0xD5 == cpu.regs[A]);
+    ok();
+}
+
+fn SRL_r() void {
+    start("SRL r");
+    const prog = [_]u8 {
+        0x3E, 0x01,         // LD A,0x01
+        0x06, 0x80,         // LD B,0x80
+        0x0E, 0xAA,         // LD C,0xAA
+        0x16, 0xFE,         // LD D,0xFE
+        0x1E, 0x7F,         // LD E,0x7F
+        0x26, 0x11,         // LD H,0x11
+        0x2E, 0x00,         // LD L,0x00
+        0xCB, 0x3F,         // SRL A
+        0xCB, 0x38,         // SRL B
+        0xCB, 0x39,         // SRL C
+        0xCB, 0x3A,         // SRL D
+        0xCB, 0x3B,         // SRL E
+        0xCB, 0x3C,         // SRL H
+        0xCB, 0x3D,         // SRL L
+    };
+    copy(0x0000, &prog);
+    var cpu = makeCPU();
+
+    skip(&cpu, 7);
+    T(8==step(&cpu)); T(0x00 == cpu.regs[A]); T(flags(&cpu, ZF|PF|CF));
+    T(8==step(&cpu)); T(0x40 == cpu.regs[B]); T(flags(&cpu, 0));
+    T(8==step(&cpu)); T(0x55 == cpu.regs[C]); T(flags(&cpu, PF));
+    T(8==step(&cpu)); T(0x7F == cpu.regs[D]); T(flags(&cpu, 0));
+    T(8==step(&cpu)); T(0x3F == cpu.regs[E]); T(flags(&cpu, PF|CF));
+    T(8==step(&cpu)); T(0x08 == cpu.regs[H]); T(flags(&cpu, CF));
+    T(8==step(&cpu)); T(0x00 == cpu.regs[L]); T(flags(&cpu, ZF|PF));
+    ok();
+}
+
+fn SRL_iHLIXIYi() void {
+    start("SRL (HL/IX+d/IY+d)");
+    const data = [_]u8 { 0x01, 0x80, 0xAA };
+    const prog = [_]u8 {
+        0x21, 0x00, 0x10,           // LD HL,0x1000
+        0xDD, 0x21, 0x00, 0x10,     // LD IX,0x1001
+        0xFD, 0x21, 0x03, 0x10,     // LD IY,0x1003
+        0xCB, 0x3E,                 // SRL (HL)
+        0x7E,                       // LD A,(HL)
+        0xDD, 0xCB, 0x01, 0x3E,     // SRL (IX+1)
+        0xDD, 0x7E, 0x01,           // LD A,(IX+1)
+        0xFD, 0xCB, 0xFF, 0x3E,     // SRL (IY-1)
+        0xFD, 0x7E, 0xFF,           // LD A,(IY-1)
+    };
+    copy(0x1000, &data);
+    copy(0x000, &prog);
+    var cpu = makeCPU();
+
+    skip(&cpu, 3);
+    T(15==step(&cpu)); T(0x00 == mem[0x1000]); T(flags(&cpu, ZF|PF|CF));
+    T(7 ==step(&cpu)); T(0x00 == cpu.regs[A]);
+    T(23==step(&cpu)); T(0x40 == mem[0x1001]); T(flags(&cpu, 0));
+    T(19==step(&cpu)); T(0x40 == cpu.regs[A]);
+    T(23==step(&cpu)); T(0x55 == mem[0x1002]); T(flags(&cpu, PF));
+    T(19==step(&cpu)); T(0x55 == cpu.regs[A]);
+    ok();
+}
+
+fn RLD_RRD() void {
+    start("RLD/RRD");
+    const prog = [_]u8 {
+        0x3E, 0x12,         // LD A,0x12
+        0x21, 0x00, 0x10,   // LD HL,0x1000
+        0x36, 0x34,         // LD (HL),0x34
+        0xED, 0x67,         // RRD
+        0xED, 0x6F,         // RLD
+        0x7E,               // LD A,(HL)
+        0x3E, 0xFE,         // LD A,0xFE
+        0x36, 0x00,         // LD (HL),0x00
+        0xED, 0x6F,         // RLD
+        0xED, 0x67,         // RRD
+        0x7E,               // LD A,(HL)
+        0x3E, 0x01,         // LD A,0x01
+        0x36, 0x00,         // LD (HL),0x00
+        0xED, 0x6F,         // RLD
+        0xED, 0x67,         // RRD
+        0x7E
+    };
+    copy(0x0000, &prog);
+    var cpu = makeCPU();
+    
+    T(7 ==step(&cpu)); T(0x12 == cpu.regs[A]);
+    T(10==step(&cpu)); T(0x1000 == cpu.r16(HL));
+    T(10==step(&cpu)); T(0x34 == mem[0x1000]);
+    T(18==step(&cpu)); T(0x14 == cpu.regs[A]); T(0x23 == mem[0x1000]); T(0x1001 == cpu.WZ);
+    T(18==step(&cpu)); T(0x12 == cpu.regs[A]); T(0x34 == mem[0x1000]); T(0x1001 == cpu.WZ);
+    T(7 ==step(&cpu)); T(0x34 == cpu.regs[A]);
+    T(7 ==step(&cpu)); T(0xFE == cpu.regs[A]);
+    T(10==step(&cpu)); T(0x00 == mem[0x1000]);
+    T(18==step(&cpu)); T(0xF0 == cpu.regs[A]); T(0x0E == mem[0x1000]); T(flags(&cpu, SF|PF)); T(0x1001 == cpu.WZ);
+    T(18==step(&cpu)); T(0xFE == cpu.regs[A]); T(0x00 == mem[0x1000]); T(flags(&cpu, SF)); T(0x1001 == cpu.WZ);
+    T(7 ==step(&cpu)); T(0x00 == cpu.regs[A]);
+    T(7 ==step(&cpu)); T(0x01 == cpu.regs[A]);
+    T(10==step(&cpu)); T(0x00 == mem[0x1000]);
+    cpu.regs[F] |= CF;
+    T(18==step(&cpu)); T(0x00 == cpu.regs[A]); T(0x01 == mem[0x1000]); T(flags(&cpu, ZF|PF|CF)); T(0x1001 == cpu.WZ);
+    T(18==step(&cpu)); T(0x01 == cpu.regs[A]); T(0x00 == mem[0x1000]); T(flags(&cpu, CF)); T(0x1001 == cpu.WZ);
+    T(7 ==step(&cpu)); T(0x00 == cpu.regs[A]);
+    ok();
+}
+
 fn NEG() void {
     start("NEG");
     const prog = [_]u8 {
@@ -1509,8 +1796,16 @@ pub fn main() void {
     INC_DEC_r();
     INC_DEC_iHLIXIYi();
     INC_DEC_ssIXIY();
+    NEG();
     RLCA_RLA_RRCA_RRA();
     RLC_RL_RRC_RR_r();
-    NEG();
+    RRC_RLC_RR_RL_iHLIXIYi();
+    SLA_r();
+    SLA_iHLIXIYi();
+    SRA_r();
+    SRA_iHLIXIYi();
+    SRL_r();
+    SRL_iHLIXIYi();
+    RLD_RRD();
 }
 
