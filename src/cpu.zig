@@ -219,7 +219,7 @@ fn _exec(cpu: *CPU, num_ticks: usize, tick_func: TickFunc) usize {
             2 => { opALU_r(cpu, y, z, tick_func); },
             3 => switch (z) {
                 1 => switch (q) {
-                    0 => unreachable,
+                    0 => { opPOP_rp2(cpu, p, tick_func); },
                     1 => switch (p) {
                         0 => unreachable,
                         1 => unreachable,
@@ -228,7 +228,7 @@ fn _exec(cpu: *CPU, num_ticks: usize, tick_func: TickFunc) usize {
                     }
                 },
                 5 => switch (q) {
-                    0 => unreachable,
+                    0 => { opPUSH_rp2(cpu, p, tick_func); },
                     1 => switch (p) {
                         0 => unreachable,
                         1 => { cpu.ixiy = UseIX; continue; }, // no interrupt handling after DD prefix
@@ -418,12 +418,23 @@ fn storeHLIXIY(cpu: *CPU, val: u16) void {
     }
 }
 
-// store 16-bit value into register (with special handling for SP and IX/IY)
+// store 16-bit value into register with special handling for SP
 fn store16SP(cpu: *CPU, reg: u2, val: u16) void {
     switch (reg) {
-        FA   => { cpu.SP = val; },
+        BC   => { setR16(&cpu.regs, BC, val); },
+        DE   => { setR16(&cpu.regs, DE, val); },
         HL   => { storeHLIXIY(cpu, val); },
-        else => { setR16(&cpu.regs, reg, val); }
+        FA   => { cpu.SP = val; },
+    }
+}
+
+// store 16-bit value into register with special case handling for AF
+fn store16AF(cpu: *CPU, reg: u2, val: u16) void {
+    switch (reg) {
+        BC   => { setR16(&cpu.regs, BC, val); },
+        DE   => { setR16(&cpu.regs, DE, val); },
+        HL   => { storeHLIXIY(cpu, val); },
+        FA   => { cpu.regs[F] = @truncate(u8, val); cpu.regs[A] = @truncate(u8, val>>8); },
     }
 }
 
@@ -437,12 +448,23 @@ fn loadHLIXIY(cpu: *CPU) u16 {
     };
 }
 
-// load 16-bit value from register (with special handling for SP and IX/IY)
+// load 16-bit value from register with special handling for SP
 fn load16SP(cpu: *CPU, reg: u2) u16 {
     return switch(reg) {
-        FA   => cpu.SP,
+        BC   => getR16(&cpu.regs, BC),
+        DE   => getR16(&cpu.regs, DE),
         HL   => loadHLIXIY(cpu),
-        else => getR16(&cpu.regs, reg),
+        FA   => cpu.SP,
+    };
+}
+
+// load 16-bit value from register with special case handling for AF
+fn load16AF(cpu: *CPU, reg: u2) u16 {
+    return switch(reg) {
+        BC   => getR16(&cpu.regs, BC),
+        DE   => getR16(&cpu.regs, DE),
+        HL   => loadHLIXIY(cpu),
+        FA   => @as(u16, cpu.regs[A])<<8 | cpu.regs[F],
     };
 }
 
@@ -637,6 +659,31 @@ fn opLD_A_R(cpu: *CPU, tick_func: TickFunc) void {
     tick(cpu, 1, 0, tick_func);     // 1 filler tick
     cpu.regs[A] = cpu.R;
     cpu.regs[F] = irFlags(cpu.regs[A], cpu.regs[F], cpu.iff2);
+}
+
+// PUSH BC/DE/HL/AF/IX/IY
+fn opPUSH_rp2(cpu: *CPU, p: u2, tick_func: TickFunc) void {
+    tick(cpu, 1, 0, tick_func);     // 1 filler tick
+    const val = load16AF(cpu, p);
+    cpu.SP -%= 1;
+    cpu.pins = setAddrData(cpu.pins, cpu.SP, @truncate(u8, val>>8));
+    memWrite(cpu, tick_func);
+    cpu.SP -%= 1;
+    cpu.pins = setAddrData(cpu.pins, cpu.SP, @truncate(u8, val));
+    memWrite(cpu, tick_func);
+}
+
+// POP BC/DE/HL/AF/IX/IY
+fn opPOP_rp2(cpu: *CPU, p: u2, tick_func: TickFunc) void {
+    cpu.pins = setAddr(cpu.pins, cpu.SP);
+    cpu.SP +%= 1;
+    memRead(cpu, tick_func);
+    const l = getData(cpu.pins);
+    cpu.pins = setAddr(cpu.pins, cpu.SP);
+    cpu.SP +%= 1;
+    memRead(cpu, tick_func);
+    const h = getData(cpu.pins);
+    store16AF(cpu, p, @as(u16,h)<<8 | l);
 }
 
 // flag computation functions

@@ -610,6 +610,54 @@ fn LD_SP_HLIXIY() void {
     ok();
 }
 
+fn PUSH_POP_qqIXIY() void {
+    start("PUSH/POP qqIXIY");
+    const prog = [_]u8 {
+        0x01, 0x34, 0x12,       // LD BC,0x1234
+        0x11, 0x78, 0x56,       // LD DE,0x5678
+        0x21, 0xBC, 0x9A,       // LD HL,0x9ABC
+        0x3E, 0xEF,             // LD A,0xEF
+        0xDD, 0x21, 0x45, 0x23, // LD IX,0x2345
+        0xFD, 0x21, 0x89, 0x67, // LD IY,0x6789
+        0x31, 0x00, 0x01,       // LD SP,0x0100
+        0xF5,                   // PUSH AF
+        0xC5,                   // PUSH BC
+        0xD5,                   // PUSH DE
+        0xE5,                   // PUSH HL
+        0xDD, 0xE5,             // PUSH IX
+        0xFD, 0xE5,             // PUSH IY
+        0xF1,                   // POP AF
+        0xC1,                   // POP BC
+        0xD1,                   // POP DE
+        0xE1,                   // POP HL
+        0xDD, 0xE1,             // POP IX
+        0xFD, 0xE1,             // POP IY
+    };
+    copy(0x0000, &prog);
+    var cpu = makeCPU();
+    
+    T(10==step(&cpu)); T(0x1234 == cpu.r16(BC));
+    T(10==step(&cpu)); T(0x5678 == cpu.r16(DE));
+    T(10==step(&cpu)); T(0x9ABC == cpu.r16(HL));
+    T(7 ==step(&cpu)); T(0x00EF == cpu.r16(FA));
+    T(14==step(&cpu)); T(0x2345 == cpu.IX);
+    T(14==step(&cpu)); T(0x6789 == cpu.IY);
+    T(10==step(&cpu)); T(0x0100 == cpu.SP);
+    T(11==step(&cpu)); T(0xEF00 == mem16(0x00FE)); T(0x00FE == cpu.SP);
+    T(11==step(&cpu)); T(0x1234 == mem16(0x00FC)); T(0x00FC == cpu.SP);
+    T(11==step(&cpu)); T(0x5678 == mem16(0x00FA)); T(0x00FA == cpu.SP);
+    T(11==step(&cpu)); T(0x9ABC == mem16(0x00F8)); T(0x00F8 == cpu.SP);
+    T(15==step(&cpu)); T(0x2345 == mem16(0x00F6)); T(0x00F6 == cpu.SP);
+    T(15==step(&cpu)); T(0x6789 == mem16(0x00F4)); T(0x00F4 == cpu.SP);
+    T(10==step(&cpu)); T(0x8967 == cpu.r16(FA)); T(0x00F6 == cpu.SP);
+    T(10==step(&cpu)); T(0x2345 == cpu.r16(BC)); T(0x00F8 == cpu.SP);
+    T(10==step(&cpu)); T(0x9ABC == cpu.r16(DE)); T(0x00FA == cpu.SP);
+    T(10==step(&cpu)); T(0x5678 == cpu.r16(HL)); T(0x00FC == cpu.SP);
+    T(14==step(&cpu)); T(0x1234 == cpu.IX); T(0x00FE == cpu.SP);
+    T(14==step(&cpu)); T(0xEF00 == cpu.IY); T(0x0100 == cpu.SP);
+    ok();
+}
+
 fn ADD_rn() void {
     start("ADD rn");
     const prog = [_]u8 {
@@ -1239,6 +1287,7 @@ pub fn main() void {
     LD_HLddIXIY_inni();
     LD_inni_HLddIXIY();
     LD_SP_HLIXIY();
+    PUSH_POP_qqIXIY();
     ADD_rn();
     ADD_iHLIXIYi();
     ADC_rn();
