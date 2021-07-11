@@ -435,6 +435,50 @@ fn LD_ddIXIY_nn() void {
     ok();
 }
 
+fn LD_A_iBCDEnni() void {
+    start("LD A,(BC/DE/nn)");
+    const data = [_]u8 { 0x11, 0x22, 0x33 };
+    const prog = [_]u8 {
+        0x01, 0x00, 0x10,   // LD BC,0x1000
+        0x11, 0x01, 0x10,   // LD DE,0x1001
+        0x0A,               // LD A,(BC)
+        0x1A,               // LD A,(DE)
+        0x3A, 0x02, 0x10,   // LD A,(0x1002)
+    };
+    copy(0x1000, &data);
+    copy(0x0000, &prog);
+    var cpu = makeCPU();
+
+    T(10==step(&cpu)); T(0x1000 == cpu.r16(BC));
+    T(10==step(&cpu)); T(0x1001 == cpu.r16(DE));
+    T(7 ==step(&cpu)); T(0x11 == cpu.regs[A]); T(0x1001 == cpu.WZ);
+    T(7 ==step(&cpu)); T(0x22 == cpu.regs[A]); T(0x1002 == cpu.WZ);
+    T(13==step(&cpu)); T(0x33 == cpu.regs[A]); T(0x1003 == cpu.WZ);
+    ok();
+}
+
+fn LD_iBCDEnni_A() void {
+    start("LD (BC/DE/nn),A");
+    const prog = [_]u8 {
+        0x01, 0x00, 0x10,   // LD BC,0x1000
+        0x11, 0x01, 0x10,   // LD DE,0x1001
+        0x3E, 0x77,         // LD A,0x77
+        0x02,               // LD (BC),A
+        0x12,               // LD (DE),A
+        0x32, 0x02, 0x10,   // LD (0x1002),A
+    };
+    copy(0x0000, &prog);
+    var cpu = makeCPU();
+    
+    T(10==step(&cpu)); T(0x1000 == cpu.r16(BC));
+    T(10==step(&cpu)); T(0x1001 == cpu.r16(DE));
+    T(7 ==step(&cpu)); T(0x77 == cpu.regs[A]);
+    T(7 ==step(&cpu)); T(0x77 == mem[0x1000]); T(0x7701 == cpu.WZ);
+    T(7 ==step(&cpu)); T(0x77 == mem[0x1001]); T(0x7702 == cpu.WZ);
+    T(13==step(&cpu)); T(0x77 == mem[0x1002]); T(0x7703 == cpu.WZ);
+    ok();
+}
+
 fn ADD_rn() void {
     start("ADD rn");
     const prog = [_]u8 {
@@ -1058,6 +1102,8 @@ pub fn main() void {
     LD_iIXIYi_r();
     LD_iIXIYi_n();
     LD_ddIXIY_nn();
+    LD_A_iBCDEnni();
+    LD_iBCDEnni_A();
     ADD_rn();
     ADD_iHLIXIYi();
     ADC_rn();

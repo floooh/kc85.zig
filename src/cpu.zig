@@ -199,6 +199,16 @@ fn _exec(cpu: *CPU, num_ticks: usize, tick_func: TickFunc) usize {
                     0 => opLD_rp_nn(cpu, p, tick_func),
                     1 => unreachable // FIXME!
                 },
+                2 => switch (y) {
+                    0 => opLD_iBCDE_A(cpu, BC, tick_func),
+                    1 => opLD_A_iBCDE(cpu, BC, tick_func),
+                    2 => opLD_iBCDE_A(cpu, DE, tick_func),
+                    3 => opLD_A_iBCDE(cpu, DE, tick_func),
+                    4 => opLD_inn_HL(cpu, tick_func),
+                    5 => opLD_HL_inn(cpu, tick_func),
+                    6 => opLD_inn_A(cpu, tick_func),
+                    7 => opLD_A_inn(cpu, tick_func)
+                },
                 4 => opINC_r(cpu, y, tick_func),
                 5 => opDEC_r(cpu, y, tick_func),
                 6 => opLD_r_n(cpu, y, tick_func),
@@ -456,6 +466,67 @@ fn opDEC_r(cpu: *CPU, y: u3, tick_func: TickFunc) void {
 fn opLD_rp_nn(cpu: *CPU, p: u2, tick_func: TickFunc) void {
     const val = imm16(cpu, tick_func);
     store16SP(cpu, p, val);
+}
+
+// LD (BC/DE),A
+fn opLD_iBCDE_A(cpu: *CPU, r: u2, tick_func: TickFunc) void {
+    cpu.WZ = getR16(&cpu.regs, r);
+    const val = cpu.regs[A];
+    cpu.pins = setAddrData(cpu.pins, cpu.WZ, val);
+    memWrite(cpu, tick_func);
+    cpu.WZ = (@as(u16, val)<<8) | ((cpu.WZ +% 1) & 0xFF);
+}
+
+// LD A,(BC/DE)
+fn opLD_A_iBCDE(cpu: *CPU, r: u2, tick_func: TickFunc) void {
+    cpu.WZ = getR16(&cpu.regs, r);
+    cpu.pins = setAddr(cpu.pins, cpu.WZ);
+    memRead(cpu, tick_func);
+    cpu.regs[A] = getData(cpu.pins);
+    cpu.WZ +%= 1;
+}
+
+// LD (nn),HL
+fn opLD_inn_HL(cpu: *CPU, tick_func: TickFunc) void {
+    cpu.WZ = imm16(cpu, tick_func);
+    const val = loadHLIXIY(cpu);
+    cpu.pins = setAddrData(cpu.pins, cpu.WZ, @truncate(u8, val));
+    memWrite(cpu, tick_func);
+    cpu.WZ +%= 1;
+    cpu.pins = setAddrData(cpu.pins, cpu.WZ, @truncate(u8, val>>8));
+    memWrite(cpu, tick_func);
+}
+
+// LD HL,(nn)
+fn opLD_HL_inn(cpu: *CPU, tick_func: TickFunc) void {
+    cpu.WZ = imm16(cpu, tick_func);
+    cpu.pins = setAddr(cpu.pins, cpu.WZ);
+    memRead(cpu, tick_func);
+    const l = getData(cpu.pins);
+    cpu.WZ +%= 1;
+    cpu.pins = setAddr(cpu.pins, cpu.WZ);
+    memRead(cpu, tick_func);
+    const h = getData(cpu.pins);
+    storeHLIXIY(cpu, @as(u16, h)<<8 | l);
+}
+
+// LD (nn),A
+fn opLD_inn_A(cpu: *CPU, tick_func: TickFunc) void {
+    cpu.WZ = imm16(cpu, tick_func);
+    const val = cpu.regs[A];
+    cpu.pins = setAddrData(cpu.pins, cpu.WZ, val);
+    memWrite(cpu, tick_func);
+    cpu.WZ = (@as(u16, val)<<8) | ((cpu.WZ +% 1) & 0xFF);
+}
+
+// LD A,(nn)
+fn opLD_A_inn(cpu: *CPU, tick_func: TickFunc) void {
+    cpu.WZ = imm16(cpu, tick_func);
+    cpu.pins = setAddr(cpu.pins, cpu.WZ);
+    memRead(cpu, tick_func);
+    cpu.WZ +%= 1;
+    cpu.regs[A] = getData(cpu.pins);
+
 }
 
 // flag computation functions
