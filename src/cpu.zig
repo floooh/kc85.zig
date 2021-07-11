@@ -183,8 +183,6 @@ fn _exec(cpu: *CPU, num_ticks: usize, tick_func: TickFunc) usize {
         // fetch next opcode byte
         const op = fetch(cpu, tick_func);
 
-        // FIXME: special case ED
-
         // decode opcode (see http://www.z80.info/decoding.htm)
         // |xx|yyy|zzz|
         const x = @truncate(u2, (op >> 6) & 3);
@@ -218,16 +216,23 @@ fn _exec(cpu: *CPU, num_ticks: usize, tick_func: TickFunc) usize {
                 if (y == 6 and z == 6) { opHALT(cpu); }
                 else { opLD_r_r(cpu, y, z, tick_func); }
             },
-            2 => {
-                opALU_r(cpu, y, z, tick_func);
-            },
+            2 => { opALU_r(cpu, y, z, tick_func); },
             3 => switch (z) {
+                1 => switch (q) {
+                    0 => unreachable,
+                    1 => switch (p) {
+                        0 => unreachable,
+                        1 => unreachable,
+                        2 => unreachable,
+                        3 => { opLD_SP_HL(cpu, tick_func); },
+                    }
+                },
                 5 => switch (q) {
                     0 => unreachable,
                     1 => switch (p) {
                         0 => unreachable,
                         1 => { cpu.ixiy = UseIX; continue; }, // no interrupt handling after DD prefix
-                        2 => unreachable,
+                        2 => { opED_prefix(cpu, tick_func); },
                         3 => { cpu.ixiy = UseIY; continue; }, // no interrupt handling after FD prefix
                     }
                 },
@@ -238,6 +243,46 @@ fn _exec(cpu: *CPU, num_ticks: usize, tick_func: TickFunc) usize {
         cpu.ixiy = 0;
     }
     return cpu.ticks;
+}
+
+// ED-prefix decoding
+fn opED_prefix(cpu: *CPU, tick_func: TickFunc) void {
+
+    // ED prefix cancels the IX/IY prefix
+    cpu.ixiy = 0;
+
+    const op = fetch(cpu, tick_func);
+    const x = @truncate(u2, (op >> 6) & 3);
+    const y = @truncate(u3, (op >> 3) & 7);
+    const z = @truncate(u3, op & 7);
+    const p = @truncate(u2, (y >> 1));
+    const q = @truncate(u1, y);
+
+    switch (x) {
+        1 => switch (z) {
+            0 => unreachable,
+            1 => unreachable,
+            2 => unreachable,
+            3 => switch (q) {
+                0 => { opLD_inn_rp(cpu, p, tick_func); },
+                1 => { opLD_rp_inn(cpu, p, tick_func); },
+            },
+            4 => { opNEG(cpu); },
+            5 => unreachable,
+            6 => unreachable,
+            7 => switch(y) {
+                0 => { opLD_I_A(cpu, tick_func); },
+                1 => { opLD_R_A(cpu, tick_func); },
+                2 => { opLD_A_I(cpu, tick_func); },
+                3 => { opLD_A_R(cpu, tick_func); },
+                4 => unreachable,
+                5 => unreachable,
+                6, 7 => { }, // NONI + NOP
+            }
+        },
+        2 => unreachable,   // block instructions
+        else => { },        // 0, 3 -> NONI + NOP
+    }
 }
 
 // set 16 bit register
@@ -440,6 +485,11 @@ fn opALU_n(cpu: *CPU, y: u3, tick_func: TickFunc) void {
     alu8(&cpu.regs, y, val);
 }
 
+// NEG
+fn opNEG(cpu: *CPU) void {
+    neg8(&cpu.regs);
+}
+
 // INC r impl
 fn opINC_r(cpu: *CPU, y: u3, tick_func: TickFunc) void {
     if (y == 6) {
@@ -526,7 +576,67 @@ fn opLD_A_inn(cpu: *CPU, tick_func: TickFunc) void {
     memRead(cpu, tick_func);
     cpu.WZ +%= 1;
     cpu.regs[A] = getData(cpu.pins);
+}
 
+// LD (nn),BC/DE/HL/SP
+fn opLD_inn_rp(cpu: *CPU, p: u2, tick_func: TickFunc) void {
+    cpu.WZ = imm16(cpu, tick_func);
+    const val = load16SP(cpu, p);
+    cpu.pins = setAddrData(cpu.pins, cpu.WZ, @truncate(u8, val));
+    memWrite(cpu, tick_func);
+    cpu.WZ +%= 1;
+    cpu.pins = setAddrData(cpu.pins, cpu.WZ, @truncate(u8, val>>8));
+    memWrite(cpu, tick_func);
+}
+
+// LD BC/DE/HL/SP,(nn)
+fn opLD_rp_inn(cpu: *CPU, p: u2, tick_func: TickFunc) void {
+    cpu.WZ = imm16(cpu, tick_func);
+    cpu.pins = setAddr(cpu.pins, cpu.WZ);
+    memRead(cpu, tick_func);
+    const l = getData(cpu.pins);
+    cpu.WZ +%= 1;
+    cpu.pins = setAddr(cpu.pins, cpu.WZ);
+    memRead(cpu, tick_func);
+    const h = getData(cpu.pins);
+    store16SP(cpu, p, (@as(u16,h)<<8) | l);
+}
+
+// LD SP,HL/IX/IY
+fn opLD_SP_HL(cpu: *CPU, tick_func: TickFunc) void {
+    tick(cpu, 2, 0, tick_func);     // 2 filler ticks
+    cpu.SP = loadHLIXIY(cpu);
+}
+
+// LD I,A
+fn opLD_I_A(cpu: *CPU, tick_func: TickFunc) void {
+    tick(cpu, 1, 0, tick_func);     // 1 filler tick
+    cpu.I = cpu.regs[A];
+}
+
+// LD R,A
+fn opLD_R_A(cpu: *CPU, tick_func: TickFunc) void {
+    tick(cpu, 1, 0, tick_func);     // 1 filler tick
+    cpu.R = cpu.regs[A];
+}
+
+// special flag computation for LD_A,I / LD A,R
+fn irFlags(val: u8, f: u8, iff2: bool) u8{
+    return (f & CF) | szFlags(val) | (val & YF|XF) | if (iff2) PF else 0;
+}
+
+// LD A,I
+fn opLD_A_I(cpu: *CPU, tick_func: TickFunc) void {
+    tick(cpu, 1, 0, tick_func);     // 1 filler tick
+    cpu.regs[A] = cpu.I;
+    cpu.regs[F] = irFlags(cpu.regs[A], cpu.regs[F], cpu.iff2);
+}
+
+// LD A,R
+fn opLD_A_R(cpu: *CPU, tick_func: TickFunc) void {
+    tick(cpu, 1, 0, tick_func);     // 1 filler tick
+    cpu.regs[A] = cpu.R;
+    cpu.regs[F] = irFlags(cpu.regs[A], cpu.regs[F], cpu.iff2);
 }
 
 // flag computation functions
