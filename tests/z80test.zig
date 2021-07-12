@@ -2243,6 +2243,142 @@ fn DI_EI_IM() void {
     ok();
 }
 
+fn JP_cc_nn() void{
+    start("JP cc,nn");
+    const prog = [_]u8 {
+        0x97,               //          SUB A
+        0xC2, 0x0C, 0x02,   //          JP NZ,label0
+        0xCA, 0x0C, 0x02,   //          JP Z,label0
+        0x00,               //          NOP
+        0xC6, 0x01,         // label0:  ADD A,0x01
+        0xCA, 0x15, 0x02,   //          JP Z,label1
+        0xC2, 0x15, 0x02,   //          JP NZ,label1
+        0x00,               //          NOP
+        0x07,               // label1:  RLCA
+        0xEA, 0x1D, 0x02,   //          JP PE,label2
+        0xE2, 0x1D, 0x02,   //          JP PO,label2
+        0x00,               //          NOP
+        0xC6, 0xFD,         // label2:  ADD A,0xFD
+        0xF2, 0x26, 0x02,   //          JP P,label3
+        0xFA, 0x26, 0x02,   //          JP M,label3
+        0x00,               //          NOP
+        0xD2, 0x2D, 0x02,   // label3:  JP NC,label4
+        0xDA, 0x2D, 0x02,   //          JP C,label4
+        0x00,               //          NOP
+        0x00,               //          NOP
+    };
+    copy(0x0204, &prog);
+    var cpu = makeCPU();
+    cpu.PC = 0x0204;
+    
+    T(4 ==step(&cpu)); T(0x00 == cpu.regs[A]); T(flags(&cpu, ZF|NF));
+    T(10==step(&cpu)); T(0x0208 == cpu.PC); T(0x020C == cpu.WZ);
+    T(10==step(&cpu)); T(0x020C == cpu.PC); T(0x020C == cpu.WZ);
+    T(7 ==step(&cpu)); T(0x01 == cpu.regs[A]); T(flags(&cpu, 0));
+    T(10==step(&cpu)); T(0x0211 == cpu.PC);
+    T(10==step(&cpu)); T(0x0215 == cpu.PC);
+    T(4 ==step(&cpu)); T(0x02 == cpu.regs[A]); T(flags(&cpu, 0));
+    T(10==step(&cpu)); T(0x0219 == cpu.PC);
+    T(10==step(&cpu)); T(0x021D == cpu.PC);
+    T(7 ==step(&cpu)); T(0xFF == cpu.regs[A]); T(flags(&cpu, SF));
+    T(10==step(&cpu)); T(0x0222 == cpu.PC);
+    T(10==step(&cpu)); T(0x0226 == cpu.PC);
+    T(10==step(&cpu)); T(0x022D == cpu.PC);
+    ok();
+}
+
+fn JP_JR() void {
+    start("JP/JR");
+    const prog = [_]u8 {
+        0x21, 0x16, 0x02,           //      LD HL,l3
+        0xDD, 0x21, 0x19, 0x02,     //      LD IX,l4
+        0xFD, 0x21, 0x21, 0x02,     //      LD IY,l5
+        0xC3, 0x14, 0x02,           //      JP l0
+        0x18, 0x04,                 // l1:  JR l2
+        0x18, 0xFC,                 // l0:  JR l1
+        0xDD, 0xE9,                 // l3:  JP (IX)
+        0xE9,                       // l2:  JP (HL)
+        0xFD, 0xE9,                 // l4:  JP (IY)
+        0x18, 0x06,                 // l6:  JR l7
+        0x00, 0x00, 0x00, 0x00,     //      4x NOP
+        0x18, 0xF8,                 // l5:  JR l6
+        0x00                        // l7:  NOP
+    };
+    copy(0x0204, &prog);
+    var cpu = makeCPU();
+    cpu.PC = 0x0204;
+
+    T(10==step(&cpu)); T(0x0216 == cpu.r16(HL));
+    T(14==step(&cpu)); T(0x0219 == cpu.IX);
+    T(14==step(&cpu)); T(0x0221 == cpu.IY);
+    T(10==step(&cpu)); T(0x0214 == cpu.PC); T(0x0214 == cpu.WZ);
+    T(12==step(&cpu)); T(0x0212 == cpu.PC); T(0x0212 == cpu.WZ);
+    T(12==step(&cpu)); T(0x0218 == cpu.PC); T(0x0218 == cpu.WZ);
+    T(4 ==step(&cpu)); T(0x0216 == cpu.PC); T(0x0218 == cpu.WZ);
+    T(8 ==step(&cpu)); T(0x0219 == cpu.PC); T(0x0218 == cpu.WZ);
+    T(8 ==step(&cpu)); T(0x0221 == cpu.PC); T(0x0218 == cpu.WZ);
+    T(12==step(&cpu)); T(0x021B == cpu.PC); T(0x021B == cpu.WZ);
+    T(12==step(&cpu)); T(0x0223 == cpu.PC); T(0x0223 == cpu.WZ);
+    ok();
+}
+
+fn JR_cc_d() void {
+    start("JR cc,e");
+    const prog = [_]u8 {
+        0x97,           //      SUB A
+        0x20, 0x03,     //      JR NZ,l0
+        0x28, 0x01,     //      JR Z,l0
+        0x00,           //      NOP
+        0xC6, 0x01,     // l0:  ADD A,0x01
+        0x28, 0x03,     //      JR Z,l1
+        0x20, 0x01,     //      JR NZ,l1
+        0x00,           //      NOP
+        0xD6, 0x03,     // l1:  SUB 0x03
+        0x30, 0x03,     //      JR NC,l2
+        0x38, 0x01,     //      JR C,l2
+        0x00,           //      NOP
+        0x00,           // l2:  NOP
+    };
+    copy(0x0204, &prog);
+    var cpu = makeCPU();
+    cpu.PC = 0x0204;
+
+    T(4 ==step(&cpu)); T(0x00 == cpu.regs[A]); T(flags(&cpu, ZF|NF));
+    T(7 ==step(&cpu)); T(0x0207 == cpu.PC);
+    T(12==step(&cpu)); T(0x020A == cpu.PC); T(0x020A == cpu.WZ);
+    T(7 ==step(&cpu)); T(0x01 == cpu.regs[A]); T(flags(&cpu, 0));
+    T(7 ==step(&cpu)); T(0x020E == cpu.PC);
+    T(12==step(&cpu)); T(0x0211 == cpu.PC); T(0x0211 == cpu.WZ);
+    T(7 ==step(&cpu)); T(0xFE == cpu.regs[A]); T(flags(&cpu, SF|HF|NF|CF));
+    T(7 ==step(&cpu)); T(0x0215 == cpu.PC);
+    T(12==step(&cpu)); T(0x0218 == cpu.PC); T(0x0218 == cpu.WZ);
+    ok();
+}
+
+fn DJNZ() void {
+    start("DJNZ");
+    const prog = [_]u8 {
+        0x06, 0x03,         //      LD B,0x03
+        0x97,               //      SUB A
+        0x3C,               // l0:  INC A
+        0x10, 0xFD,         //      DJNZ l0
+        0x00,               //      NOP
+    };
+    copy(0x0204, &prog);
+    var cpu = makeCPU();
+    cpu.PC = 0x0204;
+    
+    T(7 ==step(&cpu)); T(0x03 == cpu.regs[B]);
+    T(4 ==step(&cpu)); T(0x00 == cpu.regs[A]);
+    T(4 ==step(&cpu)); T(0x01 == cpu.regs[A]);
+    T(13==step(&cpu)); T(0x02 == cpu.regs[B]); T(0x0207 == cpu.PC); T(0x0207 == cpu.WZ);
+    T(4 ==step(&cpu)); T(0x02 == cpu.regs[A]);
+    T(13==step(&cpu)); T(0x01 == cpu.regs[B]); T(0x0207 == cpu.PC); T(0x0207 == cpu.WZ);
+    T(4 ==step(&cpu)); T(0x03 == cpu.regs[A]);
+    T(8 ==step(&cpu)); T(0x00 == cpu.regs[B]); T(0x020A == cpu.PC); T(0x0207 == cpu.WZ);
+    ok();
+}
+
 pub fn main() void {
     LD_A_RI();
     LD_IR_A();
@@ -2305,5 +2441,9 @@ pub fn main() void {
     CPD();
     CPDR();
     DI_EI_IM();
+    JP_cc_nn();
+    JP_JR();
+    JR_cc_d();
+    DJNZ();
 }
 

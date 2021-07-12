@@ -200,9 +200,9 @@ fn _exec(cpu: *CPU, num_ticks: usize, tick_func: TickFunc) usize {
                 0 => switch (y) {
                     0 => { }, // NOP
                     1 => { opEX_AF_AF(cpu); },
-                    2 => unreachable,
-                    3 => unreachable,
-                    else => unreachable,
+                    2 => { opDJNZ_d(cpu, tick_func); },
+                    3 => { opJR_d(cpu, tick_func); },
+                    4...7 => { opJR_cc_d(cpu, y, tick_func); },
                 },
                 1 => switch (q) {
                     0 => opLD_rp_nn(cpu, p, tick_func),
@@ -248,13 +248,13 @@ fn _exec(cpu: *CPU, num_ticks: usize, tick_func: TickFunc) usize {
                     1 => switch (p) {
                         0 => unreachable,
                         1 => { opEXX(cpu); },
-                        2 => unreachable,
+                        2 => { opJP_HL(cpu); },
                         3 => { opLD_SP_HL(cpu, tick_func); },
                     }
                 },
-                2 => unreachable,
+                2 => { opJP_cc_nn(cpu, y, tick_func); },
                 3 => switch (y) {
-                    0 => unreachable,
+                    0 => { opJP_nn(cpu, tick_func); },
                     1 => { opCB_prefix(cpu, tick_func); },
                     2 => unreachable,
                     3 => unreachable,
@@ -1185,6 +1185,55 @@ fn opIM(cpu: *CPU, y: u3) void {
     cpu.IM = im[y];
 }
 
+// JP cc,nn
+fn opJP_cc_nn(cpu: *CPU, y: u3, tick_func: TickFunc) void {
+    const val = imm16(cpu, tick_func);
+    const f = cpu.regs[F];
+    if (cc(cpu.regs[F], y)) {
+        cpu.PC = val;
+    }
+}
+
+// JP nn
+fn opJP_nn(cpu: *CPU, tick_func: TickFunc) void {
+    cpu.PC = imm16(cpu, tick_func);
+}
+
+// JP (HL)
+fn opJP_HL(cpu: *CPU) void {
+    cpu.PC = loadHLIXIY(cpu);
+}
+
+// JR d
+fn opJR_d(cpu: *CPU, tick_func: TickFunc) void {
+    const d = dimm8(cpu, tick_func);
+    cpu.PC +%= d;
+    cpu.WZ = cpu.PC;
+    tick(cpu, 5, 0, tick_func); // 5 filler ticks
+}
+
+// JR cc,d
+fn opJR_cc_d(cpu: *CPU, y: u3, tick_func: TickFunc) void {
+    const d = dimm8(cpu, tick_func);
+    if (cc(cpu.regs[F], y -% 4)) {
+        cpu.PC +%= d;
+        cpu.WZ = cpu.PC;
+        tick(cpu, 5, 0, tick_func); // 5 filler ticks
+    }
+}
+
+// DJNZ_d
+fn opDJNZ_d(cpu: *CPU, tick_func: TickFunc) void {
+    tick(cpu, 1, 0, tick_func); // 1 filler tick
+    const d = dimm8(cpu, tick_func);
+    cpu.regs[B] -%= 1;
+    if (cpu.regs[B] > 0) {
+        cpu.PC +%= d;
+        cpu.WZ = cpu.PC;
+        tick(cpu, 5, 0, tick_func); // 5 filler ticks
+    }
+}
+
 // flag computation functions
 fn szFlags(val: usize) u8 {
     if ((val & 0xFF) == 0) {
@@ -1213,6 +1262,20 @@ fn cpFlags(acc: usize, val: u8, res: usize) u8 {
 
 fn szpFlags(val: u8) u8 {
     return szFlags(val) | (((@popCount(u8, val)<<2) & PF) ^ PF);
+}
+
+// test cc flag
+fn cc(f: u8, y: u3) bool {
+    return switch (y) {
+        0 => (0 == (f & ZF)),   // NZ
+        1 => (0 != (f & ZF)),   // Z
+        2 => (0 == (f & CF)),   // NC
+        3 => (0 != (f & CF)),   // C
+        4 => (0 == (f & PF)),   // PO
+        5 => (0 != (f & PF)),   // PE
+        6 => (0 == (f & SF)),   // P
+        7 => (0 != (f & SF)),   // M
+    };
 }
 
 // ALU functions
