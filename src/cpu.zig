@@ -246,7 +246,7 @@ fn _exec(cpu: *CPU, num_ticks: usize, tick_func: TickFunc) usize {
                 1 => switch (q) {
                     0 => { opPOP_rp2(cpu, p, tick_func); },
                     1 => switch (p) {
-                        0 => unreachable,
+                        0 => { opRET(cpu, tick_func); },
                         1 => { opEXX(cpu); },
                         2 => { opJP_HL(cpu); },
                         3 => { opLD_SP_HL(cpu, tick_func); },
@@ -267,7 +267,7 @@ fn _exec(cpu: *CPU, num_ticks: usize, tick_func: TickFunc) usize {
                 5 => switch (q) {
                     0 => { opPUSH_rp2(cpu, p, tick_func); },
                     1 => switch (p) {
-                        0 => unreachable,
+                        0 => { opCALL_nn(cpu, tick_func); },
                         1 => { cpu.ixiy = UseIX; continue; }, // no interrupt handling after DD prefix
                         2 => { opED_prefix(cpu, tick_func); },
                         3 => { cpu.ixiy = UseIY; continue; }, // no interrupt handling after FD prefix
@@ -1232,6 +1232,36 @@ fn opDJNZ_d(cpu: *CPU, tick_func: TickFunc) void {
         cpu.WZ = cpu.PC;
         tick(cpu, 5, 0, tick_func); // 5 filler ticks
     }
+}
+
+// CALL nn
+fn opCALL_nn(cpu: *CPU, tick_func: TickFunc) void {
+    const a16 = imm16(cpu, tick_func);
+    tick(cpu, 1, 0, tick_func); // filler tick
+    var sp = cpu.SP -% 1;
+    cpu.pins = setAddrData(cpu.pins, sp, @truncate(u8, cpu.PC>>8));
+    memWrite(cpu, tick_func);
+    sp -%= 1;
+    cpu.pins = setAddrData(cpu.pins, sp, @truncate(u8, cpu.PC));
+    memWrite(cpu, tick_func);
+    cpu.SP = sp;
+    cpu.PC = a16;
+}
+
+// RET
+fn opRET(cpu: *CPU, tick_func: TickFunc) void {
+    var sp = cpu.SP;
+    cpu.pins = setAddr(cpu.pins, sp);
+    memRead(cpu, tick_func);
+    const l = getData(cpu.pins);
+    sp +%= 1;
+    cpu.pins = setAddr(cpu.pins, sp);
+    memRead(cpu, tick_func);
+    const h = getData(cpu.pins);
+    sp +%= 1;
+    cpu.SP = sp;
+    cpu.PC = @as(u16, h)<<8 | l;
+    cpu.WZ = cpu.PC;
 }
 
 // flag computation functions

@@ -2379,6 +2379,31 @@ fn DJNZ() void {
     ok();
 }
 
+fn CALL_RET() void {
+    start("CALL/RET");
+    const prog = [_]u8 {
+        0xCD, 0x0A, 0x02,       //      CALL l0
+        0xCD, 0x0A, 0x02,       //      CALL l0
+        0xC9,                   // l0:  RET
+    };
+    copy(0x0204, &prog);
+    var cpu = makeCPU();
+    cpu.SP = 0x0100;
+    cpu.PC = 0x0204;
+
+    T(17 == step(&cpu));
+    T(0x020A == cpu.PC); T(0x020A == cpu.WZ); T(0x00FE == cpu.SP);
+    T(0x07 == mem[0x00FE]); T(0x02 == mem[0x00FF]);
+    T(10 == step(&cpu));
+    T(0x0207 == cpu.PC); T(0x0207 == cpu.WZ); T(0x0100 == cpu.SP);
+    T(17 == step(&cpu));
+    T(0x020A == cpu.PC); T(0x020A == cpu.WZ); T(0x00FE == cpu.SP);
+    T(0x0A == mem[0x00FE]); T(0x02 == mem[0x00FF]);
+    T(10 == step(&cpu));
+    T(0x020A == cpu.PC); T(0x020A == cpu.WZ); T(0x0100 == cpu.SP);
+    ok();
+}
+
 pub fn main() void {
     LD_A_RI();
     LD_IR_A();
@@ -2445,5 +2470,6 @@ pub fn main() void {
     JP_JR();
     JR_cc_d();
     DJNZ();
+    CALL_RET();
 }
 
