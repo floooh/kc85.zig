@@ -316,7 +316,31 @@ fn opED_prefix(cpu: *CPU, tick_func: TickFunc) void {
                 6, 7 => { }, // NONI + NOP
             }
         },
-        2 => unreachable,   // block instructions
+        2 => switch (z) {
+            0 => { opLDI_LDD_LDIR_LDDR(cpu, y, tick_func); },
+            1 => switch (y) {
+                4 => { opCPI(cpu, tick_func); },
+                5 => { opCPD(cpu, tick_func); },
+                6 => { opCPIR(cpu, tick_func); },
+                7 => { opCPDR(cpu, tick_func); },
+                else => { }, // NONI + NOP
+            },
+            2 => switch (y) {
+                4 => { opINI(cpu, tick_func); },
+                5 => { opIND(cpu, tick_func); },
+                6 => { opINIR(cpu, tick_func); },
+                7 => { opINDR(cpu, tick_func); },
+                else => { }, // NONI + NOP
+            },
+            3 => switch (y) {
+                4 => { opOUTI(cpu, tick_func); },
+                5 => { opOUTD(cpu, tick_func); },
+                6 => { opOTIR(cpu, tick_func); },
+                7 => { opOTDR(cpu, tick_func); },
+                else => { }, // NONI + NOP
+            },
+            else => { },   // NONI + NOP
+        },
         else => { },        // 0, 3 -> NONI + NOP
     }
 }
@@ -1046,6 +1070,108 @@ fn opCCF(cpu: *CPU) void {
     const a = cpu.regs[A];
     const f = cpu.regs[F];
     cpu.regs[F] = (((f & CF)<<4) | (f & (SF|ZF|PF|CF)) | (a & (YF|XF))) ^ CF;
+}
+
+// LDI/LDD/LDIR/LDDR
+fn opLDI_LDD_LDIR_LDDR(cpu: *CPU, y: u3, tick_func: TickFunc) void {
+    var hl = getR16(&cpu.regs, HL);
+    var de = getR16(&cpu.regs, DE);
+    cpu.pins = setAddr(cpu.pins, hl);
+    memRead(cpu, tick_func);
+    const val = getData(cpu.pins) +% cpu.regs[A];
+    cpu.pins = setAddr(cpu.pins, de);
+    memWrite(cpu, tick_func);
+    if (0 != (y & 1)) {
+        hl -%= 1;
+        de -%= 1;
+    }
+    else {
+        hl +%= 1;
+        de +%= 1;
+    }
+    setR16(&cpu.regs, HL, hl);
+    setR16(&cpu.regs, DE, de);
+    tick(cpu, 2, 0, tick_func);    // 2 filler ticks
+    var f = cpu.regs[F] & (SF|ZF|CF);
+    if (0 != (val & 0x02)) {
+        f |= YF;
+    }
+    if (0 != (val & 0x08)) {
+        f |= ZF;
+    }
+    const bc = getR16(&cpu.regs, BC) -% 1;
+    setR16(&cpu.regs, BC, bc);
+    if (bc != 0) {
+        f |= VF;
+    }
+    cpu.regs[F] = f;
+    if (y >= 6) {
+        if (0 != bc) {
+            cpu.PC -%= 2;
+            cpu.WZ = cpu.PC +% 1;
+            tick(cpu, 5, 0, tick_func); // 5 filler ticks
+        }
+    }
+}
+
+// CPI
+fn opCPI(cpu: *CPU, tick_func: TickFunc) void {
+    unreachable;
+}
+
+// CPD
+fn opCPD(cpu: *CPU, tick_func: TickFunc) void {
+    unreachable;
+}
+
+// CPIR
+fn opCPIR(cpu: *CPU, tick_func: TickFunc) void {
+    unreachable;
+}
+
+// CPDR
+fn opCPDR(cpu: *CPU, tick_func: TickFunc) void {
+    unreachable;
+}
+
+// INI
+fn opINI(cpu: *CPU, tick_func: TickFunc) void {
+    unreachable;
+}
+
+// IND
+fn opIND(cpu: *CPU, tick_func: TickFunc) void {
+    unreachable;
+}
+
+// INIR
+fn opINIR(cpu: *CPU, tick_func: TickFunc) void {
+    unreachable;
+}
+
+// INDR
+fn opINDR(cpu: *CPU, tick_func: TickFunc) void {
+    unreachable;
+}
+
+// OUTI
+fn opOUTI(cpu: *CPU, tick_func: TickFunc) void {
+    unreachable;
+}
+
+// OUTD
+fn opOUTD(cpu: *CPU, tick_func: TickFunc) void {
+    unreachable;
+}
+
+// OTIR
+fn opOTIR(cpu: *CPU, tick_func: TickFunc) void {
+    unreachable;
+}
+
+// OTDR
+fn opOTDR(cpu: *CPU, tick_func: TickFunc) void {
+    unreachable;
 }
 
 // flag computation functions

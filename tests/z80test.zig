@@ -1915,6 +1915,161 @@ fn NEG() void {
     ok();
 }
 
+fn LDI() void {
+    start("LDI");
+    const data = [_]u8 { 0x01, 0x02, 0x03 };
+    const prog = [_]u8 {
+        0x21, 0x00, 0x10,       // LD HL,0x1000
+        0x11, 0x00, 0x20,       // LD DE,0x2000
+        0x01, 0x03, 0x00,       // LD BC,0x0003
+        0xED, 0xA0,             // LDI
+        0xED, 0xA0,             // LDI
+        0xED, 0xA0,             // LDI
+    };
+    copy(0x1000, &data);
+    copy(0x0000, &prog);
+    var cpu = makeCPU();
+
+    skip(&cpu, 3);
+    T(16==step(&cpu));
+    T(0x1001 == cpu.r16(HL));
+    T(0x2001 == cpu.r16(DE));
+    T(0x0002 == cpu.r16(BC));
+    T(0x01 == mem[0x2000]);
+    T(flags(&cpu, PF));
+    T(16==step(&cpu));
+    T(0x1002 == cpu.r16(HL));
+    T(0x2002 == cpu.r16(DE));
+    T(0x0001 == cpu.r16(BC));
+    T(0x02 == mem[0x2001]);
+    T(flags(&cpu, PF));
+    T(16==step(&cpu));
+    T(0x1003 == cpu.r16(HL));
+    T(0x2003 == cpu.r16(DE));
+    T(0x0000 == cpu.r16(BC));
+    T(0x03 == mem[0x2002]);
+    T(flags(&cpu, 0));
+    ok();
+}
+
+fn LDIR() void {
+    start("LDIR");
+    const data = [_]u8 { 0x01, 0x02, 0x03, };
+    const prog = [_]u8 {
+        0x21, 0x00, 0x10,       // LD HL,0x1000
+        0x11, 0x00, 0x20,       // LD DE,0x2000
+        0x01, 0x03, 0x00,       // LD BC,0x0003
+        0xED, 0xB0,             // LDIR
+        0x3E, 0x33,             // LD A,0x33
+    };
+    copy(0x1000, &data);
+    copy(0x0000, &prog);
+    var cpu = makeCPU();
+
+    skip(&cpu, 3);
+    T(21==step(&cpu));
+    T(0x1001 == cpu.r16(HL));
+    T(0x2001 == cpu.r16(DE));
+    T(0x0002 == cpu.r16(BC));
+    T(0x000A == cpu.WZ);
+    T(0x01 == mem[0x2000]);
+    T(flags(&cpu, PF));
+    T(21==step(&cpu));
+    T(0x1002 == cpu.r16(HL));
+    T(0x2002 == cpu.r16(DE));
+    T(0x0001 == cpu.r16(BC));
+    T(0x000A == cpu.WZ);
+    T(0x02 == mem[0x2001]);
+    T(flags(&cpu, PF));
+    T(16==step(&cpu));
+    T(0x1003 == cpu.r16(HL));
+    T(0x2003 == cpu.r16(DE));
+    T(0x0000 == cpu.r16(BC));
+    T(0x02 == mem[0x2001]);
+    T(0x03 == mem[0x2002]);
+    T(flags(&cpu, 0));
+    T(7==step(&cpu)); T(0x33 == cpu.regs[A]);
+    ok();
+}
+
+fn LDD() void {
+    start("LDD");
+    const data = [_]u8 { 0x01, 0x02, 0x03 };
+    const prog = [_]u8 {
+        0x21, 0x02, 0x10,       // LD HL,0x1002
+        0x11, 0x02, 0x20,       // LD DE,0x2002
+        0x01, 0x03, 0x00,       // LD BC,0x0003
+        0xED, 0xA8,             // LDD
+        0xED, 0xA8,             // LDD
+        0xED, 0xA8,             // LDD
+    };
+    copy(0x1000, &data);
+    copy(0x0000, &prog);
+    var cpu = makeCPU();
+
+    skip(&cpu, 3);
+    T(16==step(&cpu));
+    T(0x1001 == cpu.r16(HL));
+    T(0x2001 == cpu.r16(DE));
+    T(0x0002 == cpu.r16(BC));
+    T(0x03 == mem[0x2002]);
+    T(flags(&cpu, PF));
+    T(16==step(&cpu));
+    T(0x1000 == cpu.r16(HL));
+    T(0x2000 == cpu.r16(DE));
+    T(0x0001 == cpu.r16(BC));
+    T(0x02 == mem[0x2001]);
+    T(flags(&cpu, PF));
+    T(16 == step(&cpu));
+    T(0x0FFF == cpu.r16(HL));
+    T(0x1FFF == cpu.r16(DE));
+    T(0x0000 == cpu.r16(BC));
+    T(0x01 == mem[0x2000]);
+    T(flags(&cpu, 0));
+    ok();
+}
+
+fn LDDR() void {
+    start("LDDR");
+    const data = [_]u8 { 0x01, 0x02, 0x03 };
+    const prog = [_]u8 {
+        0x21, 0x02, 0x10,       // LD HL,0x1002
+        0x11, 0x02, 0x20,       // LD DE,0x2002
+        0x01, 0x03, 0x00,       // LD BC,0x0003
+        0xED, 0xB8,             // LDDR
+        0x3E, 0x33,             // LD A,0x33
+    };
+    copy(0x1000, &data);
+    copy(0x0000, &prog);
+    var cpu = makeCPU();
+
+    skip(&cpu, 3);
+    T(21==step(&cpu));
+    T(0x1001 == cpu.r16(HL));
+    T(0x2001 == cpu.r16(DE));
+    T(0x0002 == cpu.r16(BC));
+    T(0x000A == cpu.WZ);
+    T(0x03 == mem[0x2002]);
+    T(flags(&cpu, PF));
+    T(21==step(&cpu));
+    T(0x1000 == cpu.r16(HL));
+    T(0x2000 == cpu.r16(DE));
+    T(0x0001 == cpu.r16(BC));
+    T(0x000A == cpu.WZ);
+    T(0x02 == mem[0x2001]);
+    T(flags(&cpu, PF));
+    T(16==step(&cpu));
+    T(0x0FFF == cpu.r16(HL));
+    T(0x1FFF == cpu.r16(DE));
+    T(0x0000 == cpu.r16(BC));
+    T(0x000A == cpu.WZ);
+    T(0x01 == mem[0x2000]);
+    T(flags(&cpu, 0));
+    T(7 == step(&cpu)); T(0x33 == cpu.regs[A]);
+    ok();
+}
+
+
 pub fn main() void {
     LD_A_RI();
     LD_IR_A();
@@ -1968,5 +2123,9 @@ pub fn main() void {
     CPL();
     CCF_SCF();
     NEG();
+    LDI();
+    LDIR();
+    LDD();
+    LDDR();
 }
 
