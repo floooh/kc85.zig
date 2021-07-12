@@ -494,7 +494,6 @@ fn ioOut(cpu: *CPU, tick_func: TickFunc) void {
 fn addr(cpu: *CPU, extra_ticks: usize, tick_func: TickFunc) void {
     cpu.addr = loadHLIXIY(cpu);
     if (0 != cpu.ixiy) {
-        // hmmmmmmmm...
         const d = dimm8(cpu, tick_func);
         cpu.addr +%= d;
         cpu.WZ = cpu.addr;
