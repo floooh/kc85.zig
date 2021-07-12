@@ -326,17 +326,11 @@ fn opED_prefix(cpu: *CPU, tick_func: TickFunc) void {
                 else => { } // NONI + NOP
             },
             2 => switch (y) {
-                4 => { opINI(cpu, tick_func); },
-                5 => { opIND(cpu, tick_func); },
-                6 => { opINIR(cpu, tick_func); },
-                7 => { opINDR(cpu, tick_func); },
+                4...7 => { opINI_IND_INIR_INDR(cpu, y, tick_func); },
                 else => { }, // NONI + NOP
             },
             3 => switch (y) {
-                4 => { opOUTI(cpu, tick_func); },
-                5 => { opOUTD(cpu, tick_func); },
-                6 => { opOTIR(cpu, tick_func); },
-                7 => { opOTDR(cpu, tick_func); },
+                4...7 => { opOUTI_OUTD_OTIR_OTDR(cpu, y, tick_func); },
                 else => { }, // NONI + NOP
             },
             else => { },   // NONI + NOP
@@ -1156,58 +1150,13 @@ fn opCPI_CPD_CPIR_CPDR(cpu: *CPU, y: u3, tick_func: TickFunc) void {
     }
 }
 
-// CPD
-fn opCPD(cpu: *CPU, tick_func: TickFunc) void {
+// INI/IND/INIR/INDR
+fn opINI_IND_INIR_INDR(cpu: *CPU, y: u3, tick_func: TickFunc) void {
     unreachable;
 }
 
-// CPIR
-fn opCPIR(cpu: *CPU, tick_func: TickFunc) void {
-    unreachable;
-}
-
-// CPDR
-fn opCPDR(cpu: *CPU, tick_func: TickFunc) void {
-    unreachable;
-}
-
-// INI
-fn opINI(cpu: *CPU, tick_func: TickFunc) void {
-    unreachable;
-}
-
-// IND
-fn opIND(cpu: *CPU, tick_func: TickFunc) void {
-    unreachable;
-}
-
-// INIR
-fn opINIR(cpu: *CPU, tick_func: TickFunc) void {
-    unreachable;
-}
-
-// INDR
-fn opINDR(cpu: *CPU, tick_func: TickFunc) void {
-    unreachable;
-}
-
-// OUTI
-fn opOUTI(cpu: *CPU, tick_func: TickFunc) void {
-    unreachable;
-}
-
-// OUTD
-fn opOUTD(cpu: *CPU, tick_func: TickFunc) void {
-    unreachable;
-}
-
-// OTIR
-fn opOTIR(cpu: *CPU, tick_func: TickFunc) void {
-    unreachable;
-}
-
-// OTDR
-fn opOTDR(cpu: *CPU, tick_func: TickFunc) void {
+// OUTI/OUTD/OTIR/OTDR
+fn opOUTI_OUTD_OTIR_OTDR(cpu: *CPU, y: u3, tick_func: TickFunc) void {
     unreachable;
 }
 
