@@ -156,6 +156,7 @@ pub const CPU = struct {
     ixiy: u2 = 0,   // UseIX or UseIY if indexed prefix 0xDD or 0xFD active
     iff1: bool = false,
     iff2: bool = false,
+    ei:   bool = false,
     
     /// run the emulator for at least 'num_ticks', return number of executed ticks
     pub fn exec(cpu: *CPU, num_ticks: usize, tick_func: TickFunc) usize {
@@ -197,7 +198,7 @@ fn _exec(cpu: *CPU, num_ticks: usize, tick_func: TickFunc) usize {
         switch (x) {
             0 => switch (z) {
                 0 => switch (y) {
-                    0 => unreachable,
+                    0 => { }, // NOP
                     1 => { opEX_AF_AF(cpu); },
                     2 => unreachable,
                     3 => unreachable,
@@ -259,8 +260,8 @@ fn _exec(cpu: *CPU, num_ticks: usize, tick_func: TickFunc) usize {
                     3 => unreachable,
                     4 => { opEX_iSP_HL(cpu, tick_func); },
                     5 => { opEX_DE_HL(cpu); },
-                    6 => unreachable,
-                    7 => unreachable,
+                    6 => { opDI(cpu); },
+                    7 => { opEI(cpu); },
                 },
                 4 => unreachable,
                 5 => switch (q) {
@@ -277,6 +278,11 @@ fn _exec(cpu: *CPU, num_ticks: usize, tick_func: TickFunc) usize {
             }
         }
         cpu.ixiy = 0;
+        if (cpu.ei) {
+            cpu.ei = false;
+            cpu.iff1 = true;
+            cpu.iff2 = true;
+        }
     }
     return cpu.ticks;
 }
@@ -305,7 +311,7 @@ fn opED_prefix(cpu: *CPU, tick_func: TickFunc) void {
             },
             4 => { opNEG(cpu); },
             5 => unreachable,
-            6 => unreachable,
+            6 => { opIM(cpu, y); },
             7 => switch(y) {
                 0 => { opLD_I_A(cpu, tick_func); },
                 1 => { opLD_R_A(cpu, tick_func); },
@@ -1158,6 +1164,25 @@ fn opINI_IND_INIR_INDR(cpu: *CPU, y: u3, tick_func: TickFunc) void {
 // OUTI/OUTD/OTIR/OTDR
 fn opOUTI_OUTD_OTIR_OTDR(cpu: *CPU, y: u3, tick_func: TickFunc) void {
     unreachable;
+}
+
+// DI
+fn opDI(cpu: *CPU) void {
+    cpu.iff1 = false;
+    cpu.iff2 = false;
+}
+
+// EI
+fn opEI(cpu: *CPU) void {
+    cpu.iff1 = false;
+    cpu.iff2 = false;
+    cpu.ei = true;
+}
+
+// IM
+fn opIM(cpu: *CPU, y: u3) void {
+    const im = [8]u8 { 0, 0, 1, 2, 0, 0, 1, 2 };
+    cpu.IM = im[y];
 }
 
 // flag computation functions

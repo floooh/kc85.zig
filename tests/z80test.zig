@@ -2213,6 +2213,35 @@ fn CPDR() void{
     ok();
 }
 
+fn DI_EI_IM() void {
+    start("DI/EI/IM");
+    const prog = [_]u8 {
+        0xF3,           // DI
+        0xFB,           // EI
+        0x00,           // NOP
+        0xF3,           // DI
+        0xFB,           // EI
+        0x00,           // NOP
+        0xED, 0x46,     // IM 0
+        0xED, 0x56,     // IM 1
+        0xED, 0x5E,     // IM 2
+        0xED, 0x46,     // IM 0
+    };
+    copy(0x0000, &prog);
+    var cpu = makeCPU();
+    
+    T(4==step(&cpu)); T(!cpu.iff1); T(!cpu.iff2);
+    T(4==step(&cpu)); T(cpu.iff1);  T(cpu.iff2);
+    T(4==step(&cpu)); T(cpu.iff1);  T(cpu.iff2);
+    T(4==step(&cpu)); T(!cpu.iff1); T(!cpu.iff2);
+    T(4==step(&cpu)); T(cpu.iff1);  T(cpu.iff2);
+    T(4==step(&cpu)); T(cpu.iff1);  T(cpu.iff2);
+    T(8==step(&cpu)); T(0 == cpu.IM);
+    T(8==step(&cpu)); T(1 == cpu.IM);
+    T(8==step(&cpu)); T(2 == cpu.IM);
+    T(8==step(&cpu)); T(0 == cpu.IM);
+    ok();
+}
 
 pub fn main() void {
     LD_A_RI();
@@ -2275,5 +2304,6 @@ pub fn main() void {
     CPIR();
     CPD();
     CPDR();
+    DI_EI_IM();
 }
 
