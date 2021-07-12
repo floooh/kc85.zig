@@ -2069,6 +2069,150 @@ fn LDDR() void {
     ok();
 }
 
+fn CPI() void {
+    start("CPI");
+    const data = [_]u8 { 0x01, 0x02, 0x03, 0x04 };
+    const prog = [_]u8 {
+        0x21, 0x00, 0x10,       // ld hl,0x1000
+        0x01, 0x04, 0x00,       // ld bc,0x0004
+        0x3e, 0x03,             // ld a,0x03
+        0xed, 0xa1,             // cpi
+        0xed, 0xa1,             // cpi
+        0xed, 0xa1,             // cpi
+        0xed, 0xa1,             // cpi
+    };
+    copy(0x1000, &data);
+    copy(0x0000, &prog);
+    var cpu = makeCPU();
+
+    skip(&cpu, 3);
+    T(16 == step(&cpu));
+    T(0x1001 == cpu.r16(HL));
+    T(0x0003 == cpu.r16(BC));
+    T(flags(&cpu, PF|NF));
+    cpu.regs[F] |= CF;
+    T(16 == step(&cpu));
+    T(0x1002 == cpu.r16(HL));
+    T(0x0002 == cpu.r16(BC));
+    T(flags(&cpu, PF|NF|CF));
+    T(16 == step(&cpu));
+    T(0x1003 == cpu.r16(HL));
+    T(0x0001 == cpu.r16(BC));
+    T(flags(&cpu, ZF|PF|NF|CF));
+    T(16 == step(&cpu));
+    T(0x1004 == cpu.r16(HL));
+    T(0x0000 == cpu.r16(BC));
+    T(flags(&cpu, SF|HF|NF|CF));
+    ok();
+}
+
+fn CPIR() void {
+    start("CPIR");
+    const data = [_]u8 { 0x01, 0x02, 0x03, 0x04 };
+    const prog = [_]u8 {
+        0x21, 0x00, 0x10,       // ld hl,0x1000
+        0x01, 0x04, 0x00,       // ld bc,0x0004
+        0x3e, 0x03,             // ld a,0x03
+        0xed, 0xb1,             // cpir
+        0xed, 0xb1,             // cpir
+    };
+    copy(0x1000, &data);
+    copy(0x0000, &prog);
+    var cpu = makeCPU();
+
+    skip(&cpu, 3);
+    T(21 == step(&cpu));
+    T(0x1001 == cpu.r16(HL));
+    T(0x0003 == cpu.r16(BC));
+    T(flags(&cpu, PF|NF));
+    cpu.regs[F] |= CF;
+    T(21 == step(&cpu));
+    T(0x1002 == cpu.r16(HL));
+    T(0x0002 == cpu.r16(BC));
+    T(flags(&cpu, PF|NF|CF));
+    T(16 == step(&cpu));
+    T(0x1003 == cpu.r16(HL));
+    T(0x0001 == cpu.r16(BC));
+    T(flags(&cpu, ZF|PF|NF|CF));
+    T(16 == step(&cpu));
+    T(0x1004 == cpu.r16(HL));
+    T(0x0000 == cpu.r16(BC));
+    T(flags(&cpu, SF|HF|NF|CF));
+    ok();
+}
+
+fn CPD() void {
+    start("CPD");
+    const data = [_]u8 { 0x01, 0x02, 0x03, 0x04 };
+    const prog = [_]u8 {
+        0x21, 0x03, 0x10,       // ld hl,0x1004
+        0x01, 0x04, 0x00,       // ld bc,0x0004
+        0x3e, 0x02,             // ld a,0x03
+        0xed, 0xa9,             // cpi
+        0xed, 0xa9,             // cpi
+        0xed, 0xa9,             // cpi
+        0xed, 0xa9,             // cpi
+    };
+    copy(0x1000, &data);
+    copy(0x0000, &prog);
+    var cpu = makeCPU();
+
+    skip(&cpu, 3);
+    T(16 == step(&cpu));
+    T(0x1002 == cpu.r16(HL));
+    T(0x0003 == cpu.r16(BC));
+    T(flags(&cpu, SF|HF|PF|NF));
+    cpu.regs[F] |= CF;
+    T(16 == step(&cpu));
+    T(0x1001 == cpu.r16(HL));
+    T(0x0002 == cpu.r16(BC));
+    T(flags(&cpu, SF|HF|PF|NF|CF));
+    T(16 == step(&cpu));
+    T(0x1000 == cpu.r16(HL));
+    T(0x0001 == cpu.r16(BC));
+    T(flags(&cpu, ZF|PF|NF|CF));
+    T(16 == step(&cpu));
+    T(0x0FFF == cpu.r16(HL));
+    T(0x0000 == cpu.r16(BC));
+    T(flags(&cpu, NF|CF));
+    ok();
+}
+
+fn CPDR() void{
+    start("CPDR");
+    const data = [_]u8 { 0x01, 0x02, 0x03, 0x04 };
+    const prog = [_]u8 {
+        0x21, 0x03, 0x10,       // ld hl,0x1004
+        0x01, 0x04, 0x00,       // ld bc,0x0004
+        0x3e, 0x02,             // ld a,0x03
+        0xed, 0xb9,             // cpdr
+        0xed, 0xb9,             // cpdr
+    };
+    copy(0x1000, &data);
+    copy(0x0000, &prog);
+    var cpu = makeCPU();
+
+    skip(&cpu, 3);
+    T(21 == step(&cpu));
+    T(0x1002 == cpu.r16(HL));
+    T(0x0003 == cpu.r16(BC));
+    T(flags(&cpu, SF|HF|PF|NF));
+    cpu.regs[F] |= CF;
+    T(21 == step(&cpu));
+    T(0x1001 == cpu.r16(HL));
+    T(0x0002 == cpu.r16(BC));
+    T(flags(&cpu, SF|HF|PF|NF|CF));
+    T(16 == step(&cpu));
+    T(0x1000 == cpu.r16(HL));
+    T(0x0001 == cpu.r16(BC));
+    T(flags(&cpu, ZF|PF|NF|CF));
+    T(16 == step(&cpu));
+    T(0x0FFF == cpu.r16(HL));
+    T(0x0000 == cpu.r16(BC));
+    T(flags(&cpu, NF|CF));
+    ok();
+}
+
 
 pub fn main() void {
     LD_A_RI();
@@ -2127,5 +2271,9 @@ pub fn main() void {
     LDIR();
     LDD();
     LDDR();
+    CPI();
+    CPIR();
+    CPD();
+    CPDR();
 }
 

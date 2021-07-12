@@ -317,13 +317,13 @@ fn opED_prefix(cpu: *CPU, tick_func: TickFunc) void {
             }
         },
         2 => switch (z) {
-            0 => { opLDI_LDD_LDIR_LDDR(cpu, y, tick_func); },
-            1 => switch (y) {
-                4 => { opCPI(cpu, tick_func); },
-                5 => { opCPD(cpu, tick_func); },
-                6 => { opCPIR(cpu, tick_func); },
-                7 => { opCPDR(cpu, tick_func); },
-                else => { }, // NONI + NOP
+            0 => switch (y) {
+                4...7 => { opLDI_LDD_LDIR_LDDR(cpu, y, tick_func); },
+                else => { } // NONI + NOP
+            },
+            1 => switch (y) { 
+                4...7 => { opCPI_CPD_CPIR_CPDR(cpu, y, tick_func); },
+                else => { } // NONI + NOP
             },
             2 => switch (y) {
                 4 => { opINI(cpu, tick_func); },
@@ -1114,9 +1114,46 @@ fn opLDI_LDD_LDIR_LDDR(cpu: *CPU, y: u3, tick_func: TickFunc) void {
     }
 }
 
-// CPI
-fn opCPI(cpu: *CPU, tick_func: TickFunc) void {
-    unreachable;
+// CPI, CPD, CPIR, CPDR
+fn opCPI_CPD_CPIR_CPDR(cpu: *CPU, y: u3, tick_func: TickFunc) void {
+    var hl = getR16(&cpu.regs, HL);
+    cpu.pins = setAddr(cpu.pins, hl);
+    memRead(cpu, tick_func);
+    if (0 != (y & 1)) {
+        hl -%= 1;
+        cpu.WZ -%= 1;
+    }
+    else {
+        hl +%= 1;
+        cpu.WZ +%= 1;
+    }
+    setR16(&cpu.regs, HL, hl);
+    tick(cpu, 5, 0, tick_func); // 5 filler ticks
+    var val = cpu.regs[A] -% getData(cpu.pins);
+    var f = (cpu.regs[F] & CF) | NF | szFlags(val);
+    if ((val & 0x0F) > (cpu.regs[A] & 0x0F)) {
+        f |= HF;
+        val -%= 1;
+    }
+    if (0 != (val & 0x02)) {
+        f |= YF;
+    }
+    if (0 != (val & 0x08)) {
+        f |= XF;
+    }
+    const bc = getR16(&cpu.regs, BC) -% 1;
+    setR16(&cpu.regs, BC, bc);
+    if (bc != 0) {
+        f |= VF;
+    }
+    cpu.regs[F] = f;
+    if (y >= 6) {
+        if ((0 != bc) and (0 == (f & ZF))) {
+            cpu.PC -%= 2;
+            cpu.WZ = cpu.PC +% 1;
+            tick(cpu, 5, 0, tick_func); // 5 filler ticks
+        }
+    }
 }
 
 // CPD
