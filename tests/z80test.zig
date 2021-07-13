@@ -5,18 +5,13 @@
 //  https://github.com/floooh/chips-test/blob/master/tests/z80-test.c
 //------------------------------------------------------------------------------
 
-const print     = @import("std").debug.print;
-const assert    = @import("std").debug.assert;
-const CPU       = @import("cpu").CPU;
-const CPUPins   = @import("cpu").Pins;
-const CPUFlags  = @import("cpu").Flags;
-const CPUReg8   = @import("cpu").Reg8;
-const CPUReg16  = @import("cpu").Reg16;
-
-usingnamespace CPUReg8;
-usingnamespace CPUReg16;
-usingnamespace CPUPins;
-usingnamespace CPUFlags;
+const print  = @import("std").debug.print;
+const assert = @import("std").debug.assert;
+const CPU    = @import("cpu").CPU;
+usingnamespace @import("cpu").Pins;
+usingnamespace @import("cpu").Flags;
+usingnamespace @import("cpu").Reg8;
+usingnamespace @import("cpu").Reg16;
 
 // 64 KB memory
 var mem = [_]u8{0} ** 0x10000;
