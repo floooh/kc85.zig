@@ -19,7 +19,7 @@
 /// ==================
 ///
 /// The emulation is reasonably correct for behaviour that's observable from the
-/// outside, all undocumented instructions tested by ZEXALL work, including
+/// outside, all undocumented instructions tested by ZEXALL work (WIP!), including
 /// the flag bits YF and XF which are visible side effects of the internal
 /// WZ / MEMPTR register.
 ///
@@ -34,11 +34,11 @@
 /// (T cycles) and machine cycles (M cycles) is a bit confusing when coming
 /// from other CPUs: The clock cycle is ticked with the regular hardware 
 /// CPU frequency (up to 4 MHz on legacy Z80s, while a machine cycle is a 
-/// "logical group" of clock cycles (for instance a memory reads or writes 
+/// "logical group" of clock cycles (for instance a memory read or write 
 /// (3 clock cycles), a IO read or write (4 clock cycles) or instruction fetch 
 /// machine cycles (4 clock cycles)). 
 ///
-/// There are no fixed rules for machine cycle length, while the above listed 
+/// There are no fixed rules for machine cycle length. While the above listed 
 /// clock cycle counts are most common, some instructions have stretched machine 
 /// cycles (which are called 'filler ticks' in this CPU emulation). In addition,
 /// memory and IO machine cycles can be stretched by feeding WAIT cycles back
