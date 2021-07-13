@@ -32,19 +32,19 @@
 /// The 'system tick callback' function is called once for every machine cycle with
 /// the number of clock cycles as argument. The separation between clock cycles
 /// (T cycles) and machine cycles (M cycles) is a bit confusing when coming
-/// from other CPUs: The clock cycle is ticked with the regular the hardware 
+/// from other CPUs: The clock cycle is ticked with the regular hardware 
 /// CPU frequency (up to 4 MHz on legacy Z80s, while a machine cycle is a 
 /// "logical group" of clock cycles (for instance a memory reads or writes 
 /// (3 clock cycles), a IO read or write (4 clock cycles) or instruction fetch 
 /// machine cycles (4 clock cycles)). 
 ///
 /// There are no fixed rules for machine cycle length, while the above listed 
-/// clock cycles are most common, some instructions have stretched machine 
+/// clock cycle counts are most common, some instructions have stretched machine 
 /// cycles (which are called 'filler ticks' in this CPU emulation). In addition,
 /// memory and IO machine cycles can be stretched by feeding WAIT cycles back
-/// into the CPU (on real hardware usually used to wait for slow memory, or
-/// (more commonly in home computers) to synchronize shared access between
-/// CPU and video hardware to video memory.
+/// into the CPU (on real hardware usually used to deal with slow memory or IO
+/// devices, or (more commonly in home computers) to synchronize shared access
+/// between CPU and the display hardware to video memory.
 ///
 /// Communication between the CPU emulation and the system tick callback
 /// happens through a single 64-bit pin bit-mask with (most of) the 40 CPU pins
@@ -55,7 +55,7 @@
 ///
 /// Start reading the code at 'fn _exec('.
 ///
-///     1. The next opcode byte is loaded from memory (the "fetch" machine cycle)
+///     1. The next opcode byte is loaded from memory ("fetch" machine cycle)
 ///     2. The opcode byte is split into 3 bit groups (x, y, z), see below
 ///        "HOW INSTRUCTION DECODING WORKS"
 ///     3. A nested cascade of switch-statements on x, y and z is used to find
@@ -63,10 +63,11 @@
 ///     4. The instruction is 'handled', this may involve memory read/write 
 ///        and IO read/write machine cycles.
 ///     5. Interrupt requests are handled.
-///     6. Loop back to (1)
+///     6. Loop back to (1) until the requested number of clock cycles is reached.
 /// 
 /// In a code-generated emulator, all those special cases which are handled
 /// dynamically in this emulator would be "baked" into specialized code.
+///
 ///
 /// HOW INSTUCTION DECODING WORKS:
 /// ==============================
@@ -75,8 +76,8 @@
 ///
 /// Z80 opcodes are one byte split into 3 bit groups:
 ///
-///      76 543 210
-///     |xx|yyy|zzz|
+///      76 543 210   bit pos
+///     |xx|yyy|zzz|  bit group
 ///
 /// The topmost 2 bits (xx) split the 'instruction space' into 4 quadrants:
 ///
@@ -84,25 +85,26 @@
 ///       destination, the bit group zzz encodes the source, and the 
 ///       bit group yyy encodes the destination (all 7 8-bit registers, and (HL))
 ///     * Q2: all the 8-bit ALU ops with registers or (HL) as source, the
-///       bit group yyy defines one of 8 operations (ADD, ADC, SUB, SBC, AND, XOR
-///       OR and CP), and the bit zzz defines the source (registers B,C,D,E,H,L,A or (HL))
+///       bit group yyy defines one of 8 ALU operations (ADD, ADC, SUB, SBC, AND, XOR
+///       OR and CP), and the bit zzz defines the source (registers B,C,D,E,H,L,A or (HL)),
+///       the destination of ALU ops is always register A
 ///     * Q0 and Q3 are the "grab bag quadrants" where all the odd instructions
 ///       and prefixes are stuffed.
 ///
 /// The prefixes DD and FD behave like regular instructions, except that
 /// interrupt handling is disabled between the prefix instruction and the 
 /// following instruction that's prefixed. The action of the prefix instructions
-/// 0xDD and FD is to wire the index registers IX or IY to HL. This means that
+/// DD and FD is to wire the index registers IX or IY to HL. This means that
 /// in the following instruction, all uses of HL are replaced with IX or IY, and
 /// a memory access (HL) is replaced with (IX+d) or (IY+d). There are only few
 /// exceptions:
 ///     * in the instructions register loading instructions "LD r,(IX/IY+d)"" and
 ///       "LD (IX/IY+d),r" the source and target registers H and L are never replaced
 ///       with IXH/IYH and IYH/IYL
-///     * in the "EX DE,HL" and "EXX", HL is never replaced with IX or IY (however
-///       there *are* prefixed version for "EX (SP),HL" which replace HL with
-///       IX or IY
-///     * all ED prefixed instructions disable the HL <=> IX/IY mapping
+///     * in the "EX DE,HL" and "EXX" instructions, HL is never replaced with IX 
+///       or IY (however there *are* prefixed version for "EX (SP),HL" which 
+///       replace HL with IX or IY
+///     * all ED prefixed instructions disable any active HL <=> IX/IY mapping
 ///
 /// This behaviour of the DD and FD prefixes is why the CPU will happily execute
 /// sequences of DD and FD prefix bytes, with the only side effect that no
