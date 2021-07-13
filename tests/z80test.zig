@@ -2592,6 +2592,104 @@ fn OUT() void {
     ok();
 }
 
+fn INIR_INDR() void {
+    start("INIR/INDR");
+    const prog = [_]u8{
+        0x21, 0x00, 0x10,       // LD HL,0x1000
+        0x01, 0x02, 0x03,       // LD BC,0x0302
+        0xED, 0xB2,             // INIR
+        0x01, 0x03, 0x03,       // LD BC,0x0303
+        0xED, 0xBA              // INDR
+    };
+    copy(0x0000, &prog);
+    var cpu = makeCPU();
+
+    T(10 == step(&cpu)); T(0x1000 == cpu.r16(HL));
+    T(10 == step(&cpu)); T(0x0302 == cpu.r16(BC));
+    T(21 == step(&cpu));
+    T(0x1001 == cpu.r16(HL));
+    T(0x0202 == cpu.r16(BC));
+    T(0x04 == mem[0x1000]);
+    T(0 == (cpu.regs[F] & ZF));
+    T(21 == step(&cpu));
+    T(0x1002 == cpu.r16(HL));
+    T(0x0102 == cpu.r16(BC));
+    T(0x04 == mem[0x1001]);
+    T(0 == (cpu.regs[F] & ZF));
+    T(16 == step(&cpu));
+    T(0x1003 == cpu.r16(HL));
+    T(0x0002 == cpu.r16(BC));
+    T(0x04 == mem[0x1002]);
+    T(0 != (cpu.regs[F] & ZF));
+    T(10 == step(&cpu)); T(0x0303 == cpu.r16(BC));
+    T(21 == step(&cpu));
+    T(0x1002 == cpu.r16(HL));
+    T(0x0203 == cpu.r16(BC));
+    T(0x06 == mem[0x1003]);
+    T(0 == (cpu.regs[F] & ZF));
+    T(21 == step(&cpu));
+    T(0x1001 == cpu.r16(HL));
+    T(0x0103 == cpu.r16(BC));
+    T(0x06 == mem[0x1002]);
+    T(0 == (cpu.regs[F] & ZF));
+    T(16 == step(&cpu));
+    T(0x1000 == cpu.r16(HL));
+    T(0x0003 == cpu.r16(BC));
+    T(0x06 == mem[0x1001]);
+    T(0 != (cpu.regs[F] & ZF));
+    ok();
+}
+
+fn OTIR_OTDR() void {
+    start("OTIR/OTDR");
+    const data = [_]u8 { 0x01, 0x02, 0x03, 0x04 };
+    const prog = [_]u8 {
+        0x21, 0x00, 0x10,       // LD HL,0x1000
+        0x01, 0x02, 0x03,       // LD BC,0x0302
+        0xED, 0xB3,             // OTIR
+        0x01, 0x03, 0x03,       // LD BC,0x0303
+        0xED, 0xBB,             // OTDR
+    };
+    copy(0x1000, &data);
+    copy(0x0000, &prog);
+    var cpu = makeCPU();
+    
+    T(10 == step(&cpu)); T(0x1000 == cpu.r16(HL));
+    T(10 == step(&cpu)); T(0x0302 == cpu.r16(BC));
+    T(21 == step(&cpu));
+    T(0x1001 == cpu.r16(HL));
+    T(0x0202 == cpu.r16(BC));
+    T(0x0202 == out_port); T(0x01 == out_byte);
+    T(0 == (cpu.regs[F] & ZF));
+    T(21 == step(&cpu));
+    T(0x1002 == cpu.r16(HL));
+    T(0x0102 == cpu.r16(BC));
+    T(0x0102 == out_port); T(0x02 == out_byte);
+    T(0 == (cpu.regs[F] & ZF));
+    T(16 == step(&cpu));
+    T(0x1003 == cpu.r16(HL));
+    T(0x0002 == cpu.r16(BC));
+    T(0x0002 == out_port); T(0x03 == out_byte);
+    T(0 != (cpu.regs[F] & ZF));
+    T(10 == step(&cpu)); T(0x0303 == cpu.r16(BC));
+    T(21 == step(&cpu));
+    T(0x1002 == cpu.r16(HL));
+    T(0x0203 == cpu.r16(BC));
+    T(0x0203 == out_port); T(0x04 == out_byte);
+    T(0 == (cpu.regs[F] & ZF));
+    T(21 == step(&cpu));
+    T(0x1001 == cpu.r16(HL));
+    T(0x0103 == cpu.r16(BC));
+    T(0x0103 == out_port); T(0x03 == out_byte);
+    T(0 == (cpu.regs[F] & ZF));
+    T(16 == step(&cpu));
+    T(0x1000 == cpu.r16(HL));
+    T(0x0003 == cpu.r16(BC));
+    T(0x0003 == out_port); T(0x02 == out_byte);
+    T(0 != (cpu.regs[F] & ZF));
+    ok();
+}
+
 pub fn main() void {
     LD_A_RI();
     LD_IR_A();
@@ -2663,5 +2761,7 @@ pub fn main() void {
     ADD_ADC_SBC_16();
     IN();
     OUT();
+    INIR_INDR();
+    OTIR_OTDR();
 }
 

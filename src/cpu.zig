@@ -1238,12 +1238,10 @@ fn opLDI_LDD_LDIR_LDDR(cpu: *CPU, y: u3, tick_func: TickFunc) void {
         f |= VF;
     }
     cpu.regs[F] = f;
-    if (y >= 6) {
-        if (0 != bc) {
-            cpu.PC -%= 2;
-            cpu.WZ = cpu.PC +% 1;
-            tick(cpu, 5, 0, tick_func); // 5 filler ticks
-        }
+    if ((y >= 6) and (0 != bc)) {
+        cpu.PC -%= 2;
+        cpu.WZ = cpu.PC +% 1;
+        tick(cpu, 5, 0, tick_func); // 5 filler ticks
     }
 }
 
@@ -1280,23 +1278,11 @@ fn opCPI_CPD_CPIR_CPDR(cpu: *CPU, y: u3, tick_func: TickFunc) void {
         f |= VF;
     }
     cpu.regs[F] = f;
-    if (y >= 6) {
-        if ((0 != bc) and (0 == (f & ZF))) {
-            cpu.PC -%= 2;
-            cpu.WZ = cpu.PC +% 1;
-            tick(cpu, 5, 0, tick_func); // 5 filler ticks
-        }
+    if ((y >= 6) and (0 != bc) and (0 == (f & ZF))) {
+        cpu.PC -%= 2;
+        cpu.WZ = cpu.PC +% 1;
+        tick(cpu, 5, 0, tick_func); // 5 filler ticks
     }
-}
-
-// INI/IND/INIR/INDR
-fn opINI_IND_INIR_INDR(cpu: *CPU, y: u3, tick_func: TickFunc) void {
-    unreachable;
-}
-
-// OUTI/OUTD/OTIR/OTDR
-fn opOUTI_OUTD_OTIR_OTDR(cpu: *CPU, y: u3, tick_func: TickFunc) void {
-    unreachable;
 }
 
 // DI
@@ -1521,6 +1507,79 @@ fn opOUT_iC_ry(cpu: *CPU, y: u3, tick_func: TickFunc) void {
     ioWrite(cpu, tick_func);
     cpu.WZ = bc +% 1;
 }
+
+// INI/IND/INIR/INDR
+fn opINI_IND_INIR_INDR(cpu: *CPU, y: u3, tick_func: TickFunc) void {
+    tick(cpu, 1, 0, tick_func); // filler tick
+    var port = getR16(&cpu.regs, BC);
+    var hl = getR16(&cpu.regs, HL);
+    cpu.pins = setAddr(cpu.pins, port);
+    ioRead(cpu, tick_func);
+    const val = getData(cpu.pins);
+    cpu.pins = setAddr(cpu.pins, hl);
+    memWrite(cpu, tick_func);
+    const b = cpu.regs[B] -% 1;
+    cpu.regs[B] = b;
+    var c = cpu.regs[C];
+    if (0 != (y & 1)) {
+        port -%= 1; hl -%= 1; c -%= 1;
+    }
+    else {
+        port +%= 1; hl +%= 1; c +%= 1;
+    }
+    setR16(&cpu.regs, HL, hl);
+    cpu.WZ = port;
+    var f = (if (b == 0) ZF else (b & SF)) | (b & (XF|YF));
+    if (0 != (val & SF)) {
+        f |= NF;
+    }
+    const t: u17 = @as(u17,c) + val;
+    if (0 != (t & 0x100)) {
+        f |= HF|CF;
+    }
+    f |= szpFlags((@truncate(u8,t) & 0x07) ^ b) & PF;
+    cpu.regs[F] = f;
+    if ((y >= 6) and (b != 0)) {
+        cpu.PC -%= 2;
+        tick(cpu, 5, 0, tick_func); // filler ticks
+    }
+}
+
+// OUTI/OUTD/OTIR/OTDR
+fn opOUTI_OUTD_OTIR_OTDR(cpu: *CPU, y: u3, tick_func: TickFunc) void {
+    tick(cpu, 1, 0, tick_func); // filler tick
+    var hl = getR16(&cpu.regs, HL);
+    cpu.pins = setAddr(cpu.pins, hl);
+    memRead(cpu, tick_func);
+    const val = getData(cpu.pins);
+    const b = cpu.regs[B] -% 1;
+    cpu.regs[B] = b;
+    var port = getR16(&cpu.regs, BC);
+    cpu.pins = setAddr(cpu.pins, port);
+    ioWrite(cpu, tick_func);
+    if (0 != (y & 1)) {
+        port -%= 1; hl -%= 1;
+    }
+    else {
+        port +%= 1; hl +%= 1;
+    }
+    setR16(&cpu.regs, HL, hl);
+    cpu.WZ = port;
+    var f = (if (b == 0) ZF else (b & SF)) | (b & (XF|YF));
+    if (0 != (val & SF)) {
+        f |= NF;
+    }
+    const t: u17 = @as(u17, cpu.regs[L]) + val;
+    if (0 != (t & 0x100)) {
+        f |= HF|CF;
+    }
+    f |= szpFlags((@truncate(u8,t) & 0x07) ^ b) & PF;
+    cpu.regs[F] = f;
+    if ((y >= 6) and (b != 0)) {
+        cpu.PC -%= 2;
+        tick(cpu, 5, 0, tick_func); // filler ticks
+    }
+}  
 
 // flag computation functions
 fn szFlags(val: usize) u8 {
