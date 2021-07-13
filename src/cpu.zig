@@ -69,7 +69,7 @@
 /// dynamically in this emulator would be "baked" into specialized code.
 ///
 ///
-/// HOW INSTUCTION DECODING WORKS:
+/// HOW INSTRUCTION DECODING WORKS:
 /// ==============================
 ///
 /// Start reading the code at 'fn _exec('.
