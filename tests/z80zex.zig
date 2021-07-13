@@ -61,7 +61,6 @@ fn cpmBDOS(cpu: *CPU) bool {
     }
     
     // emulate a RET
-    const sp = cpu.SP;
     const z: u16 = mem[cpu.SP]; cpu.SP +%= 1;
     const w: u16 = mem[cpu.SP]; cpu.SP +%= 1;
     cpu.WZ = (w<<8) | z;
