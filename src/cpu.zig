@@ -373,7 +373,7 @@ fn _exec(cpu: *CPU, num_ticks: usize, tick_func: TickFunc) usize {
             },
             2 => { opALU_r(cpu, y, z, tick_func); },
             3 => switch (z) {
-                0 => unreachable,
+                0 => { opRET_cc(cpu, y, tick_func); },
                 1 => switch (q) {
                     0 => { opPOP_rp2(cpu, p, tick_func); },
                     1 => switch (p) {
@@ -394,7 +394,7 @@ fn _exec(cpu: *CPU, num_ticks: usize, tick_func: TickFunc) usize {
                     6 => { opDI(cpu); },
                     7 => { opEI(cpu); },
                 },
-                4 => unreachable,
+                4 => { opCALL_cc_nn(cpu, y, tick_func); },
                 5 => switch (q) {
                     0 => { opPUSH_rp2(cpu, p, tick_func); },
                     1 => switch (p) {
@@ -1378,6 +1378,22 @@ fn opCALL_nn(cpu: *CPU, tick_func: TickFunc) void {
     cpu.PC = a16;
 }
 
+// CALL_cc_nn
+fn opCALL_cc_nn(cpu: *CPU, y: u3, tick_func: TickFunc) void {
+    const a16 = imm16(cpu, tick_func);
+    if (cc(cpu.regs[F], y)) {
+        tick(cpu, 1, 0, tick_func); // filler tick
+        var sp = cpu.SP -% 1;
+        cpu.pins = setAddrData(cpu.pins, sp, @truncate(u8, cpu.PC>>8));
+        memWrite(cpu, tick_func);
+        sp -%= 1;
+        cpu.pins = setAddrData(cpu.pins, sp, @truncate(u8, cpu.PC));
+        memWrite(cpu, tick_func);
+        cpu.SP = sp;
+        cpu.PC = a16;
+    }
+}
+
 // RET
 fn opRET(cpu: *CPU, tick_func: TickFunc) void {
     var sp = cpu.SP;
@@ -1392,6 +1408,25 @@ fn opRET(cpu: *CPU, tick_func: TickFunc) void {
     cpu.SP = sp;
     cpu.PC = @as(u16, h)<<8 | l;
     cpu.WZ = cpu.PC;
+}
+
+// RET_cc
+fn opRET_cc(cpu: *CPU, y: u3, tick_func: TickFunc) void {
+    tick(cpu, 1, 0, tick_func); // filler tick
+    if (cc(cpu.regs[F], y)) {
+        var sp = cpu.SP;
+        cpu.pins = setAddr(cpu.pins, sp);
+        memRead(cpu, tick_func);
+        sp +%= 1;
+        const l = getData(cpu.pins);
+        cpu.pins = setAddr(cpu.pins, sp);
+        memRead(cpu, tick_func);
+        sp +%= 1;
+        const h = getData(cpu.pins);
+        cpu.SP = sp;
+        cpu.PC = @as(u16, h)<<8 | l;
+        cpu.WZ = cpu.PC;
+    }
 }
 
 // flag computation functions
