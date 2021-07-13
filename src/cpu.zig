@@ -387,8 +387,8 @@ fn _exec(cpu: *CPU, num_ticks: usize, tick_func: TickFunc) usize {
                 3 => switch (y) {
                     0 => opJP_nn(cpu, tick_func),
                     1 => opCB_prefix(cpu, tick_func),
-                    2 => unreachable,
-                    3 => unreachable,
+                    2 => opOUT_in_A(cpu, tick_func),
+                    3 => opIN_A_in(cpu, tick_func),
                     4 => opEX_iSP_HL(cpu, tick_func),
                     5 => opEX_DE_HL(cpu),
                     6 => opDI(cpu),
@@ -433,8 +433,8 @@ fn opED_prefix(cpu: *CPU, tick_func: TickFunc) void {
 
     switch (x) {
         1 => switch (z) {
-            0 => unreachable,
-            1 => unreachable,
+            0 => opIN_ry_iC(cpu, y, tick_func),
+            1 => opOUT_iC_ry(cpu, y, tick_func),
             2 => switch (q) {
                 0 => opSBC_HL_rp(cpu, p, tick_func),
                 1 => opADC_HL_rp(cpu, p, tick_func),
@@ -615,12 +615,12 @@ fn memWrite(cpu: *CPU, tick_func: TickFunc) void {
 }
 
 // perform an IO input machine cycle (4 clock cycles)
-fn ioIn(cpu: *CPU, tick_func: TickFunc) void {
+fn ioRead(cpu: *CPU, tick_func: TickFunc) void {
     tickWait(cpu, 4, IORQ|RD, tick_func);
 }
 
 // perform a IO output machine cycle (4 clock cycles)
-fn ioOut(cpu: *CPU, tick_func: TickFunc) void {
+fn ioWrite(cpu: *CPU, tick_func: TickFunc) void {
     tickWait(cpu, 4, IORQ|WR, tick_func);
 }
 
@@ -1478,6 +1478,50 @@ fn opSBC_HL_rp(cpu: *CPU, p: u2, tick_func: TickFunc) void {
     tick(cpu, 7, 0, tick_func); // filler ticks
 }
 
+// IN A,(n)
+fn opIN_A_in(cpu: *CPU, tick_func: TickFunc) void {
+    const n = imm8(cpu, tick_func);
+    const port = (@as(u16, cpu.regs[A])<<8) | n;
+    cpu.pins = setAddr(cpu.pins, port);
+    ioRead(cpu, tick_func);
+    cpu.regs[A] = getData(cpu.pins);
+    cpu.WZ = port +% 1;
+}
+
+// OUT (n),A
+fn opOUT_in_A(cpu: *CPU, tick_func: TickFunc) void {
+    const n = imm8(cpu, tick_func);
+    const a = cpu.regs[A];
+    const port = (@as(u16, a)<<8) | n;
+    cpu.pins = setAddrData(cpu.pins, port, a);
+    ioWrite(cpu, tick_func);
+    cpu.WZ = (port & 0xFF00) | ((port +% 1) & 0x00FF);
+}
+
+// IN r,(C)
+fn opIN_ry_iC(cpu: *CPU, y: u3, tick_func: TickFunc) void {
+    const bc = getR16(&cpu.regs, BC);
+    cpu.pins = setAddr(cpu.pins, bc);
+    ioRead(cpu, tick_func);
+    cpu.WZ = bc +% 1;
+    const val = getData(cpu.pins);
+    cpu.regs[F] = (cpu.regs[F] & CF) | szpFlags(val);
+    // undocumented special case for IN (HL),(C): only store flags, throw away input byte
+    if (y != 6) {
+        store8(cpu, y, val, tick_func);
+    }
+}
+
+// OUT (C),r
+fn opOUT_iC_ry(cpu: *CPU, y: u3, tick_func: TickFunc) void {
+    const bc = getR16(&cpu.regs, BC);
+    // undocumented special case for OUT (C),(HL): output 0 instead
+    var val = if (y == 6) 0 else load8(cpu, y, tick_func);
+    cpu.pins = setAddrData(cpu.pins, bc, val);
+    ioWrite(cpu, tick_func);
+    cpu.WZ = bc +% 1;
+}
+
 // flag computation functions
 fn szFlags(val: usize) u8 {
     if ((val & 0xFF) == 0) {
@@ -1750,20 +1794,20 @@ test "memWrite" {
     try expect(cpu.ticks == 3);
 }
 
-test "ioIn" {
+test "ioRead" {
     clearIO();
     io[0x1234] = 0x23;
     var cpu = CPU{ .pins = setAddr(0, 0x1234) };
-    ioIn(&cpu, testTick);
+    ioRead(&cpu, testTick);
     try expect((cpu.pins & CtrlPinMask) == IORQ|RD);
     try expect(getData(cpu.pins) == 0x23);
     try expect(cpu.ticks == 4);
 }
 
-test "ioOut" {
+test "ioWrite" {
     clearIO();
     var cpu = CPU{ .pins = setAddrData(0, 0x1234, 0x56) };
-    ioOut(&cpu, testTick);
+    ioWrite(&cpu, testTick);
     try expect((cpu.pins & CtrlPinMask) == IORQ|WR);
     try expect(getData(cpu.pins) == 0x56);
     try expect(cpu.ticks == 4);

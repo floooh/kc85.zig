@@ -51,8 +51,8 @@ fn tick(num_ticks: usize, p: u64) u64 {
     }
     else if ((pins & IORQ) != 0) {
         if ((pins & RD) != 0) {
-            // an IO input access (just write the port back)
-            pins = setData(pins, @truncate(u8, getAddr(pins)));
+            // an IO input access (just write the port * 2 back)
+            pins = setData(pins, @truncate(u8, getAddr(pins)) *% 2);
         }
         else if ((pins & WR) != 0) {
             // an IO output access
@@ -2515,6 +2515,83 @@ fn ADD_ADC_SBC_16() void {
     ok();
 }
 
+fn IN() void {
+    start("IN");
+    const prog = [_]u8 {
+        0x3E, 0x01,         // LD A,0x01
+        0xDB, 0x03,         // IN A,(0x03)
+        0xDB, 0x04,         // IN A,(0x04)
+        0x01, 0x02, 0x02,   // LD BC,0x0202
+        0xED, 0x78,         // IN A,(C)
+        0x01, 0xFF, 0x05,   // LD BC,0x05FF
+        0xED, 0x50,         // IN D,(C)
+        0x01, 0x05, 0x05,   // LD BC,0x0505
+        0xED, 0x58,         // IN E,(C)
+        0x01, 0x06, 0x01,   // LD BC,0x0106
+        0xED, 0x60,         // IN H,(C)
+        0x01, 0x00, 0x10,   // LD BC,0x0000
+        0xED, 0x68,         // IN L,(C)
+        0xED, 0x40,         // IN B,(C)
+        0xED, 0x48,         // IN C,(c)
+    };
+    copy(0x0000, &prog);
+    var cpu = makeCPU();
+    cpu.regs[F] = HF|CF;
+
+    T(7 ==step(&cpu)); T(0x01 == cpu.regs[A]); T(flags(&cpu, HF|CF));
+    T(11==step(&cpu)); T(0x06 == cpu.regs[A]); T(flags(&cpu, HF|CF)); T(0x0104 == cpu.WZ);
+    T(11==step(&cpu)); T(0x08 == cpu.regs[A]); T(flags(&cpu, HF|CF)); T(0x0605 == cpu.WZ);
+    T(10==step(&cpu)); T(0x0202 == cpu.r16(BC));
+    T(12==step(&cpu)); T(0x04 == cpu.regs[A]); T(flags(&cpu, CF)); T(0x0203 == cpu.WZ);
+    T(10==step(&cpu)); T(0x05FF == cpu.r16(BC));
+    T(12==step(&cpu)); T(0xFE == cpu.regs[D]); T(flags(&cpu, SF|CF)); T(0x0600 == cpu.WZ);
+    T(10==step(&cpu)); T(0x0505 == cpu.r16(BC));
+    T(12==step(&cpu)); T(0x0A == cpu.regs[E]); T(flags(&cpu, PF|CF)); T(0x0506 == cpu.WZ);
+    T(10==step(&cpu)); T(0x0106 == cpu.r16(BC));
+    T(12==step(&cpu)); T(0x0C == cpu.regs[H]); T(flags(&cpu, PF|CF)); T(0x0107 == cpu.WZ);
+    T(10==step(&cpu)); T(0x1000 == cpu.r16(BC));
+    T(12==step(&cpu)); T(0x00 == cpu.regs[L]); T(flags(&cpu, ZF|PF|CF)); T(0x1001 == cpu.WZ);
+    T(12==step(&cpu)); T(0x00 == cpu.regs[B]); T(flags(&cpu, ZF|PF|CF)); T(0x1001 == cpu.WZ);
+    T(12==step(&cpu)); T(0x00 == cpu.regs[C]); T(flags(&cpu, ZF|PF|CF)); T(0x0001 == cpu.WZ);
+    ok();
+}
+
+fn OUT() void {
+    start("OUT");
+    const prog = [_]u8 {
+        0x3E, 0x01,         // LD A,0x01
+        0xD3, 0x01,         // OUT (0x01),A
+        0xD3, 0xFF,         // OUT (0xFF),A
+        0x01, 0x34, 0x12,   // LD BC,0x1234
+        0x11, 0x78, 0x56,   // LD DE,0x5678
+        0x21, 0xCD, 0xAB,   // LD HL,0xABCD
+        0xED, 0x79,         // OUT (C),A
+        0xED, 0x41,         // OUT (C),B
+        0xED, 0x49,         // OUT (C),C
+        0xED, 0x51,         // OUT (C),D
+        0xED, 0x59,         // OUT (C),E
+        0xED, 0x61,         // OUT (C),H
+        0xED, 0x69,         // OUT (C),L
+    };
+    copy(0x0000, &prog);
+    var cpu = makeCPU();
+
+    T(7 ==step(&cpu)); T(0x01 == cpu.regs[A]);
+    T(11==step(&cpu)); T(0x0101 == out_port); T(0x01 == out_byte); T(0x0102 == cpu.WZ);
+    T(11==step(&cpu)); T(0x01FF == out_port); T(0x01 == out_byte); T(0x0100 == cpu.WZ);
+    T(10==step(&cpu)); T(0x1234 == cpu.r16(BC));
+    T(10==step(&cpu)); T(0x5678 == cpu.r16(DE));
+    T(10==step(&cpu)); T(0xABCD == cpu.r16(HL));
+    T(12==step(&cpu)); T(0x1234 == out_port); T(0x01 == out_byte); T(0x1235 == cpu.WZ);
+    T(12==step(&cpu)); T(0x1234 == out_port); T(0x12 == out_byte); T(0x1235 == cpu.WZ);
+    T(12==step(&cpu)); T(0x1234 == out_port); T(0x34 == out_byte); T(0x1235 == cpu.WZ);
+    T(12==step(&cpu)); T(0x1234 == out_port); T(0x56 == out_byte); T(0x1235 == cpu.WZ);
+    T(12==step(&cpu)); T(0x1234 == out_port); T(0x78 == out_byte); T(0x1235 == cpu.WZ);
+    T(12==step(&cpu)); T(0x1234 == out_port); T(0xAB == out_byte); T(0x1235 == cpu.WZ);
+    T(12==step(&cpu)); T(0x1234 == out_port); T(0xCD == out_byte); T(0x1235 == cpu.WZ);
+    ok();
+}
+
 pub fn main() void {
     LD_A_RI();
     LD_IR_A();
@@ -2584,5 +2661,7 @@ pub fn main() void {
     CALL_RET();
     CALL_RET_cc();
     ADD_ADC_SBC_16();
+    IN();
+    OUT();
 }
 
