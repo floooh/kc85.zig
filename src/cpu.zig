@@ -330,14 +330,14 @@ fn _exec(cpu: *CPU, num_ticks: usize, tick_func: TickFunc) usize {
             0 => switch (z) {
                 0 => switch (y) {
                     0 => { }, // NOP
-                    1 => { opEX_AF_AF(cpu); },
-                    2 => { opDJNZ_d(cpu, tick_func); },
-                    3 => { opJR_d(cpu, tick_func); },
-                    4...7 => { opJR_cc_d(cpu, y, tick_func); },
+                    1 => opEX_AF_AF(cpu),
+                    2 => opDJNZ_d(cpu, tick_func),
+                    3 => opJR_d(cpu, tick_func),
+                    4...7 => opJR_cc_d(cpu, y, tick_func),
                 },
                 1 => switch (q) {
                     0 => opLD_rp_nn(cpu, p, tick_func),
-                    1 => unreachable // FIXME!
+                    1 => opADD_HL_rp(cpu, p, tick_func),
                 },
                 2 => switch (y) {
                     0 => opLD_iBCDE_A(cpu, BC, tick_func),
@@ -350,57 +350,57 @@ fn _exec(cpu: *CPU, num_ticks: usize, tick_func: TickFunc) usize {
                     7 => opLD_A_inn(cpu, tick_func)
                 },
                 3 => switch (q) {
-                    0 => { opINC_rp(cpu, p, tick_func); },
-                    1 => { opDEC_rp(cpu, p, tick_func); },
+                    0 => opINC_rp(cpu, p, tick_func),
+                    1 => opDEC_rp(cpu, p, tick_func),
                 },
                 4 => opINC_r(cpu, y, tick_func),
                 5 => opDEC_r(cpu, y, tick_func),
                 6 => opLD_r_n(cpu, y, tick_func),
                 7 => switch (y) {
-                    0 => { opRLCA(cpu); },
-                    1 => { opRRCA(cpu); },
-                    2 => { opRLA(cpu); },
-                    3 => { opRRA(cpu); },
-                    4 => { opDAA(cpu); },
-                    5 => { opCPL(cpu); },
-                    6 => { opSCF(cpu); },
-                    7 => { opCCF(cpu); },
+                    0 => opRLCA(cpu),
+                    1 => opRRCA(cpu),
+                    2 => opRLA(cpu),
+                    3 => opRRA(cpu),
+                    4 => opDAA(cpu),
+                    5 => opCPL(cpu),
+                    6 => opSCF(cpu),
+                    7 => opCCF(cpu),
                 }
             },
             1 => {
                 if (y == 6 and z == 6) { opHALT(cpu); }
                 else { opLD_r_r(cpu, y, z, tick_func); }
             },
-            2 => { opALU_r(cpu, y, z, tick_func); },
+            2 => opALU_r(cpu, y, z, tick_func),
             3 => switch (z) {
-                0 => { opRET_cc(cpu, y, tick_func); },
+                0 => opRET_cc(cpu, y, tick_func),
                 1 => switch (q) {
-                    0 => { opPOP_rp2(cpu, p, tick_func); },
+                    0 => opPOP_rp2(cpu, p, tick_func),
                     1 => switch (p) {
-                        0 => { opRET(cpu, tick_func); },
-                        1 => { opEXX(cpu); },
-                        2 => { opJP_HL(cpu); },
-                        3 => { opLD_SP_HL(cpu, tick_func); },
+                        0 => opRET(cpu, tick_func),
+                        1 => opEXX(cpu),
+                        2 => opJP_HL(cpu),
+                        3 => opLD_SP_HL(cpu, tick_func),
                     }
                 },
-                2 => { opJP_cc_nn(cpu, y, tick_func); },
+                2 => opJP_cc_nn(cpu, y, tick_func),
                 3 => switch (y) {
-                    0 => { opJP_nn(cpu, tick_func); },
-                    1 => { opCB_prefix(cpu, tick_func); },
+                    0 => opJP_nn(cpu, tick_func),
+                    1 => opCB_prefix(cpu, tick_func),
                     2 => unreachable,
                     3 => unreachable,
-                    4 => { opEX_iSP_HL(cpu, tick_func); },
-                    5 => { opEX_DE_HL(cpu); },
-                    6 => { opDI(cpu); },
-                    7 => { opEI(cpu); },
+                    4 => opEX_iSP_HL(cpu, tick_func),
+                    5 => opEX_DE_HL(cpu),
+                    6 => opDI(cpu),
+                    7 => opEI(cpu),
                 },
-                4 => { opCALL_cc_nn(cpu, y, tick_func); },
+                4 => opCALL_cc_nn(cpu, y, tick_func),
                 5 => switch (q) {
-                    0 => { opPUSH_rp2(cpu, p, tick_func); },
+                    0 => opPUSH_rp2(cpu, p, tick_func),
                     1 => switch (p) {
-                        0 => { opCALL_nn(cpu, tick_func); },
+                        0 => opCALL_nn(cpu, tick_func),
                         1 => { cpu.ixiy = UseIX; continue; }, // no interrupt handling after DD prefix
-                        2 => { opED_prefix(cpu, tick_func); },
+                        2 => opED_prefix(cpu, tick_func),
                         3 => { cpu.ixiy = UseIY; continue; }, // no interrupt handling after FD prefix
                     }
                 },
@@ -435,39 +435,42 @@ fn opED_prefix(cpu: *CPU, tick_func: TickFunc) void {
         1 => switch (z) {
             0 => unreachable,
             1 => unreachable,
-            2 => unreachable,
-            3 => switch (q) {
-                0 => { opLD_inn_rp(cpu, p, tick_func); },
-                1 => { opLD_rp_inn(cpu, p, tick_func); },
+            2 => switch (q) {
+                0 => opSBC_HL_rp(cpu, p, tick_func),
+                1 => opADC_HL_rp(cpu, p, tick_func),
             },
-            4 => { opNEG(cpu); },
+            3 => switch (q) {
+                0 => opLD_inn_rp(cpu, p, tick_func),
+                1 => opLD_rp_inn(cpu, p, tick_func),
+            },
+            4 => opNEG(cpu),
             5 => unreachable,
-            6 => { opIM(cpu, y); },
+            6 => opIM(cpu, y),
             7 => switch(y) {
-                0 => { opLD_I_A(cpu, tick_func); },
-                1 => { opLD_R_A(cpu, tick_func); },
-                2 => { opLD_A_I(cpu, tick_func); },
-                3 => { opLD_A_R(cpu, tick_func); },
-                4 => { opRRD(cpu, tick_func); },
-                5 => { opRLD(cpu, tick_func); },
+                0 => opLD_I_A(cpu, tick_func),
+                1 => opLD_R_A(cpu, tick_func),
+                2 => opLD_A_I(cpu, tick_func),
+                3 => opLD_A_R(cpu, tick_func),
+                4 => opRRD(cpu, tick_func),
+                5 => opRLD(cpu, tick_func),
                 6, 7 => { }, // NONI + NOP
             }
         },
         2 => switch (z) {
             0 => switch (y) {
-                4...7 => { opLDI_LDD_LDIR_LDDR(cpu, y, tick_func); },
+                4...7 => opLDI_LDD_LDIR_LDDR(cpu, y, tick_func),
                 else => { } // NONI + NOP
             },
             1 => switch (y) { 
-                4...7 => { opCPI_CPD_CPIR_CPDR(cpu, y, tick_func); },
+                4...7 => opCPI_CPD_CPIR_CPDR(cpu, y, tick_func),
                 else => { } // NONI + NOP
             },
             2 => switch (y) {
-                4...7 => { opINI_IND_INIR_INDR(cpu, y, tick_func); },
+                4...7 => opINI_IND_INIR_INDR(cpu, y, tick_func),
                 else => { }, // NONI + NOP
             },
             3 => switch (y) {
-                4...7 => { opOUTI_OUTD_OTIR_OTDR(cpu, y, tick_func); },
+                4...7 => opOUTI_OUTD_OTIR_OTDR(cpu, y, tick_func),
                 else => { }, // NONI + NOP
             },
             else => { },   // NONI + NOP
@@ -764,19 +767,19 @@ fn storeHLIXIY(cpu: *CPU, val: u16) void {
 // store 16-bit value into register with special handling for SP
 fn store16SP(cpu: *CPU, reg: u2, val: u16) void {
     switch (reg) {
-        BC   => { setR16(&cpu.regs, BC, val); },
-        DE   => { setR16(&cpu.regs, DE, val); },
-        HL   => { storeHLIXIY(cpu, val); },
-        FA   => { cpu.SP = val; },
+        BC   => setR16(&cpu.regs, BC, val),
+        DE   => setR16(&cpu.regs, DE, val),
+        HL   => storeHLIXIY(cpu, val),
+        FA   => cpu.SP = val,
     }
 }
 
 // store 16-bit value into register with special case handling for AF
 fn store16AF(cpu: *CPU, reg: u2, val: u16) void {
     switch (reg) {
-        BC   => { setR16(&cpu.regs, BC, val); },
-        DE   => { setR16(&cpu.regs, DE, val); },
-        HL   => { storeHLIXIY(cpu, val); },
+        BC   => setR16(&cpu.regs, BC, val),
+        DE   => setR16(&cpu.regs, DE, val),
+        HL   => storeHLIXIY(cpu, val),
         FA   => { cpu.regs[F] = @truncate(u8, val); cpu.regs[A] = @truncate(u8, val>>8); },
     }
 }
@@ -1427,6 +1430,52 @@ fn opRET_cc(cpu: *CPU, y: u3, tick_func: TickFunc) void {
         cpu.PC = @as(u16, h)<<8 | l;
         cpu.WZ = cpu.PC;
     }
+}
+
+// ADD HL,rp
+fn opADD_HL_rp(cpu: *CPU, p: u2, tick_func: TickFunc) void {
+    const acc = loadHLIXIY(cpu);
+    cpu.WZ = acc +% 1;
+    const val = load16SP(cpu, p);
+    const res: u17 = @as(u17,acc) +% val;
+    storeHLIXIY(cpu, @truncate(u16, res));
+    var f: u17 = cpu.regs[F] & (SF|ZF|VF);
+    f |= ((acc^res^val)>>8) & HF;
+    f |= ((res >> 16) & CF) | ((res >> 8) & (YF|XF));
+    cpu.regs[F] = @truncate(u8, f);
+    tick(cpu, 7, 0, tick_func); // filler ticks
+}
+
+// ADC HL,rp
+fn opADC_HL_rp(cpu: *CPU, p: u2, tick_func: TickFunc) void {
+    const acc = loadHLIXIY(cpu);
+    cpu.WZ = acc +% 1;
+    const val = load16SP(cpu, p);
+    const res: u17 = @as(u17,acc) +% val +% (cpu.regs[F] & CF);
+    storeHLIXIY(cpu, @truncate(u16, res));
+    var f: u17 = ((val ^ acc ^ 0x8000) & (val ^ res) & 0x8000) >> 13;
+    f |= ((acc ^ res ^ val) >> 8) & HF;
+    f |= (res >> 16) & CF;
+    f |= (res >> 8) & (SF|YF|XF);
+    f |= if (0 == (res & 0xFFFF)) ZF else 0;
+    cpu.regs[F] = @truncate(u8, f);
+    tick(cpu, 7, 0, tick_func); // filler ticks
+}
+
+// SBC HL,rp
+fn opSBC_HL_rp(cpu: *CPU, p: u2, tick_func: TickFunc) void {
+    const acc = loadHLIXIY(cpu);
+    cpu.WZ = acc +% 1;
+    const val = load16SP(cpu, p);
+    const res: u17 = acc -% val -% (cpu.regs[F] & CF);
+    storeHLIXIY(cpu, @truncate(u16, res));
+    var f: u17 = NF | (((val ^ acc) & (acc ^ res) & 0x8000) >> 13);
+    f |= ((acc ^ res ^ val) >> 8) & HF;
+    f |= (res >> 16) & CF;
+    f |= (res >> 8) & (SF|YF|XF);
+    f |= if (0 == (res & 0xFFFF)) ZF else 0;
+    cpu.regs[F] = @truncate(u8, f);
+    tick(cpu, 7, 0, tick_func); // filler ticks
 }
 
 // flag computation functions

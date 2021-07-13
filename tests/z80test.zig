@@ -2465,6 +2465,56 @@ fn CALL_RET_cc() void {
     ok();
 }
 
+fn ADD_ADC_SBC_16() void {
+    start("ADD/ADC/SBC HL/IX/IY,rp");
+    const prog = [_]u8 {
+        0x21, 0xFC, 0x00,       // LD HL,0x00FC
+        0x01, 0x08, 0x00,       // LD BC,0x0008
+        0x11, 0xFF, 0xFF,       // LD DE,0xFFFF
+        0x09,                   // ADD HL,BC
+        0x19,                   // ADD HL,DE
+        0xED, 0x4A,             // ADC HL,BC
+        0x29,                   // ADD HL,HL
+        0x19,                   // ADD HL,DE
+        0xED, 0x42,             // SBC HL,BC
+        0xDD, 0x21, 0xFC, 0x00, // LD IX,0x00FC
+        0x31, 0x00, 0x10,       // LD SP,0x1000
+        0xDD, 0x09,             // ADD IX, BC
+        0xDD, 0x19,             // ADD IX, DE
+        0xDD, 0x29,             // ADD IX, IX
+        0xDD, 0x39,             // ADD IX, SP
+        0xFD, 0x21, 0xFF, 0xFF, // LD IY,0xFFFF
+        0xFD, 0x09,             // ADD IY,BC
+        0xFD, 0x19,             // ADD IY,DE
+        0xFD, 0x29,             // ADD IY,IY
+        0xFD, 0x39,             // ADD IY,SP
+    };
+    copy(0x0000, &prog);
+    var cpu = makeCPU();
+    
+    T(10==step(&cpu)); T(0x00FC == cpu.r16(HL));
+    T(10==step(&cpu)); T(0x0008 == cpu.r16(BC));
+    T(10==step(&cpu)); T(0xFFFF == cpu.r16(DE));
+    T(11==step(&cpu)); T(0x0104 == cpu.r16(HL)); T(flags(&cpu, 0)); T(0x00FD == cpu.WZ);
+    T(11==step(&cpu)); T(0x0103 == cpu.r16(HL)); T(flags(&cpu, HF|CF)); T(0x0105 == cpu.WZ);
+    T(15==step(&cpu)); T(0x010C == cpu.r16(HL)); T(flags(&cpu, 0)); T(0x0104 == cpu.WZ);
+    T(11==step(&cpu)); T(0x0218 == cpu.r16(HL)); T(flags(&cpu, 0)); T(0x010D == cpu.WZ);
+    T(11==step(&cpu)); T(0x0217 == cpu.r16(HL)); T(flags(&cpu, HF|CF)); T(0x0219 == cpu.WZ);
+    T(15==step(&cpu)); T(0x020E == cpu.r16(HL)); T(flags(&cpu, NF)); T(0x0218 == cpu.WZ);
+    T(14==step(&cpu)); T(0x00FC == cpu.IX);
+    T(10==step(&cpu)); T(0x1000 == cpu.SP);
+    T(15==step(&cpu)); T(0x0104 == cpu.IX); T(flags(&cpu, 0)); T(0x00FD == cpu.WZ);
+    T(15==step(&cpu)); T(0x0103 == cpu.IX); T(flags(&cpu, HF|CF)); T(0x0105 == cpu.WZ);
+    T(15==step(&cpu)); T(0x0206 == cpu.IX); T(flags(&cpu, 0)); T(0x0104 == cpu.WZ);
+    T(15==step(&cpu)); T(0x1206 == cpu.IX); T(flags(&cpu, 0)); T(0x0207 == cpu.WZ);
+    T(14==step(&cpu)); T(0xFFFF == cpu.IY); 
+    T(15==step(&cpu)); T(0x0007 == cpu.IY); T(flags(&cpu, HF|CF)); T(0x0000 == cpu.WZ);
+    T(15==step(&cpu)); T(0x0006 == cpu.IY); T(flags(&cpu, HF|CF)); T(0x0008 == cpu.WZ);
+    T(15==step(&cpu)); T(0x000C == cpu.IY); T(flags(&cpu, 0)); T(0x0007 == cpu.WZ);
+    T(15==step(&cpu)); T(0x100C == cpu.IY); T(flags(&cpu, 0)); T(0x000D == cpu.WZ);
+    ok();
+}
+
 pub fn main() void {
     LD_A_RI();
     LD_IR_A();
@@ -2533,5 +2583,6 @@ pub fn main() void {
     DJNZ();
     CALL_RET();
     CALL_RET_cc();
+    ADD_ADC_SBC_16();
 }
 
