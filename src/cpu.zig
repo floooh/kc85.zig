@@ -607,12 +607,15 @@ fn memWrite(cpu: *CPU, addr: u16, data: u8, tick_func: TickFunc) void {
 }
 
 // perform an IO input machine cycle (4 clock cycles)
-fn ioRead(cpu: *CPU, tick_func: TickFunc) void {
+fn ioRead(cpu: *CPU, addr: u16, tick_func: TickFunc) u8 {
+    cpu.pins = setAddr(cpu.pins, addr);
     tickWait(cpu, 4, IORQ|RD, tick_func);
+    return getData(cpu.pins);
 }
 
 // perform a IO output machine cycle (4 clock cycles)
-fn ioWrite(cpu: *CPU, tick_func: TickFunc) void {
+fn ioWrite(cpu: *CPU, addr: u16, data: u8, tick_func: TickFunc) void {
+    cpu.pins = setAddrData(cpu.pins, addr, data);
     tickWait(cpu, 4, IORQ|WR, tick_func);
 }
 
@@ -1385,9 +1388,7 @@ fn opSBC_HL_rp(cpu: *CPU, p: u2, tick_func: TickFunc) void {
 fn opIN_A_in(cpu: *CPU, tick_func: TickFunc) void {
     const n = imm8(cpu, tick_func);
     const port = (@as(u16, cpu.regs[A])<<8) | n;
-    cpu.pins = setAddr(cpu.pins, port);
-    ioRead(cpu, tick_func);
-    cpu.regs[A] = getData(cpu.pins);
+    cpu.regs[A] = ioRead(cpu, port, tick_func);
     cpu.WZ = port +% 1;
 }
 
@@ -1396,18 +1397,15 @@ fn opOUT_in_A(cpu: *CPU, tick_func: TickFunc) void {
     const n = imm8(cpu, tick_func);
     const a = cpu.regs[A];
     const port = (@as(u16, a)<<8) | n;
-    cpu.pins = setAddrData(cpu.pins, port, a);
-    ioWrite(cpu, tick_func);
+    ioWrite(cpu, port, a, tick_func);
     cpu.WZ = (port & 0xFF00) | ((port +% 1) & 0x00FF);
 }
 
 // IN r,(C)
 fn opIN_ry_iC(cpu: *CPU, y: u3, tick_func: TickFunc) void {
     const bc = getR16(&cpu.regs, BC);
-    cpu.pins = setAddr(cpu.pins, bc);
-    ioRead(cpu, tick_func);
+    const val = ioRead(cpu, bc, tick_func);
     cpu.WZ = bc +% 1;
-    const val = getData(cpu.pins);
     cpu.regs[F] = (cpu.regs[F] & CF) | szpFlags(val);
     // undocumented special case for IN (HL),(C): only store flags, throw away input byte
     if (y != 6) {
@@ -1420,8 +1418,7 @@ fn opOUT_iC_ry(cpu: *CPU, y: u3, tick_func: TickFunc) void {
     const bc = getR16(&cpu.regs, BC);
     // undocumented special case for OUT (C),(HL): output 0 instead
     var val = if (y == 6) 0 else load8(cpu, y, tick_func);
-    cpu.pins = setAddrData(cpu.pins, bc, val);
-    ioWrite(cpu, tick_func);
+    ioWrite(cpu, bc, val, tick_func);
     cpu.WZ = bc +% 1;
 }
 
@@ -1430,9 +1427,7 @@ fn opINI_IND_INIR_INDR(cpu: *CPU, y: u3, tick_func: TickFunc) void {
     tick(cpu, 1, 0, tick_func); // filler tick
     var port = getR16(&cpu.regs, BC);
     var hl = getR16(&cpu.regs, HL);
-    cpu.pins = setAddr(cpu.pins, port);
-    ioRead(cpu, tick_func);
-    const val = getData(cpu.pins);
+    const val = ioRead(cpu, port, tick_func);
     memWrite(cpu, hl, val, tick_func);
     const b = cpu.regs[B] -% 1;
     cpu.regs[B] = b;
@@ -1469,8 +1464,7 @@ fn opOUTI_OUTD_OTIR_OTDR(cpu: *CPU, y: u3, tick_func: TickFunc) void {
     const b = cpu.regs[B] -% 1;
     cpu.regs[B] = b;
     var port = getR16(&cpu.regs, BC);
-    cpu.pins = setAddr(cpu.pins, port);
-    ioWrite(cpu, tick_func);
+    ioWrite(cpu, port, val, tick_func);
     if (0 != (y & 1)) {
         port -%= 1; hl -%= 1;
     }
@@ -1769,17 +1763,18 @@ test "memWrite" {
 test "ioRead" {
     clearIO();
     io[0x1234] = 0x23;
-    var cpu = CPU{ .pins = setAddr(0, 0x1234) };
-    ioRead(&cpu, testTick);
+    var cpu = CPU{ };
+    const val = ioRead(&cpu, 0x1234, testTick);
     try expect((cpu.pins & CtrlPinMask) == IORQ|RD);
     try expect(getData(cpu.pins) == 0x23);
+    try expect(val == 0x23);
     try expect(cpu.ticks == 4);
 }
 
 test "ioWrite" {
     clearIO();
-    var cpu = CPU{ .pins = setAddrData(0, 0x1234, 0x56) };
-    ioWrite(&cpu, testTick);
+    var cpu = CPU{ };
+    ioWrite(&cpu, 0x1234, 0x56, testTick);
     try expect((cpu.pins & CtrlPinMask) == IORQ|WR);
     try expect(getData(cpu.pins) == 0x56);
     try expect(cpu.ticks == 4);
