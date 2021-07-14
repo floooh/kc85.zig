@@ -53,8 +53,6 @@
 /// How THE INSTRUCTION LOOP WORKS:
 /// ===============================
 ///
-/// Start reading the code at 'fn _exec('.
-///
 ///     1. The next opcode byte is loaded from memory ("fetch" machine cycle)
 ///     2. The opcode byte is split into 3 bit groups (x, y, z), see below
 ///        "HOW INSTRUCTION DECODING WORKS"
@@ -94,15 +92,16 @@
 /// The prefixes DD and FD behave like regular instructions, except that
 /// interrupt handling is disabled between the prefix instruction and the 
 /// following instruction that's prefixed. The action of the prefix instructions
-/// DD and FD is to wire the index registers IX or IY to HL. This means that
+/// DD and FD is to map the index registers IX or IY to HL. This means that
 /// in the following instruction, all uses of HL are replaced with IX or IY, and
 /// a memory access (HL) is replaced with (IX+d) or (IY+d). There are only few
 /// exceptions:
-///     * in the instructions register loading instructions "LD r,(IX/IY+d)"" and
+
+///     * in the register loading instructions "LD r,(IX/IY+d)"" and
 ///       "LD (IX/IY+d),r" the source and target registers H and L are never replaced
 ///       with IXH/IYH and IYH/IYL
 ///     * in the "EX DE,HL" and "EXX" instructions, HL is never replaced with IX 
-///       or IY (however there *are* prefixed version for "EX (SP),HL" which 
+///       or IY (however there *are* prefixed versions of "EX (SP),HL" which 
 ///       replace HL with IX or IY
 ///     * all ED prefixed instructions disable any active HL <=> IX/IY mapping
 ///
