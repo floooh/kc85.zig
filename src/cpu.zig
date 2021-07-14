@@ -1235,7 +1235,7 @@ fn opLDI_LDD_LDIR_LDDR(cpu: *CPU, y: u3, tick_func: TickFunc) void {
         f |= YF;
     }
     if (0 != (val & 0x08)) {
-        f |= ZF;
+        f |= XF;
     }
     const bc = getR16(&cpu.regs, BC) -% 1;
     setR16(&cpu.regs, BC, bc);
