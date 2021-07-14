@@ -1230,13 +1230,7 @@ fn opLDI_LDD_LDIR_LDDR(cpu: *CPU, y: u3, tick_func: TickFunc) void {
     setR16(&cpu.regs, HL, hl);
     setR16(&cpu.regs, DE, de);
     tick(cpu, 2, 0, tick_func);    // 2 filler ticks
-    var f = cpu.regs[F] & (SF|ZF|CF);
-    if (0 != (val & 0x02)) {
-        f |= YF;
-    }
-    if (0 != (val & 0x08)) {
-        f |= XF;
-    }
+    var f = (cpu.regs[F] & (SF|ZF|CF)) | ((val << 4) & YF) | (val & XF);
     const bc = getR16(&cpu.regs, BC) -% 1;
     setR16(&cpu.regs, BC, bc);
     if (bc != 0) {
@@ -1271,12 +1265,7 @@ fn opCPI_CPD_CPIR_CPDR(cpu: *CPU, y: u3, tick_func: TickFunc) void {
         f |= HF;
         val -%= 1;
     }
-    if (0 != (val & 0x02)) {
-        f |= YF;
-    }
-    if (0 != (val & 0x08)) {
-        f |= XF;
-    }
+    f |= ((val << 4) & YF) | (val & XF);
     const bc = getR16(&cpu.regs, BC) -% 1;
     setR16(&cpu.regs, BC, bc);
     if (bc != 0) {
