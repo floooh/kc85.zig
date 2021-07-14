@@ -2,19 +2,6 @@
 /// A Z80 CPU EMULATOR
 /// ==================
 ///
-/// NOTE: this emulator is slow but (hopefully) somewhat educational, the reason
-/// is that the instruction decoding is done "algorithmically" using this
-/// recipe:
-///
-///     http://www.z80.info/decoding.htm
-///
-/// A CPU emulator written for performance would instead use a big "unfolded"
-/// jump table with specialized code for each instruction, which would
-/// look more like this (not very readable as you can see):
-///
-///     https://github.com/floooh/chips/blob/0b59f6bc48ace805a2040a2d5ae5414027c7bdd0/chips/z80.h#L866-L880
-///
-///
 /// EMULATION OVERVIEW
 /// ==================
 ///
@@ -108,25 +95,6 @@
 /// This behaviour of the DD and FD prefixes is why the CPU will happily execute
 /// sequences of DD and FD prefix bytes, with the only side effect that no
 /// interrupt requests are processed during the sequence.
-///
-///
-/// WHY IS THE EMULATION SLOW
-/// =========================
-///
-/// Some of the reasons why the emulation is slow:
-///
-///     1. the nested switch statements: it may take up to 4 hops to find
-///        the right instruction handler
-///     2. the dynamic mapping of HL to IX/IY that needs to be checked on every access
-///        to the H and L registers
-///     3. various other special cases when accessing the register bank through
-///        'register indices', mainly handling the special case for register
-///        index 6 which maps to (HL) and (IX/IY+d)
-///
-/// It's easily fast enough to run in the emulation in realtime of course, 
-/// and the CPU usually isn't the most performance-critical part in a
-/// home computer emulator anyway (instead the video system is).
-///
 /// 
 
 // CPU pins and helper functions
