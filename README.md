@@ -9,8 +9,9 @@ Run the high-level instruction tester (tests/z80test.zig):
 > zig build z80test
 ```
 
-Run the much more thorough ZEXDOC test (tests/z80zex.zig):
+Run the much more thorough ZEXDOC and ZEXALL tests (tests/z80zex.zig):
 
 ```sh
-> zig build z80zexdoc -Drelease-fast=true
+> zig build z80zexdoc -Drelease-safe=true
+> zig build z80zexall -Drelease-safe=true
 ```

@@ -1,6 +1,7 @@
 ///
 /// Runs the ZEXDOC and ZEXALL tests in a minimal CP/M environment.
 ///
+const build_options = @import("build_options");
 const print  = @import("std").debug.print;
 const CPU    = @import("cpu").CPU;
 usingnamespace @import("cpu").Pins;
@@ -91,6 +92,19 @@ fn zexdoc() void {
     runTest(&cpu, "ZEXDOC");
 }
 
+// run the ZEXALL test
+fn zexall() void {
+    mem = [_]u8{0} ** 0x10000;
+    copy(0x0100, @embedFile("roms/zexall.com"));
+    var cpu = CPU{ .SP = 0xF000, .PC = 0x0100 };
+    runTest(&cpu, "ZEXALL");
+}
+
 pub fn main() void {
-    zexdoc();
+    if (build_options.zexdoc) {
+        zexdoc();
+    }
+    if (build_options.zexall) {
+        zexall();
+    }
 }

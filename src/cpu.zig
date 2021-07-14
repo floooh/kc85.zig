@@ -1428,11 +1428,11 @@ fn opADD_HL_rp(cpu: *CPU, p: u2, tick_func: TickFunc) void {
 
 // ADC HL,rp
 fn opADC_HL_rp(cpu: *CPU, p: u2, tick_func: TickFunc) void {
-    const acc = loadHLIXIY(cpu);
+    const acc = getR16(&cpu.regs, HL);
     cpu.WZ = acc +% 1;
     const val = load16SP(cpu, p);
     const res: u17 = @as(u17,acc) +% val +% (cpu.regs[F] & CF);
-    storeHLIXIY(cpu, @truncate(u16, res));
+    setR16(&cpu.regs, HL, @truncate(u16, res));
     var f: u17 = ((val ^ acc ^ 0x8000) & (val ^ res) & 0x8000) >> 13;
     f |= ((acc ^ res ^ val) >> 8) & HF;
     f |= (res >> 16) & CF;
@@ -1444,11 +1444,11 @@ fn opADC_HL_rp(cpu: *CPU, p: u2, tick_func: TickFunc) void {
 
 // SBC HL,rp
 fn opSBC_HL_rp(cpu: *CPU, p: u2, tick_func: TickFunc) void {
-    const acc = loadHLIXIY(cpu);
+    const acc = getR16(&cpu.regs, HL);
     cpu.WZ = acc +% 1;
     const val = load16SP(cpu, p);
-    const res: u17 = acc -% val -% (cpu.regs[F] & CF);
-    storeHLIXIY(cpu, @truncate(u16, res));
+    const res: u17 = @as(u17,acc) -% val -% (cpu.regs[F] & CF);
+    setR16(&cpu.regs, HL, @truncate(u16, res));
     var f: u17 = NF | (((val ^ acc) & (acc ^ res) & 0x8000) >> 13);
     f |= ((acc ^ res ^ val) >> 8) & HF;
     f |= (res >> 16) & CF;
@@ -1602,7 +1602,7 @@ fn cpFlags(acc: usize, val: u8, res: usize) u8 {
 }
 
 fn szpFlags(val: u8) u8 {
-    return szFlags(val) | (((@popCount(u8, val)<<2) & PF) ^ PF);
+    return szFlags(val) | (((@popCount(u8, val)<<2) & PF) ^ PF) | (val & (YF|XF));
 }
 
 // test cc flag
