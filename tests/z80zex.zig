@@ -18,7 +18,7 @@ fn tick(num_ticks: usize, pins: usize) u64 {
             // a memory read access
             return setData(pins, mem[getAddr(pins)]);
         }
-        else {
+        else if (0 != (pins & WR)) {
             // a memory write access
             mem[getAddr(pins)] = getData(pins);
         }
@@ -80,6 +80,7 @@ fn runTest(cpu: *CPU, name: []const u8) void {
             else => { }
         }
     }
+    print("\n\n", .{});
 }
 
 // run the ZEXDOC test
