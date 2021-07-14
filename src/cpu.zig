@@ -294,7 +294,7 @@ pub const CPU = struct {
         return _exec(cpu, num_ticks, tick_func);
     }
     
-    // return true if not in the middl of an indexed op (DD / FD)
+    // return true if not in the middle of an indexed op (DD / FD)
     pub fn opdone(cpu: *CPU) bool {
         return 0 == cpu.ixiy;
     }
