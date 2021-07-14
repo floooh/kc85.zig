@@ -128,6 +128,8 @@
 /// home computer emulator anyway (instead the video system is).
 ///
 /// 
+
+// CPU pins and helper functions
 pub const Pins = struct {
     // address bus pins
     pub const A0:  u64 = 1<<0;
@@ -255,14 +257,14 @@ pub const Reg16 = struct {
     pub const NumRegs16 = 4;
 };
 
-pub const TickFunc = fn(usize, u64) u64;
-
 const Regs = [NumRegs8]u8;
 
-// flag bits for CPU.ixiy
 const UseIX = (1<<0);
 const UseIY = (1<<1);
 
+const TickFunc = fn(usize, u64) u64;
+
+/// CPU state and related functions
 pub const CPU = struct {
 
     pins: u64 = 0,
@@ -307,6 +309,7 @@ usingnamespace Flags;
 usingnamespace Reg8;
 usingnamespace Reg16;
 
+// instruction decoder loop
 fn _exec(cpu: *CPU, num_ticks: usize, tick_func: TickFunc) usize {
     cpu.ticks = 0;
     var running = true;
@@ -402,7 +405,7 @@ fn _exec(cpu: *CPU, num_ticks: usize, tick_func: TickFunc) usize {
                     }
                 },
                 6 => opALU_n(cpu, y, tick_func),
-                7 => unreachable,
+                7 => unreachable,   // FIXME: RST
             }
         }
         // FIXME: interrupt handling here
@@ -442,7 +445,7 @@ fn opED_prefix(cpu: *CPU, tick_func: TickFunc) void {
                 1 => opLD_rp_inn(cpu, p, tick_func),
             },
             4 => opNEG(cpu),
-            5 => unreachable,
+            5 => unreachable,   // FIXME: RETN/RETI
             6 => opIM(cpu, y),
             7 => switch(y) {
                 0 => opLD_I_A(cpu, tick_func),
@@ -486,7 +489,7 @@ fn rsrFlags(d8: usize, r: usize) u8 {
     return szpFlags(@truncate(u8, r)) | @truncate(u8, d8 & CF);
 }
 
-// CB-prefix decoding
+// CB-prefix decoding (very, very special case)
 fn opCB_prefix(cpu: *CPU, tick_func: TickFunc) void {
     // special handling for undocumented DD/FD+CB double prefix instructions,
     // these always load the value from memory (IX+d),
@@ -575,7 +578,6 @@ fn getR16(r: *Regs, reg: u2) u16 {
     return @as(u16,h)<<8 | l;
 }
 
-
 // helper function to increment R register
 fn bumpR(cpu: *CPU) void {
     cpu.R = (cpu.R & 0x80) | ((cpu.R +% 1) & 0x7F);
@@ -619,6 +621,18 @@ fn ioWrite(cpu: *CPU, addr: u16, data: u8, tick_func: TickFunc) void {
     tickWait(cpu, 4, IORQ|WR, tick_func);
 }
 
+// read unsigned 8-bit immediate
+fn imm8(cpu: *CPU, tick_func: TickFunc) u8 {
+    const val = memRead(cpu, cpu.PC, tick_func);
+    cpu.PC +%= 1;
+    return val;
+}
+
+// read the signed 8-bit address offset for IX/IX+d ops extended to unsigned 16-bit
+fn dimm8(cpu: *CPU, tick_func: TickFunc) u16 {
+    return @bitCast(u16, @as(i16, @bitCast(i8, imm8(cpu, tick_func))));
+}
+
 // generate effective address for (HL), (IX+d), (IY+d) and put into cpu.WZ
 fn addrWZ(cpu: *CPU, extra_ticks: usize, tick_func: TickFunc) void {
     cpu.WZ = loadHLIXIY(cpu);
@@ -647,18 +661,6 @@ fn fetchCB(cpu: *CPU, tick_func: TickFunc) u8 {
         bumpR(cpu);
     }
     return getData(cpu.pins);
-}
-
-// read 8-bit immediate
-fn imm8(cpu: *CPU, tick_func: TickFunc) u8 {
-    const val = memRead(cpu, cpu.PC, tick_func);
-    cpu.PC +%= 1;
-    return val;
-}
-
-// read the 8-bit signed address offset for IX/IX+d ops
-fn dimm8(cpu: *CPU, tick_func: TickFunc) u16 {
-    return @bitCast(u16, @as(i16, @bitCast(i8, imm8(cpu, tick_func))));
 }
 
 // read 16-bit immediate
@@ -801,7 +803,7 @@ fn opHALT(cpu: *CPU) void {
 fn opLD_r_r(cpu: *CPU, y: u3, z: u3, tick_func: TickFunc) void {
     if ((y == 6) or (z == 6)) {
         addrWZ(cpu, 5, tick_func);
-        // for (IX+d)/(IY+d), H and L are not replace with IXH/IYH and IYH/IYL
+        // for (IX+d)/(IY+d), H and L are not replaced with IXH/IYH and IYH/IYL
         const val = load8HL(cpu, z, tick_func);
         store8HL(cpu, y, val, tick_func);
     }
@@ -1287,19 +1289,19 @@ fn opDJNZ_d(cpu: *CPU, tick_func: TickFunc) void {
 
 // CALL nn
 fn opCALL_nn(cpu: *CPU, tick_func: TickFunc) void {
-    const a16 = imm16(cpu, tick_func);
+    const addr = imm16(cpu, tick_func);
     tick(cpu, 1, 0, tick_func); // filler tick
     var sp = cpu.SP -% 1;
     memWrite(cpu, sp, @truncate(u8, cpu.PC>>8), tick_func);
     sp -%= 1;
     memWrite(cpu, sp, @truncate(u8, cpu.PC), tick_func);
     cpu.SP = sp;
-    cpu.PC = a16;
+    cpu.PC = addr;
 }
 
 // CALL_cc_nn
 fn opCALL_cc_nn(cpu: *CPU, y: u3, tick_func: TickFunc) void {
-    const a16 = imm16(cpu, tick_func);
+    const addr = imm16(cpu, tick_func);
     if (cc(cpu.regs[F], y)) {
         tick(cpu, 1, 0, tick_func); // filler tick
         var sp = cpu.SP -% 1;
@@ -1307,7 +1309,7 @@ fn opCALL_cc_nn(cpu: *CPU, y: u3, tick_func: TickFunc) void {
         sp -%= 1;
         memWrite(cpu, sp, @truncate(u8, cpu.PC), tick_func);
         cpu.SP = sp;
-        cpu.PC = a16;
+        cpu.PC = addr;
     }
 }
 
