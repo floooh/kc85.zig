@@ -823,9 +823,15 @@ fn opHALT(cpu: *CPU) void {
 fn opLD_r_r(cpu: *CPU, y: u3, z: u3, tick_func: TickFunc) void {
     if ((y == 6) or (z == 6)) {
         addr(cpu, 5, tick_func);
+        // for (IX+d)/(IY+d), H and L are not replace with IXH/IYH and IYH/IYL
+        const val = load8HL(cpu, z, tick_func);
+        store8HL(cpu, y, val, tick_func);
     }
-    const val = load8HL(cpu, z, tick_func);
-    store8HL(cpu, y, val, tick_func);
+    else {
+        // regular LD r,r may map H and L to IXH/IYH and IXL/IYL
+        const val = load8(cpu, z, tick_func);
+        store8(cpu, y, val, tick_func);
+    }
 }
 
 // LD r,n
