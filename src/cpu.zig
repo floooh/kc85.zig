@@ -19,7 +19,7 @@
 /// ==================
 ///
 /// The emulation is reasonably correct for behaviour that's observable from the
-/// outside, all undocumented instructions tested by ZEXALL work (WIP!), including
+/// outside, all undocumented instructions tested by ZEXALL work, including
 /// the flag bits YF and XF which are visible side effects of the internal
 /// WZ / MEMPTR register.
 ///
