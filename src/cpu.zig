@@ -509,9 +509,7 @@ fn opCB_prefix(cpu: *CPU, tick_func: TickFunc) void {
             tick(cpu, 1, 0, tick_func); // filler tick
             cpu.WZ +%= d;
         }
-        cpu.pins = setAddr(cpu.pins, cpu.WZ);
-        memRead(cpu, tick_func);
-        break: blk getData(cpu.pins);
+        break: blk memRead(cpu, cpu.WZ, tick_func);
     }
     else load8(cpu, z, tick_func);
     
@@ -597,8 +595,10 @@ fn tickWait(cpu: *CPU, num_ticks: usize, pin_mask: u64, tick_func: TickFunc) voi
 }
 
 // perform a memory-read machine cycle (3 clock cycles)
-fn memRead(cpu: *CPU, tick_func: TickFunc) void {
+fn memRead(cpu: *CPU, addr: u16, tick_func: TickFunc) u8 {
+    cpu.pins = setAddr(cpu.pins, addr);
     tickWait(cpu, 3, MREQ|RD, tick_func);
+    return getData(cpu.pins);
 }
 
 // perform a memory-write machine cycle (3 clock cycles)
@@ -648,10 +648,9 @@ fn fetchCB(cpu: *CPU, tick_func: TickFunc) u8 {
 
 // read 8-bit immediate
 fn imm8(cpu: *CPU, tick_func: TickFunc) u8 {
-    cpu.pins = setAddr(cpu.pins, cpu.PC);
+    const val = memRead(cpu, cpu.PC, tick_func);
     cpu.PC +%= 1;
-    memRead(cpu, tick_func);
-    return getData(cpu.pins);
+    return val;
 }
 
 // read the 8-bit signed address offset for IX/IX+d ops
@@ -661,17 +660,12 @@ fn dimm8(cpu: *CPU, tick_func: TickFunc) u16 {
 
 // read 16-bit immediate
 fn imm16(cpu: *CPU, tick_func: TickFunc) u16 {
-    cpu.pins = setAddr(cpu.pins, cpu.PC);
+    const z: u16 = memRead(cpu, cpu.PC, tick_func);
     cpu.PC +%= 1;
-    memRead(cpu, tick_func);
-    const z: u16 = getData(cpu.pins);
-    cpu.pins = setAddr(cpu.pins, cpu.PC);
+    const w: u16 = memRead(cpu, cpu.PC, tick_func);
     cpu.PC +%= 1;
-    memRead(cpu, tick_func);
-    const w: u16 = getData(cpu.pins);
-    const wz = (w<<8) | z;
-    cpu.WZ = wz;
-    return wz;
+    cpu.WZ = (w << 8) | z;
+    return cpu.WZ;
 }
 
 // load from 8-bit register or effective address (HL)/(IX+d)/IY+d)
@@ -690,12 +684,7 @@ fn load8(cpu: *CPU, z: u3, tick_func: TickFunc) u8 {
             UseIY => @truncate(u8, cpu.IY),
             else => unreachable,
         },
-        F => blk: {
-            cpu.pins = setAddr(cpu.pins, cpu.WZ);
-            memRead(cpu, tick_func);
-            break: blk getData(cpu.pins);
-
-        }
+        F => memRead(cpu, cpu.WZ, tick_func)
     };
 }
 
@@ -705,9 +694,7 @@ fn load8HL(cpu: *CPU, z: u3, tick_func: TickFunc) u8 {
         return cpu.regs[z];
     }
     else {
-        cpu.pins = setAddr(cpu.pins, cpu.WZ);
-        memRead(cpu, tick_func);
-        return getData(cpu.pins);
+        return memRead(cpu, cpu.WZ, tick_func);
     }
 }
 
@@ -907,9 +894,7 @@ fn opLD_iBCDE_A(cpu: *CPU, r: u2, tick_func: TickFunc) void {
 // LD A,(BC/DE)
 fn opLD_A_iBCDE(cpu: *CPU, r: u2, tick_func: TickFunc) void {
     cpu.WZ = getR16(&cpu.regs, r);
-    cpu.pins = setAddr(cpu.pins, cpu.WZ);
-    memRead(cpu, tick_func);
-    cpu.regs[A] = getData(cpu.pins);
+    cpu.regs[A] = memRead(cpu, cpu.WZ, tick_func);
     cpu.WZ +%= 1;
 }
 
@@ -927,14 +912,10 @@ fn opLD_inn_HL(cpu: *CPU, tick_func: TickFunc) void {
 // LD HL,(nn)
 fn opLD_HL_inn(cpu: *CPU, tick_func: TickFunc) void {
     cpu.WZ = imm16(cpu, tick_func);
-    cpu.pins = setAddr(cpu.pins, cpu.WZ);
-    memRead(cpu, tick_func);
-    const l = getData(cpu.pins);
+    const l: u16 = memRead(cpu, cpu.WZ, tick_func);
     cpu.WZ +%= 1;
-    cpu.pins = setAddr(cpu.pins, cpu.WZ);
-    memRead(cpu, tick_func);
-    const h = getData(cpu.pins);
-    storeHLIXIY(cpu, @as(u16, h)<<8 | l);
+    const h: u16 = memRead(cpu, cpu.WZ, tick_func);
+    storeHLIXIY(cpu, (h<<8) | l);
 }
 
 // LD (nn),A
@@ -949,10 +930,8 @@ fn opLD_inn_A(cpu: *CPU, tick_func: TickFunc) void {
 // LD A,(nn)
 fn opLD_A_inn(cpu: *CPU, tick_func: TickFunc) void {
     cpu.WZ = imm16(cpu, tick_func);
-    cpu.pins = setAddr(cpu.pins, cpu.WZ);
-    memRead(cpu, tick_func);
+    cpu.regs[A] = memRead(cpu, cpu.WZ, tick_func);
     cpu.WZ +%= 1;
-    cpu.regs[A] = getData(cpu.pins);
 }
 
 // LD (nn),BC/DE/HL/SP
@@ -969,14 +948,10 @@ fn opLD_inn_rp(cpu: *CPU, p: u2, tick_func: TickFunc) void {
 // LD BC/DE/HL/SP,(nn)
 fn opLD_rp_inn(cpu: *CPU, p: u2, tick_func: TickFunc) void {
     cpu.WZ = imm16(cpu, tick_func);
-    cpu.pins = setAddr(cpu.pins, cpu.WZ);
-    memRead(cpu, tick_func);
-    const l = getData(cpu.pins);
+    const l: u16 = memRead(cpu, cpu.WZ, tick_func);
     cpu.WZ +%= 1;
-    cpu.pins = setAddr(cpu.pins, cpu.WZ);
-    memRead(cpu, tick_func);
-    const h = getData(cpu.pins);
-    store16SP(cpu, p, (@as(u16,h)<<8) | l);
+    const h: u16 = memRead(cpu, cpu.WZ, tick_func);
+    store16SP(cpu, p, (h<<8) | l);
 }
 
 // LD SP,HL/IX/IY
@@ -1030,15 +1005,11 @@ fn opPUSH_rp2(cpu: *CPU, p: u2, tick_func: TickFunc) void {
 
 // POP BC/DE/HL/AF/IX/IY
 fn opPOP_rp2(cpu: *CPU, p: u2, tick_func: TickFunc) void {
-    cpu.pins = setAddr(cpu.pins, cpu.SP);
+    const l: u16 = memRead(cpu, cpu.SP, tick_func);
     cpu.SP +%= 1;
-    memRead(cpu, tick_func);
-    const l = getData(cpu.pins);
-    cpu.pins = setAddr(cpu.pins, cpu.SP);
+    const h: u16 = memRead(cpu, cpu.SP, tick_func);
     cpu.SP +%= 1;
-    memRead(cpu, tick_func);
-    const h = getData(cpu.pins);
-    store16AF(cpu, p, @as(u16,h)<<8 | l);
+    store16AF(cpu, p, (h<<8) | l);
 }
 
 // EX DE,HL
@@ -1066,18 +1037,14 @@ fn opEXX(cpu: *CPU) void {
 // EX (SP),HL
 fn opEX_iSP_HL(cpu: *CPU, tick_func: TickFunc) void {
     tick(cpu, 3, 0, tick_func);     // 3 filler ticks
-    cpu.pins = setAddr(cpu.pins, cpu.SP);
-    memRead(cpu, tick_func);
-    const l = getData(cpu.pins);
-    cpu.pins = setAddr(cpu.pins, cpu.SP +% 1);
-    memRead(cpu, tick_func);
-    const h = getData(cpu.pins);
+    const l: u16 = memRead(cpu, cpu.SP, tick_func);
+    const h: u16 = memRead(cpu, cpu.SP +% 1, tick_func);
     const val = loadHLIXIY(cpu);
     cpu.pins = setAddrData(cpu.pins, cpu.SP, @truncate(u8, val));
     memWrite(cpu, tick_func);
     cpu.pins = setAddrData(cpu.pins, cpu.SP +% 1, @truncate(u8, val>>8));
     memWrite(cpu, tick_func);
-    cpu.WZ = @as(u16, h)<<8 | l;
+    cpu.WZ =(h<<8) | l;
     storeHLIXIY(cpu, cpu.WZ);
 }
 
@@ -1120,9 +1087,7 @@ fn opRRA(cpu: *CPU) void {
 // RLD
 fn opRLD(cpu: *CPU, tick_func: TickFunc) void {
     cpu.WZ = loadHLIXIY(cpu);
-    cpu.pins = setAddr(cpu.pins, cpu.WZ);
-    memRead(cpu, tick_func);
-    const d_in = getData(cpu.pins);
+    const d_in = memRead(cpu, cpu.WZ, tick_func);
     const a_in = cpu.regs[A];
     const a_out = (a_in & 0xF0) | (d_in >> 4);
     const d_out = (d_in << 4) | (a_in & 0x0F);
@@ -1137,9 +1102,7 @@ fn opRLD(cpu: *CPU, tick_func: TickFunc) void {
 // RRD
 fn opRRD(cpu: *CPU, tick_func: TickFunc) void {
     cpu.WZ = loadHLIXIY(cpu);
-    cpu.pins = setAddr(cpu.pins, cpu.WZ);
-    memRead(cpu, tick_func);
-    const d_in = getData(cpu.pins);
+    const d_in = memRead(cpu, cpu.WZ, tick_func);
     const a_in = cpu.regs[A];
     const a_out = (a_in & 0xF0) | (d_in & 0x0F);
     const d_out = (d_in >> 4) | (a_in << 4);
@@ -1206,9 +1169,7 @@ fn opCCF(cpu: *CPU) void {
 fn opLDI_LDD_LDIR_LDDR(cpu: *CPU, y: u3, tick_func: TickFunc) void {
     var hl = getR16(&cpu.regs, HL);
     var de = getR16(&cpu.regs, DE);
-    cpu.pins = setAddr(cpu.pins, hl);
-    memRead(cpu, tick_func);
-    const val = getData(cpu.pins) +% cpu.regs[A];
+    const val = memRead(cpu, hl, tick_func) +% cpu.regs[A];
     cpu.pins = setAddr(cpu.pins, de);
     memWrite(cpu, tick_func);
     if (0 != (y & 1)) {
@@ -1239,8 +1200,7 @@ fn opLDI_LDD_LDIR_LDDR(cpu: *CPU, y: u3, tick_func: TickFunc) void {
 // CPI, CPD, CPIR, CPDR
 fn opCPI_CPD_CPIR_CPDR(cpu: *CPU, y: u3, tick_func: TickFunc) void {
     var hl = getR16(&cpu.regs, HL);
-    cpu.pins = setAddr(cpu.pins, hl);
-    memRead(cpu, tick_func);
+    var val = cpu.regs[A] -% memRead(cpu, hl, tick_func);
     if (0 != (y & 1)) {
         hl -%= 1;
         cpu.WZ -%= 1;
@@ -1251,7 +1211,6 @@ fn opCPI_CPD_CPIR_CPDR(cpu: *CPU, y: u3, tick_func: TickFunc) void {
     }
     setR16(&cpu.regs, HL, hl);
     tick(cpu, 5, 0, tick_func); // 5 filler ticks
-    var val = cpu.regs[A] -% getData(cpu.pins);
     var f = (cpu.regs[F] & CF) | NF | szFlags(val);
     if ((val & 0x0F) > (cpu.regs[A] & 0x0F)) {
         f |= HF;
@@ -1372,16 +1331,12 @@ fn opCALL_cc_nn(cpu: *CPU, y: u3, tick_func: TickFunc) void {
 // RET
 fn opRET(cpu: *CPU, tick_func: TickFunc) void {
     var sp = cpu.SP;
-    cpu.pins = setAddr(cpu.pins, sp);
-    memRead(cpu, tick_func);
-    const l = getData(cpu.pins);
+    const l: u16 = memRead(cpu, sp, tick_func);
     sp +%= 1;
-    cpu.pins = setAddr(cpu.pins, sp);
-    memRead(cpu, tick_func);
-    const h = getData(cpu.pins);
+    const h: u16 = memRead(cpu, sp, tick_func);
     sp +%= 1;
     cpu.SP = sp;
-    cpu.PC = @as(u16, h)<<8 | l;
+    cpu.PC = (h<<8) | l;
     cpu.WZ = cpu.PC;
 }
 
@@ -1390,16 +1345,12 @@ fn opRET_cc(cpu: *CPU, y: u3, tick_func: TickFunc) void {
     tick(cpu, 1, 0, tick_func); // filler tick
     if (cc(cpu.regs[F], y)) {
         var sp = cpu.SP;
-        cpu.pins = setAddr(cpu.pins, sp);
-        memRead(cpu, tick_func);
+        const l: u16 = memRead(cpu, sp, tick_func);
         sp +%= 1;
-        const l = getData(cpu.pins);
-        cpu.pins = setAddr(cpu.pins, sp);
-        memRead(cpu, tick_func);
+        const h: u16 = memRead(cpu, sp, tick_func);
         sp +%= 1;
-        const h = getData(cpu.pins);
         cpu.SP = sp;
-        cpu.PC = @as(u16, h)<<8 | l;
+        cpu.PC = (h<<8) | l;
         cpu.WZ = cpu.PC;
     }
 }
@@ -1535,9 +1486,7 @@ fn opINI_IND_INIR_INDR(cpu: *CPU, y: u3, tick_func: TickFunc) void {
 fn opOUTI_OUTD_OTIR_OTDR(cpu: *CPU, y: u3, tick_func: TickFunc) void {
     tick(cpu, 1, 0, tick_func); // filler tick
     var hl = getR16(&cpu.regs, HL);
-    cpu.pins = setAddr(cpu.pins, hl);
-    memRead(cpu, tick_func);
-    const val = getData(cpu.pins);
+    const val = memRead(cpu, hl, tick_func);
     const b = cpu.regs[B] -% 1;
     cpu.regs[B] = b;
     var port = getR16(&cpu.regs, BC);
@@ -1821,10 +1770,11 @@ test "tickWait" {
 test "memRead" {
     clearMem();
     mem[0x1234] = 0x23;
-    var cpu = CPU{ .pins = setAddr(0, 0x1234) };
-    memRead(&cpu, testTick);
+    var cpu = CPU{ };
+    const val = memRead(&cpu, 0x1234, testTick);
     try expect((cpu.pins & CtrlPinMask) == MREQ|RD);
     try expect(getData(cpu.pins) == 0x23);
+    try expect(val == 0x23);
     try expect(cpu.ticks == 3);
 }
 
