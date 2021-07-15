@@ -29,7 +29,7 @@ fn addKC85(b: *Builder, target: CrossTarget, mode: Mode) void {
 }
 
 fn addTests(b: *Builder) void {
-    const tests = b.addTest("src/all_tests.zig");
+    const tests = b.addTest("src/tests.zig");
     const test_step = b.step("tests", "Run all tests");
     test_step.dependOn(&tests.step);
 }

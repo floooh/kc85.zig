@@ -5,3 +5,7 @@ test "memory tests" {
 test "cpu" {
     const cpu = @import("cpu.zig");
 }
+
+test "ctc" {
+    const ctc = @import("ctc.zig");
+}

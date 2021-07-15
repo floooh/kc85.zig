@@ -3,6 +3,12 @@ series written in Zig.
 
 For now (with Zig version 0.8.0):
 
+Run the module-integrated unit tests:
+
+```sh
+> zig build tests
+```
+
 Run the high-level instruction tester (tests/z80test.zig):
 
 ```sh
