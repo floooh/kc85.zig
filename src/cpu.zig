@@ -143,7 +143,6 @@ pub const Pins = struct {
     pub const HALT:  u64 = 1<<30;    // halt and catch fire
     pub const INT:   u64 = 1<<31;    // maskable interrupt requested
     pub const NMI:   u64 = 1<<32;    // non-maskable interrupt requested
-    pub const RESET: u64 = 1<<33;    // reset requested
 
     // virtual pins
     pub const WAIT0: u64 = 1<<34;    // 3 virtual pins to inject up to 8 wait cycles
