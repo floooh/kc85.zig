@@ -57,7 +57,7 @@
 /// HOW INSTRUCTION DECODING WORKS:
 /// ==============================
 ///
-/// Start reading the code at 'fn _exec('.
+/// Start reading the code at 'fn exec('.
 ///
 /// Z80 opcodes are one byte split into 3 bit groups:
 ///
@@ -258,7 +258,7 @@ pub const CPU = struct {
     
     /// run the emulator for at least 'num_ticks', return number of executed ticks
     pub fn exec(cpu: *CPU, num_ticks: usize, tick_func: TickFunc) usize {
-        return _exec(cpu, num_ticks, tick_func);
+        return impl.exec(cpu, num_ticks, tick_func);
     }
     
     // return true if not in the middle of an indexed op (DD / FD)
@@ -268,9 +268,11 @@ pub const CPU = struct {
     
     /// get 16-bit register value (BC, DE, HL, FA)
     pub fn r16(cpu: *CPU, reg: u2) u16 {
-        return getR16(&cpu.regs, reg);
+        return impl.r16(&cpu.regs, reg);
     }
 };
+
+const impl = struct {
 
 usingnamespace Pins;
 usingnamespace Flags;
@@ -278,7 +280,7 @@ usingnamespace Reg8;
 usingnamespace Reg16;
 
 // instruction decoder loop
-fn _exec(cpu: *CPU, num_ticks: usize, tick_func: TickFunc) usize {
+fn exec(cpu: *CPU, num_ticks: usize, tick_func: TickFunc) usize {
     cpu.ticks = 0;
     var running = true;
     while (running): (running = cpu.ticks < num_ticks) {
@@ -540,7 +542,7 @@ fn setR16(r: *Regs, reg: u2, val: u16) void {
 }
 
 // get 16 bit register
-fn getR16(r: *Regs, reg: u2) u16 {
+fn r16(r: *Regs, reg: u2) u16 {
     const h = r[@as(u3,reg)*2 + 0];
     const l = r[@as(u3,reg)*2 + 1];
     return @as(u16,h)<<8 | l;
@@ -734,7 +736,7 @@ fn store16AF(cpu: *CPU, reg: u2, val: u16) void {
 // load from HL, IX or IY, depending on current index mode
 fn loadHLIXIY(cpu: *CPU) u16 {
     return switch (cpu.ixiy) {
-        0     => getR16(&cpu.regs, HL),
+        0     => r16(&cpu.regs, HL),
         UseIX => return cpu.IX,
         UseIY => return cpu.IY,
         else  => unreachable
@@ -744,8 +746,8 @@ fn loadHLIXIY(cpu: *CPU) u16 {
 // load 16-bit value from register with special handling for SP
 fn load16SP(cpu: *CPU, reg: u2) u16 {
     return switch(reg) {
-        BC   => getR16(&cpu.regs, BC),
-        DE   => getR16(&cpu.regs, DE),
+        BC   => r16(&cpu.regs, BC),
+        DE   => r16(&cpu.regs, DE),
         HL   => loadHLIXIY(cpu),
         FA   => cpu.SP,
     };
@@ -754,8 +756,8 @@ fn load16SP(cpu: *CPU, reg: u2) u16 {
 // load 16-bit value from register with special case handling for AF
 fn load16AF(cpu: *CPU, reg: u2) u16 {
     return switch(reg) {
-        BC   => getR16(&cpu.regs, BC),
-        DE   => getR16(&cpu.regs, DE),
+        BC   => r16(&cpu.regs, BC),
+        DE   => r16(&cpu.regs, DE),
         HL   => loadHLIXIY(cpu),
         FA   => @as(u16, cpu.regs[A])<<8 | cpu.regs[F],
     };
@@ -853,7 +855,7 @@ fn opLD_rp_nn(cpu: *CPU, p: u2, tick_func: TickFunc) void {
 
 // LD (BC/DE),A
 fn opLD_iBCDE_A(cpu: *CPU, r: u2, tick_func: TickFunc) void {
-    cpu.WZ = getR16(&cpu.regs, r);
+    cpu.WZ = r16(&cpu.regs, r);
     const val = cpu.regs[A];
     memWrite(cpu, cpu.WZ, val, tick_func);
     cpu.WZ = (@as(u16, val)<<8) | ((cpu.WZ +% 1) & 0xFF);
@@ -861,7 +863,7 @@ fn opLD_iBCDE_A(cpu: *CPU, r: u2, tick_func: TickFunc) void {
 
 // LD A,(BC/DE)
 fn opLD_A_iBCDE(cpu: *CPU, r: u2, tick_func: TickFunc) void {
-    cpu.WZ = getR16(&cpu.regs, r);
+    cpu.WZ = r16(&cpu.regs, r);
     cpu.regs[A] = memRead(cpu, cpu.WZ, tick_func);
     cpu.WZ +%= 1;
 }
@@ -975,24 +977,24 @@ fn opPOP_rp2(cpu: *CPU, p: u2, tick_func: TickFunc) void {
 
 // EX DE,HL
 fn opEX_DE_HL(cpu: *CPU) void {
-    const de = getR16(&cpu.regs, DE);
-    const hl = getR16(&cpu.regs, HL);
+    const de = r16(&cpu.regs, DE);
+    const hl = r16(&cpu.regs, HL);
     setR16(&cpu.regs, DE, hl);
     setR16(&cpu.regs, HL, de);
 }
 
 // EX AF,AF'
 fn opEX_AF_AF(cpu: *CPU) void {
-    const fa = getR16(&cpu.regs, FA);
+    const fa = r16(&cpu.regs, FA);
     setR16(&cpu.regs, FA, cpu.ex[FA]);
     cpu.ex[FA] = fa;
 }
 
 // EXX
 fn opEXX(cpu: *CPU) void {
-    const bc = getR16(&cpu.regs, BC); setR16(&cpu.regs, BC, cpu.ex[BC]); cpu.ex[BC] = bc;
-    const de = getR16(&cpu.regs, DE); setR16(&cpu.regs, DE, cpu.ex[DE]); cpu.ex[DE] = de;
-    const hl = getR16(&cpu.regs, HL); setR16(&cpu.regs, HL, cpu.ex[HL]); cpu.ex[HL] = hl;
+    const bc = r16(&cpu.regs, BC); setR16(&cpu.regs, BC, cpu.ex[BC]); cpu.ex[BC] = bc;
+    const de = r16(&cpu.regs, DE); setR16(&cpu.regs, DE, cpu.ex[DE]); cpu.ex[DE] = de;
+    const hl = r16(&cpu.regs, HL); setR16(&cpu.regs, HL, cpu.ex[HL]); cpu.ex[HL] = hl;
 }
 
 // EX (SP),HL
@@ -1124,8 +1126,8 @@ fn opCCF(cpu: *CPU) void {
 
 // LDI/LDD/LDIR/LDDR
 fn opLDI_LDD_LDIR_LDDR(cpu: *CPU, y: u3, tick_func: TickFunc) void {
-    var hl = getR16(&cpu.regs, HL);
-    var de = getR16(&cpu.regs, DE);
+    var hl = r16(&cpu.regs, HL);
+    var de = r16(&cpu.regs, DE);
     var val = memRead(cpu, hl, tick_func);
     memWrite(cpu, de, val, tick_func);
     val +%= cpu.regs[A];
@@ -1141,7 +1143,7 @@ fn opLDI_LDD_LDIR_LDDR(cpu: *CPU, y: u3, tick_func: TickFunc) void {
     setR16(&cpu.regs, DE, de);
     tick(cpu, 2, 0, tick_func);    // 2 filler ticks
     var f = (cpu.regs[F] & (SF|ZF|CF)) | ((val << 4) & YF) | (val & XF);
-    const bc = getR16(&cpu.regs, BC) -% 1;
+    const bc = r16(&cpu.regs, BC) -% 1;
     setR16(&cpu.regs, BC, bc);
     if (bc != 0) {
         f |= VF;
@@ -1156,7 +1158,7 @@ fn opLDI_LDD_LDIR_LDDR(cpu: *CPU, y: u3, tick_func: TickFunc) void {
 
 // CPI, CPD, CPIR, CPDR
 fn opCPI_CPD_CPIR_CPDR(cpu: *CPU, y: u3, tick_func: TickFunc) void {
-    var hl = getR16(&cpu.regs, HL);
+    var hl = r16(&cpu.regs, HL);
     var val = cpu.regs[A] -% memRead(cpu, hl, tick_func);
     if (0 != (y & 1)) {
         hl -%= 1;
@@ -1174,7 +1176,7 @@ fn opCPI_CPD_CPIR_CPDR(cpu: *CPU, y: u3, tick_func: TickFunc) void {
         val -%= 1;
     }
     f |= ((val << 4) & YF) | (val & XF);
-    const bc = getR16(&cpu.regs, BC) -% 1;
+    const bc = r16(&cpu.regs, BC) -% 1;
     setR16(&cpu.regs, BC, bc);
     if (bc != 0) {
         f |= VF;
@@ -1324,7 +1326,7 @@ fn opADD_HL_rp(cpu: *CPU, p: u2, tick_func: TickFunc) void {
 
 // ADC HL,rp
 fn opADC_HL_rp(cpu: *CPU, p: u2, tick_func: TickFunc) void {
-    const acc = getR16(&cpu.regs, HL);
+    const acc = r16(&cpu.regs, HL);
     cpu.WZ = acc +% 1;
     const val = load16SP(cpu, p);
     const res: u17 = @as(u17,acc) +% val +% (cpu.regs[F] & CF);
@@ -1340,7 +1342,7 @@ fn opADC_HL_rp(cpu: *CPU, p: u2, tick_func: TickFunc) void {
 
 // SBC HL,rp
 fn opSBC_HL_rp(cpu: *CPU, p: u2, tick_func: TickFunc) void {
-    const acc = getR16(&cpu.regs, HL);
+    const acc = r16(&cpu.regs, HL);
     cpu.WZ = acc +% 1;
     const val = load16SP(cpu, p);
     const res: u17 = @as(u17,acc) -% val -% (cpu.regs[F] & CF);
@@ -1373,7 +1375,7 @@ fn opOUT_in_A(cpu: *CPU, tick_func: TickFunc) void {
 
 // IN r,(C)
 fn opIN_ry_iC(cpu: *CPU, y: u3, tick_func: TickFunc) void {
-    const bc = getR16(&cpu.regs, BC);
+    const bc = r16(&cpu.regs, BC);
     const val = ioRead(cpu, bc, tick_func);
     cpu.WZ = bc +% 1;
     cpu.regs[F] = (cpu.regs[F] & CF) | szpFlags(val);
@@ -1385,7 +1387,7 @@ fn opIN_ry_iC(cpu: *CPU, y: u3, tick_func: TickFunc) void {
 
 // OUT (C),r
 fn opOUT_iC_ry(cpu: *CPU, y: u3, tick_func: TickFunc) void {
-    const bc = getR16(&cpu.regs, BC);
+    const bc = r16(&cpu.regs, BC);
     // undocumented special case for OUT (C),(HL): output 0 instead
     var val = if (y == 6) 0 else load8(cpu, y, tick_func);
     ioWrite(cpu, bc, val, tick_func);
@@ -1395,8 +1397,8 @@ fn opOUT_iC_ry(cpu: *CPU, y: u3, tick_func: TickFunc) void {
 // INI/IND/INIR/INDR
 fn opINI_IND_INIR_INDR(cpu: *CPU, y: u3, tick_func: TickFunc) void {
     tick(cpu, 1, 0, tick_func); // filler tick
-    var port = getR16(&cpu.regs, BC);
-    var hl = getR16(&cpu.regs, HL);
+    var port = r16(&cpu.regs, BC);
+    var hl = r16(&cpu.regs, HL);
     const val = ioRead(cpu, port, tick_func);
     memWrite(cpu, hl, val, tick_func);
     const b = cpu.regs[B] -% 1;
@@ -1429,11 +1431,11 @@ fn opINI_IND_INIR_INDR(cpu: *CPU, y: u3, tick_func: TickFunc) void {
 // OUTI/OUTD/OTIR/OTDR
 fn opOUTI_OUTD_OTIR_OTDR(cpu: *CPU, y: u3, tick_func: TickFunc) void {
     tick(cpu, 1, 0, tick_func); // filler tick
-    var hl = getR16(&cpu.regs, HL);
+    var hl = r16(&cpu.regs, HL);
     const val = memRead(cpu, hl, tick_func);
     const b = cpu.regs[B] -% 1;
     cpu.regs[B] = b;
-    var port = getR16(&cpu.regs, BC);
+    var port = r16(&cpu.regs, BC);
     ioWrite(cpu, port, val, tick_func);
     if (0 != (y & 1)) {
         port -%= 1; hl -%= 1;
@@ -1588,8 +1590,16 @@ fn dec8(r: *Regs, val: u8) u8 {
     return res;
 }
 
+}; // impl
+
 //=== TESTS ====================================================================
 const expect = @import("std").testing.expect;
+
+usingnamespace impl;
+usingnamespace Pins;
+usingnamespace Reg8;
+usingnamespace Reg16;
+usingnamespace Flags;
 
 // FIXME: is this check needed to make sure that a regular exe won't have 
 // a 64 KByte blob in the data section?
@@ -1693,7 +1703,7 @@ test "tick" {
         }
     };
     var cpu = CPU{ .pins = setAddrData(0, 0x1234, 0x56) };
-    tick(&cpu, 3, M1|MREQ|RD, inner.tick_func);
+    impl.tick(&cpu, 3, M1|MREQ|RD, inner.tick_func);
     try expect(getData(cpu.pins) == 0x23);
     try expect(cpu.ticks == 3);
 }
@@ -1705,7 +1715,7 @@ test "tickWait" {
         }
     };
     var cpu = CPU{ .pins = setWait(0, 7) };
-    tickWait(&cpu, 3, M1|MREQ|RD, inner.tick_func);
+    impl.tickWait(&cpu, 3, M1|MREQ|RD, inner.tick_func);
     try expect(getWait(cpu.pins) == 5);
     try expect(cpu.ticks == 8);
 }
@@ -1714,7 +1724,7 @@ test "memRead" {
     clearMem();
     mem[0x1234] = 0x23;
     var cpu = CPU{ };
-    const val = memRead(&cpu, 0x1234, testTick);
+    const val = impl.memRead(&cpu, 0x1234, testTick);
     try expect((cpu.pins & CtrlPinMask) == MREQ|RD);
     try expect(getData(cpu.pins) == 0x23);
     try expect(val == 0x23);
@@ -1724,7 +1734,7 @@ test "memRead" {
 test "memWrite" {
     clearMem();
     var cpu = CPU{ };
-    memWrite(&cpu, 0x1234, 0x56, testTick);
+    impl.memWrite(&cpu, 0x1234, 0x56, testTick);
     try expect((cpu.pins & CtrlPinMask) == MREQ|WR);
     try expect(getData(cpu.pins) == 0x56);
     try expect(cpu.ticks == 3);
@@ -1734,7 +1744,7 @@ test "ioRead" {
     clearIO();
     io[0x1234] = 0x23;
     var cpu = CPU{ };
-    const val = ioRead(&cpu, 0x1234, testTick);
+    const val = impl.ioRead(&cpu, 0x1234, testTick);
     try expect((cpu.pins & CtrlPinMask) == IORQ|RD);
     try expect(getData(cpu.pins) == 0x23);
     try expect(val == 0x23);
@@ -1744,7 +1754,7 @@ test "ioRead" {
 test "ioWrite" {
     clearIO();
     var cpu = CPU{ };
-    ioWrite(&cpu, 0x1234, 0x56, testTick);
+    impl.ioWrite(&cpu, 0x1234, 0x56, testTick);
     try expect((cpu.pins & CtrlPinMask) == IORQ|WR);
     try expect(getData(cpu.pins) == 0x56);
     try expect(cpu.ticks == 4);
@@ -1753,17 +1763,17 @@ test "ioWrite" {
 test "bumpR" {
     // only 7 bits are incremented, and the topmost bit is sticky
     var cpu = CPU{ };
-    cpu.R = 0x00; bumpR(&cpu); try expect(cpu.R == 1);
-    cpu.R = 0x7F; bumpR(&cpu); try expect(cpu.R == 0);
-    cpu.R = 0x80; bumpR(&cpu); try expect(cpu.R == 0x81);
-    cpu.R = 0xFF; bumpR(&cpu); try expect(cpu.R == 0x80);
+    cpu.R = 0x00; impl.bumpR(&cpu); try expect(cpu.R == 1);
+    cpu.R = 0x7F; impl.bumpR(&cpu); try expect(cpu.R == 0);
+    cpu.R = 0x80; impl.bumpR(&cpu); try expect(cpu.R == 0x81);
+    cpu.R = 0xFF; impl.bumpR(&cpu); try expect(cpu.R == 0x80);
 }
 
 test "fetch" {
     clearMem();
     mem[0x2345] = 0x42;
     var cpu = CPU{ .PC = 0x2345, .R = 0 };
-    const op = fetch(&cpu, testTick);
+    const op = impl.fetch(&cpu, testTick);
     try expect(op == 0x42);
     try expect((cpu.pins & CtrlPinMask) == M1|MREQ|RD);
     try expect(getData(cpu.pins) == 0x42);
@@ -1775,118 +1785,118 @@ test "fetch" {
 test "add8" {
     var r = makeRegs();
     r[A] = 0xF;
-    add8(&r, r[A]); try expect(testAF(&r, 0x1E, HF));
-    add8(&r, 0xE0); try expect(testAF(&r, 0xFE, SF));
+    impl.add8(&r, r[A]); try expect(testAF(&r, 0x1E, HF));
+    impl.add8(&r, 0xE0); try expect(testAF(&r, 0xFE, SF));
     r[A] = 0x81; 
-    add8(&r, 0x80); try expect(testAF(&r, 0x01, VF|CF));
-    add8(&r, 0xFF); try expect(testAF(&r, 0x00, ZF|HF|CF));
-    add8(&r, 0x40); try expect(testAF(&r, 0x40, 0));
-    add8(&r, 0x80); try expect(testAF(&r, 0xC0, SF));
-    add8(&r, 0x33); try expect(testAF(&r, 0xF3, SF));
-    add8(&r, 0x44); try expect(testAF(&r, 0x37, CF));
+    impl.add8(&r, 0x80); try expect(testAF(&r, 0x01, VF|CF));
+    impl.add8(&r, 0xFF); try expect(testAF(&r, 0x00, ZF|HF|CF));
+    impl.add8(&r, 0x40); try expect(testAF(&r, 0x40, 0));
+    impl.add8(&r, 0x80); try expect(testAF(&r, 0xC0, SF));
+    impl.add8(&r, 0x33); try expect(testAF(&r, 0xF3, SF));
+    impl.add8(&r, 0x44); try expect(testAF(&r, 0x37, CF));
 }
 
 test "adc8" {
     var r = makeRegs();
     r[A] = 0;
-    adc8(&r, 0x00); try expect(testAF(&r, 0x00, ZF));
-    adc8(&r, 0x41); try expect(testAF(&r, 0x41, 0));
-    adc8(&r, 0x61); try expect(testAF(&r, 0xA2, SF|VF));
-    adc8(&r, 0x81); try expect(testAF(&r, 0x23, VF|CF));
-    adc8(&r, 0x41); try expect(testAF(&r, 0x65, 0));
-    adc8(&r, 0x61); try expect(testAF(&r, 0xC6, SF|VF));
-    adc8(&r, 0x81); try expect(testAF(&r, 0x47, VF|CF));
-    adc8(&r, 0x01); try expect(testAF(&r, 0x49, 0));
+    impl.adc8(&r, 0x00); try expect(testAF(&r, 0x00, ZF));
+    impl.adc8(&r, 0x41); try expect(testAF(&r, 0x41, 0));
+    impl.adc8(&r, 0x61); try expect(testAF(&r, 0xA2, SF|VF));
+    impl.adc8(&r, 0x81); try expect(testAF(&r, 0x23, VF|CF));
+    impl.adc8(&r, 0x41); try expect(testAF(&r, 0x65, 0));
+    impl.adc8(&r, 0x61); try expect(testAF(&r, 0xC6, SF|VF));
+    impl.adc8(&r, 0x81); try expect(testAF(&r, 0x47, VF|CF));
+    impl.adc8(&r, 0x01); try expect(testAF(&r, 0x49, 0));
 }
 
 test "sub8" {
     var r = makeRegs();
     r[A] = 0x04;
-    sub8(&r, 0x04); try expect(testAF(&r, 0x00, ZF|NF));
-    sub8(&r, 0x01); try expect(testAF(&r, 0xFF, SF|HF|NF|CF));
-    sub8(&r, 0xF8); try expect(testAF(&r, 0x07, NF));
-    sub8(&r, 0x0F); try expect(testAF(&r, 0xF8, SF|HF|NF|CF));
-    sub8(&r, 0x79); try expect(testAF(&r, 0x7F, HF|VF|NF));
-    sub8(&r, 0xC0); try expect(testAF(&r, 0xBF, SF|VF|NF|CF));
-    sub8(&r, 0xBF); try expect(testAF(&r, 0x00, ZF|NF));
-    sub8(&r, 0x01); try expect(testAF(&r, 0xFF, SF|HF|NF|CF));
-    sub8(&r, 0xFE); try expect(testAF(&r, 0x01, NF));
+    impl.sub8(&r, 0x04); try expect(testAF(&r, 0x00, ZF|NF));
+    impl.sub8(&r, 0x01); try expect(testAF(&r, 0xFF, SF|HF|NF|CF));
+    impl.sub8(&r, 0xF8); try expect(testAF(&r, 0x07, NF));
+    impl.sub8(&r, 0x0F); try expect(testAF(&r, 0xF8, SF|HF|NF|CF));
+    impl.sub8(&r, 0x79); try expect(testAF(&r, 0x7F, HF|VF|NF));
+    impl.sub8(&r, 0xC0); try expect(testAF(&r, 0xBF, SF|VF|NF|CF));
+    impl.sub8(&r, 0xBF); try expect(testAF(&r, 0x00, ZF|NF));
+    impl.sub8(&r, 0x01); try expect(testAF(&r, 0xFF, SF|HF|NF|CF));
+    impl.sub8(&r, 0xFE); try expect(testAF(&r, 0x01, NF));
 }
 
 test "sbc8" {
     var r = makeRegs();
     r[A] = 0x04;
-    sbc8(&r, 0x04); try expect(testAF(&r, 0x00, ZF|NF));
-    sbc8(&r, 0x01); try expect(testAF(&r, 0xFF, SF|HF|NF|CF));
-    sbc8(&r, 0xF8); try expect(testAF(&r, 0x06, NF));
-    sbc8(&r, 0x0F); try expect(testAF(&r, 0xF7, SF|HF|NF|CF));
-    sbc8(&r, 0x79); try expect(testAF(&r, 0x7D, HF|VF|NF));
-    sbc8(&r, 0xC0); try expect(testAF(&r, 0xBD, SF|VF|NF|CF));
-    sbc8(&r, 0xBF); try expect(testAF(&r, 0xFD, SF|HF|NF|CF));
-    sbc8(&r, 0x01); try expect(testAF(&r, 0xFB, SF|NF));
-    sbc8(&r, 0xFE); try expect(testAF(&r, 0xFD, SF|HF|NF|CF));
+    impl.sbc8(&r, 0x04); try expect(testAF(&r, 0x00, ZF|NF));
+    impl.sbc8(&r, 0x01); try expect(testAF(&r, 0xFF, SF|HF|NF|CF));
+    impl.sbc8(&r, 0xF8); try expect(testAF(&r, 0x06, NF));
+    impl.sbc8(&r, 0x0F); try expect(testAF(&r, 0xF7, SF|HF|NF|CF));
+    impl.sbc8(&r, 0x79); try expect(testAF(&r, 0x7D, HF|VF|NF));
+    impl.sbc8(&r, 0xC0); try expect(testAF(&r, 0xBD, SF|VF|NF|CF));
+    impl.sbc8(&r, 0xBF); try expect(testAF(&r, 0xFD, SF|HF|NF|CF));
+    impl.sbc8(&r, 0x01); try expect(testAF(&r, 0xFB, SF|NF));
+    impl.sbc8(&r, 0xFE); try expect(testAF(&r, 0xFD, SF|HF|NF|CF));
 }
 
 test "cp8" {
     var r = makeRegs();
     r[A] = 0x04;
-    cp8(&r, 0x04); try expect(testAF(&r, 0x04, ZF|NF));
-    cp8(&r, 0x05); try expect(testAF(&r, 0x04, SF|HF|NF|CF));
-    cp8(&r, 0x03); try expect(testAF(&r, 0x04, NF));
-    cp8(&r, 0xFF); try expect(testAF(&r, 0x04, HF|NF|CF));
-    cp8(&r, 0xAA); try expect(testAF(&r, 0x04, HF|NF|CF));
-    cp8(&r, 0x80); try expect(testAF(&r, 0x04, SF|VF|NF|CF));
-    cp8(&r, 0x7F); try expect(testAF(&r, 0x04, SF|HF|NF|CF));
-    cp8(&r, 0x04); try expect(testAF(&r, 0x04, ZF|NF));
+    impl.cp8(&r, 0x04); try expect(testAF(&r, 0x04, ZF|NF));
+    impl.cp8(&r, 0x05); try expect(testAF(&r, 0x04, SF|HF|NF|CF));
+    impl.cp8(&r, 0x03); try expect(testAF(&r, 0x04, NF));
+    impl.cp8(&r, 0xFF); try expect(testAF(&r, 0x04, HF|NF|CF));
+    impl.cp8(&r, 0xAA); try expect(testAF(&r, 0x04, HF|NF|CF));
+    impl.cp8(&r, 0x80); try expect(testAF(&r, 0x04, SF|VF|NF|CF));
+    impl.cp8(&r, 0x7F); try expect(testAF(&r, 0x04, SF|HF|NF|CF));
+    impl.cp8(&r, 0x04); try expect(testAF(&r, 0x04, ZF|NF));
 }
 
 test "and8" {
     var r = makeRegs();
     r[A] = 0xFF;
-    and8(&r, 0x01); try expect(testAF(&r, 0x01, HF));       r[A] = 0xFF;
-    and8(&r, 0x03); try expect(testAF(&r, 0x03, HF|PF));    r[A] = 0xFF;
-    and8(&r, 0x04); try expect(testAF(&r, 0x04, HF));       r[A] = 0xFF;
-    and8(&r, 0x08); try expect(testAF(&r, 0x08, HF));       r[A] = 0xFF;
-    and8(&r, 0x10); try expect(testAF(&r, 0x10, HF));       r[A] = 0xFF;
-    and8(&r, 0x20); try expect(testAF(&r, 0x20, HF));       r[A] = 0xFF;
-    and8(&r, 0x40); try expect(testAF(&r, 0x40, HF));       r[A] = 0xFF;
-    and8(&r, 0xAA); try expect(testAF(&r, 0xAA, SF|HF|PF));
+    impl.and8(&r, 0x01); try expect(testAF(&r, 0x01, HF));       r[A] = 0xFF;
+    impl.and8(&r, 0x03); try expect(testAF(&r, 0x03, HF|PF));    r[A] = 0xFF;
+    impl.and8(&r, 0x04); try expect(testAF(&r, 0x04, HF));       r[A] = 0xFF;
+    impl.and8(&r, 0x08); try expect(testAF(&r, 0x08, HF));       r[A] = 0xFF;
+    impl.and8(&r, 0x10); try expect(testAF(&r, 0x10, HF));       r[A] = 0xFF;
+    impl.and8(&r, 0x20); try expect(testAF(&r, 0x20, HF));       r[A] = 0xFF;
+    impl.and8(&r, 0x40); try expect(testAF(&r, 0x40, HF));       r[A] = 0xFF;
+    impl.and8(&r, 0xAA); try expect(testAF(&r, 0xAA, SF|HF|PF));
 }
 
 test "xor8" {
     var r = makeRegs();
     r[A] = 0x00;
-    xor8(&r, 0x00); try expect(testAF(&r, 0x00, ZF|PF));
-    xor8(&r, 0x01); try expect(testAF(&r, 0x01, 0));
-    xor8(&r, 0x03); try expect(testAF(&r, 0x02, 0));
-    xor8(&r, 0x07); try expect(testAF(&r, 0x05, PF));
-    xor8(&r, 0x0F); try expect(testAF(&r, 0x0A, PF));
-    xor8(&r, 0x1F); try expect(testAF(&r, 0x15, 0));
-    xor8(&r, 0x3F); try expect(testAF(&r, 0x2A, 0));
-    xor8(&r, 0x7F); try expect(testAF(&r, 0x55, PF));
-    xor8(&r, 0xFF); try expect(testAF(&r, 0xAA, SF|PF));
+    impl.xor8(&r, 0x00); try expect(testAF(&r, 0x00, ZF|PF));
+    impl.xor8(&r, 0x01); try expect(testAF(&r, 0x01, 0));
+    impl.xor8(&r, 0x03); try expect(testAF(&r, 0x02, 0));
+    impl.xor8(&r, 0x07); try expect(testAF(&r, 0x05, PF));
+    impl.xor8(&r, 0x0F); try expect(testAF(&r, 0x0A, PF));
+    impl.xor8(&r, 0x1F); try expect(testAF(&r, 0x15, 0));
+    impl.xor8(&r, 0x3F); try expect(testAF(&r, 0x2A, 0));
+    impl.xor8(&r, 0x7F); try expect(testAF(&r, 0x55, PF));
+    impl.xor8(&r, 0xFF); try expect(testAF(&r, 0xAA, SF|PF));
 }
 
 test "or8" {
     var r = makeRegs();
     r[A] = 0x00;
-    or8(&r, 0x00); try expect(testAF(&r, 0x00, ZF|PF));
-    or8(&r, 0x01); try expect(testAF(&r, 0x01, 0));
-    or8(&r, 0x02); try expect(testAF(&r, 0x03, PF));
-    or8(&r, 0x04); try expect(testAF(&r, 0x07, 0));
-    or8(&r, 0x08); try expect(testAF(&r, 0x0F, PF));
-    or8(&r, 0x10); try expect(testAF(&r, 0x1F, 0));
-    or8(&r, 0x20); try expect(testAF(&r, 0x3F, PF));
-    or8(&r, 0x40); try expect(testAF(&r, 0x7F, 0));
-    or8(&r, 0x80); try expect(testAF(&r, 0xFF, SF|PF));
+    impl.or8(&r, 0x00); try expect(testAF(&r, 0x00, ZF|PF));
+    impl.or8(&r, 0x01); try expect(testAF(&r, 0x01, 0));
+    impl.or8(&r, 0x02); try expect(testAF(&r, 0x03, PF));
+    impl.or8(&r, 0x04); try expect(testAF(&r, 0x07, 0));
+    impl.or8(&r, 0x08); try expect(testAF(&r, 0x0F, PF));
+    impl.or8(&r, 0x10); try expect(testAF(&r, 0x1F, 0));
+    impl.or8(&r, 0x20); try expect(testAF(&r, 0x3F, PF));
+    impl.or8(&r, 0x40); try expect(testAF(&r, 0x7F, 0));
+    impl.or8(&r, 0x80); try expect(testAF(&r, 0xFF, SF|PF));
 }
 
 test "neg8" {
     var r = makeRegs();
-    r[A]=0x01; neg8(&r); try expect(testAF(&r, 0xFF, SF|HF|NF|CF));
-    r[A]=0x00; neg8(&r); try expect(testAF(&r, 0x00, ZF|NF));
-    r[A]=0x80; neg8(&r); try expect(testAF(&r, 0x80, SF|PF|NF|CF));
-    r[A]=0xC0; neg8(&r); try expect(testAF(&r, 0x40, NF|CF));
+    r[A]=0x01; impl.neg8(&r); try expect(testAF(&r, 0xFF, SF|HF|NF|CF));
+    r[A]=0x00; impl.neg8(&r); try expect(testAF(&r, 0x00, ZF|NF));
+    r[A]=0x80; impl.neg8(&r); try expect(testAF(&r, 0x80, SF|PF|NF|CF));
+    r[A]=0xC0; impl.neg8(&r); try expect(testAF(&r, 0x40, NF|CF));
 }
 
 test "inc8 dec8" {
@@ -1898,19 +1908,19 @@ test "inc8 dec8" {
     r[E] = 0x7F;
     r[H] = 0x3E;
     r[L] = 0x23;
-    r[A] = inc8(&r, r[A]); try expect(testRF(&r, A, 0x01, 0));
-    r[A] = dec8(&r, r[A]); try expect(testRF(&r, A, 0x00, ZF|NF));
-    r[B] = inc8(&r, r[B]); try expect(testRF(&r, B, 0x00, ZF|HF));
-    r[B] = dec8(&r, r[B]); try expect(testRF(&r, B, 0xFF, SF|HF|NF));
-    r[C] = inc8(&r, r[C]); try expect(testRF(&r, C, 0x10, HF));
-    r[C] = dec8(&r, r[C]); try expect(testRF(&r, C, 0x0F, HF|NF));
-    r[D] = inc8(&r, r[D]); try expect(testRF(&r, D, 0x0F, 0));
-    r[D] = dec8(&r, r[D]); try expect(testRF(&r, D, 0x0E, NF));
+    r[A] = impl.inc8(&r, r[A]); try expect(testRF(&r, A, 0x01, 0));
+    r[A] = impl.dec8(&r, r[A]); try expect(testRF(&r, A, 0x00, ZF|NF));
+    r[B] = impl.inc8(&r, r[B]); try expect(testRF(&r, B, 0x00, ZF|HF));
+    r[B] = impl.dec8(&r, r[B]); try expect(testRF(&r, B, 0xFF, SF|HF|NF));
+    r[C] = impl.inc8(&r, r[C]); try expect(testRF(&r, C, 0x10, HF));
+    r[C] = impl.dec8(&r, r[C]); try expect(testRF(&r, C, 0x0F, HF|NF));
+    r[D] = impl.inc8(&r, r[D]); try expect(testRF(&r, D, 0x0F, 0));
+    r[D] = impl.dec8(&r, r[D]); try expect(testRF(&r, D, 0x0E, NF));
     r[F] |= CF;
-    r[E] = inc8(&r, r[E]); try expect(testRF(&r, E, 0x80, SF|HF|VF|CF)); 
-    r[E] = dec8(&r, r[E]); try expect(testRF(&r, E, 0x7F, HF|VF|NF|CF));
-    r[H] = inc8(&r, r[H]); try expect(testRF(&r, H, 0x3F, CF));
-    r[H] = dec8(&r, r[H]); try expect(testRF(&r, H, 0x3E, NF|CF));
-    r[L] = inc8(&r, r[L]); try expect(testRF(&r, L, 0x24, CF));
-    r[L] = dec8(&r, r[L]); try expect(testRF(&r, L, 0x23, NF|CF));
+    r[E] = impl.inc8(&r, r[E]); try expect(testRF(&r, E, 0x80, SF|HF|VF|CF)); 
+    r[E] = impl.dec8(&r, r[E]); try expect(testRF(&r, E, 0x7F, HF|VF|NF|CF));
+    r[H] = impl.inc8(&r, r[H]); try expect(testRF(&r, H, 0x3F, CF));
+    r[H] = impl.dec8(&r, r[H]); try expect(testRF(&r, H, 0x3E, NF|CF));
+    r[L] = impl.inc8(&r, r[L]); try expect(testRF(&r, L, 0x24, CF));
+    r[L] = impl.dec8(&r, r[L]); try expect(testRF(&r, L, 0x23, NF|CF));
 }
