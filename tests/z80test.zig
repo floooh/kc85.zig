@@ -7,11 +7,7 @@
 
 const print  = @import("std").debug.print;
 const assert = @import("std").debug.assert;
-const CPU    = @import("cpu").CPU;
-usingnamespace @import("cpu").Pins;
-usingnamespace @import("cpu").Flags;
-usingnamespace @import("cpu").Reg8;
-usingnamespace @import("cpu").Reg16;
+usingnamespace @import("cpu");
 
 // 64 KB memory
 var mem = [_]u8{0} ** 0x10000;

@@ -98,131 +98,124 @@
 /// 
 
 // CPU pins and helper functions
-pub const Pins = struct {
-    // address bus pins
-    pub const A0:  u64 = 1<<0;
-    pub const A1:  u64 = 1<<1;
-    pub const A2:  u64 = 1<<2;
-    pub const A3:  u64 = 1<<3;
-    pub const A4:  u64 = 1<<4;
-    pub const A5:  u64 = 1<<5;
-    pub const A6:  u64 = 1<<6;
-    pub const A7:  u64 = 1<<7;
-    pub const A8:  u64 = 1<<8;
-    pub const A9:  u64 = 1<<9;
-    pub const A10: u64 = 1<<10;
-    pub const A11: u64 = 1<<11;
-    pub const A12: u64 = 1<<12;
-    pub const A13: u64 = 1<<13;
-    pub const A14: u64 = 1<<14;
-    pub const A15: u64 = 1<<15;
-    pub const AddrPinMask: u64 = 0xFFFF;
 
-    // data bus pins
-    pub const D0: u64 = 1<<16;
-    pub const D1: u64 = 1<<17;
-    pub const D2: u64 = 1<<18;
-    pub const D3: u64 = 1<<19;
-    pub const D4: u64 = 1<<20;
-    pub const D5: u64 = 1<<21;
-    pub const D6: u64 = 1<<22;
-    pub const D7: u64 = 1<<23;
-    pub const DataPinShift = 16;
-    pub const DataPinMask: u64 = 0xFF0000;
+// address bus pins
+pub const A0:  u64 = 1<<0;
+pub const A1:  u64 = 1<<1;
+pub const A2:  u64 = 1<<2;
+pub const A3:  u64 = 1<<3;
+pub const A4:  u64 = 1<<4;
+pub const A5:  u64 = 1<<5;
+pub const A6:  u64 = 1<<6;
+pub const A7:  u64 = 1<<7;
+pub const A8:  u64 = 1<<8;
+pub const A9:  u64 = 1<<9;
+pub const A10: u64 = 1<<10;
+pub const A11: u64 = 1<<11;
+pub const A12: u64 = 1<<12;
+pub const A13: u64 = 1<<13;
+pub const A14: u64 = 1<<14;
+pub const A15: u64 = 1<<15;
+pub const AddrPinMask: u64 = 0xFFFF;
 
-    // system control pins
-    pub const M1:   u64 = 1<<24;     // machine cycle 1
-    pub const MREQ: u64 = 1<<25;     // memory request
-    pub const IORQ: u64 = 1<<26;     // IO request
-    pub const RD:   u64 = 1<<27;     // read request
-    pub const WR:   u64 = 1<<28;     // write requst
-    pub const RFSH: u64 = 1<<29;     // memory refresh (not implemented)
-    pub const CtrlPinMask = M1|MREQ|IORQ|RD|WR|RFSH;
+// data bus pins
+pub const D0: u64 = 1<<16;
+pub const D1: u64 = 1<<17;
+pub const D2: u64 = 1<<18;
+pub const D3: u64 = 1<<19;
+pub const D4: u64 = 1<<20;
+pub const D5: u64 = 1<<21;
+pub const D6: u64 = 1<<22;
+pub const D7: u64 = 1<<23;
+pub const DataPinShift = 16;
+pub const DataPinMask: u64 = 0xFF0000;
 
-    // CPU control pins
-    pub const HALT:  u64 = 1<<30;    // halt and catch fire
-    pub const INT:   u64 = 1<<31;    // maskable interrupt requested
-    pub const NMI:   u64 = 1<<32;    // non-maskable interrupt requested
+// system control pins
+pub const M1:   u64 = 1<<24;     // machine cycle 1
+pub const MREQ: u64 = 1<<25;     // memory request
+pub const IORQ: u64 = 1<<26;     // IO request
+pub const RD:   u64 = 1<<27;     // read request
+pub const WR:   u64 = 1<<28;     // write requst
+pub const RFSH: u64 = 1<<29;     // memory refresh (not implemented)
+pub const CtrlPinMask = M1|MREQ|IORQ|RD|WR|RFSH;
 
-    // virtual pins
-    pub const WAIT0: u64 = 1<<34;    // 3 virtual pins to inject up to 8 wait cycles
-    pub const WAIT1: u64 = 1<<35;
-    pub const WAIT2: u64 = 1<<36;
-    pub const IEIO:  u64 = 1<<37;    // interrupt daisy chain: interrupt-enable-I/O
-    pub const RETI:  u64 = 1<<38;    // interrupt daisy chain: RETI decoded
-    pub const WaitPinShift = 34;
-    pub const WaitPinMask = WAIT0|WAIT1|WAIT2;
+// CPU control pins
+pub const HALT:  u64 = 1<<30;    // halt and catch fire
+pub const INT:   u64 = 1<<31;    // maskable interrupt requested
+pub const NMI:   u64 = 1<<32;    // non-maskable interrupt requested
 
-    // set wait ticks on pin mask
-    pub fn setWait(pins: u64, wait_ticks: u3) u64 {
-        return (pins & ~WaitPinMask) | @as(u64, wait_ticks) << WaitPinShift;
-    }
+// virtual pins
+pub const WAIT0: u64 = 1<<34;    // 3 virtual pins to inject up to 8 wait cycles
+pub const WAIT1: u64 = 1<<35;
+pub const WAIT2: u64 = 1<<36;
+pub const IEIO:  u64 = 1<<37;    // interrupt daisy chain: interrupt-enable-I/O
+pub const RETI:  u64 = 1<<38;    // interrupt daisy chain: RETI decoded
+pub const WaitPinShift = 34;
+pub const WaitPinMask = WAIT0|WAIT1|WAIT2;
 
-    // extract wait ticks from pin mask
-    pub fn getWait(pins: u64) u3 {
-        return @truncate(u3, pins >> WaitPinShift);
-    }
+// set wait ticks on pin mask
+pub fn setWait(pins: u64, wait_ticks: u3) u64 {
+    return (pins & ~WaitPinMask) | @as(u64, wait_ticks) << WaitPinShift;
+}
 
-    // set address pins in pin mask
-    pub fn setAddr(pins: u64, a: u16) u64 {
-        return (pins & ~AddrPinMask) | a;
-    }
+// extract wait ticks from pin mask
+pub fn getWait(pins: u64) u3 {
+    return @truncate(u3, pins >> WaitPinShift);
+}
 
-    // get address from pin mask
-    pub fn getAddr(pins: u64) u16 {
-        return @truncate(u16, pins);
-    }
+// set address pins in pin mask
+pub fn setAddr(pins: u64, a: u16) u64 {
+    return (pins & ~AddrPinMask) | a;
+}
 
-    // set data pins in pin mask
-    pub fn setData(pins: u64, data: u8) u64 {
-        return (pins & ~DataPinMask) | (@as(u64, data) << DataPinShift);
-    }
+// get address from pin mask
+pub fn getAddr(pins: u64) u16 {
+    return @truncate(u16, pins);
+}
 
-    // get data pins in pin mask
-    pub fn getData(pins: u64) u8 {
-        return @truncate(u8, pins >> DataPinShift);
-    }
+// set data pins in pin mask
+pub fn setData(pins: u64, data: u8) u64 {
+    return (pins & ~DataPinMask) | (@as(u64, data) << DataPinShift);
+}
 
-    // set address and data pins in pin mask
-    pub fn setAddrData(pins: u64, a: u16, d: u8) u64 {
-        return (pins & ~(DataPinMask|AddrPinMask)) | (@as(u64, d) << DataPinShift) | a;
-    }
-};
+// get data pins in pin mask
+pub fn getData(pins: u64) u8 {
+    return @truncate(u8, pins >> DataPinShift);
+}
+
+// set address and data pins in pin mask
+pub fn setAddrData(pins: u64, a: u16, d: u8) u64 {
+    return (pins & ~(DataPinMask|AddrPinMask)) | (@as(u64, d) << DataPinShift) | a;
+}
 
 // status flag bits
-pub const Flags = struct {
-    pub const CF: u8 = (1<<0);
-    pub const NF: u8 = (1<<1);
-    pub const VF: u8 = (1<<2);
-    pub const PF: u8 = VF;
-    pub const XF: u8 = (1<<3);
-    pub const HF: u8 = (1<<4);
-    pub const YF: u8 = (1<<5);
-    pub const ZF: u8 = (1<<6);
-    pub const SF: u8 = (1<<7);
-};
+pub const CF: u8 = (1<<0);
+pub const NF: u8 = (1<<1);
+pub const VF: u8 = (1<<2);
+pub const PF: u8 = VF;
+pub const XF: u8 = (1<<3);
+pub const HF: u8 = (1<<4);
+pub const YF: u8 = (1<<5);
+pub const ZF: u8 = (1<<6);
+pub const SF: u8 = (1<<7);
 
 // 8-bit register indices
-pub const Reg8 = struct {
-    pub const B = 0;
-    pub const C = 1;
-    pub const D = 2;
-    pub const E = 3;
-    pub const H = 4;
-    pub const L = 5;
-    pub const F = 6;
-    pub const A = 7;
-    pub const NumRegs8 = 8;
-};
+pub const B = 0;
+pub const C = 1;
+pub const D = 2;
+pub const E = 3;
+pub const H = 4;
+pub const L = 5;
+pub const F = 6;
+pub const A = 7;
+pub const NumRegs8 = 8;
 
 // 16-bit register indices
-pub const Reg16 = struct {
-    pub const BC = 0;
-    pub const DE = 1;
-    pub const HL = 2;
-    pub const FA = 3;
-    pub const NumRegs16 = 4;
-};
+pub const BC = 0;
+pub const DE = 1;
+pub const HL = 2;
+pub const FA = 3;
+pub const NumRegs16 = 4;
 
 const Regs = [NumRegs8]u8;
 
@@ -272,11 +265,6 @@ pub const CPU = struct {
 };
 
 const impl = struct {
-
-usingnamespace Pins;
-usingnamespace Flags;
-usingnamespace Reg8;
-usingnamespace Reg16;
 
 // instruction decoder loop
 fn exec(cpu: *CPU, num_ticks: usize, tick_func: TickFunc) usize {
@@ -1595,10 +1583,6 @@ fn dec8(r: *Regs, val: u8) u8 {
 const expect = @import("std").testing.expect;
 
 usingnamespace impl;
-usingnamespace Pins;
-usingnamespace Reg8;
-usingnamespace Reg16;
-usingnamespace Flags;
 
 // FIXME: is this check needed to make sure that a regular exe won't have 
 // a 64 KByte blob in the data section?

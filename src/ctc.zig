@@ -1,48 +1,53 @@
 //
-//  Z80 CTC Emulator
+//  Z80 CTC emulator
 //
-const daisy = @import("daisy.zig");
+const DaisyChain = @import("daisy.zig").DaisyChain;
 
-pub const Pins = struct {
-    
-    // control pins shared with CPU
-    pub const M1:       u64 = 1<<24;    // machine cycle 1
-    pub const IORQ:     u64 = 1<<26;    // IO request
-    pub const RD:       u64 = 1<<27;    // read request
-    pub const INT:      u64 = 1<<31;    // maskable interrupt requested
+// data bus pins shared with CPU
+pub const D0: u64 = 1<<16;
+pub const D1: u64 = 1<<17;
+pub const D2: u64 = 1<<18;
+pub const D3: u64 = 1<<19;
+pub const D4: u64 = 1<<20;
+pub const D5: u64 = 1<<21;
+pub const D6: u64 = 1<<22;
+pub const D7: u64 = 1<<23;
+pub const DataPinShift = 16;
+pub const DataPinMask: u64 = 0xFF0000;
 
-    // CTC specific pins, starting at pin 40
-    pub const CE:       u64 = 1<<40;    // chip enable
-    pub const CS0:      u64 = 1<<41;    // channel select 0
-    pub const CS1:      u64 = 1<<42;    // channel select 1
-    pub const CLKTRG0:  u64 = 1<<43;    // clock/timer trigger 0
-    pub const CLKTRG1:  u64 = 1<<44;    // clock/timer trigger 1
-    pub const CLKTRG2:  u64 = 1<<45;    // clock/timer trigger 2
-    pub const CLKTRG3:  u64 = 1<<46;    // click/timer trigger 3
-    pub const ZCTO0:    u64 = 1<<47;    // zero count / timeout 0
-    pub const ZCTO1:    u64 = 1<<48;    // zero count / timeout 1
-    pub const ZCTO2:    u64 = 1<<49;    // zero count / timeout 2
-    
-    const CS0PinShift = 41;
+// control pins shared with CPU
+pub const M1:       u64 = 1<<24;    // machine cycle 1
+pub const IORQ:     u64 = 1<<26;    // IO request
+pub const RD:       u64 = 1<<27;    // read request
 
-    const DataPinShift = 16;
-    const DataPinMask: u64 = 0xFF0000;
-    
-    // set data pins in pin mask
-    pub fn setData(pins: u64, data: u8) u64 {
-        return (pins & ~DataPinMask) | (@as(u64, data) << DataPinShift);
-    }
+// CTC specific pins, starting at pin 40
+pub const CE:       u64 = 1<<40;    // chip enable
+pub const CS0:      u64 = 1<<41;    // channel select 0
+pub const CS1:      u64 = 1<<42;    // channel select 1
+pub const CLKTRG0:  u64 = 1<<43;    // clock/timer trigger 0
+pub const CLKTRG1:  u64 = 1<<44;    // clock/timer trigger 1
+pub const CLKTRG2:  u64 = 1<<45;    // clock/timer trigger 2
+pub const CLKTRG3:  u64 = 1<<46;    // click/timer trigger 3
+pub const ZCTO0:    u64 = 1<<47;    // zero count / timeout 0
+pub const ZCTO1:    u64 = 1<<48;    // zero count / timeout 1
+pub const ZCTO2:    u64 = 1<<49;    // zero count / timeout 2
 
-    // get data pins in pin mask
-    pub fn getData(pins: u64) u8 {
-        return @truncate(u8, pins >> DataPinShift);
-    }
-};
+const CS0PinShift = 41;
+
+// set data pins in pin mask
+pub fn setData(pins: u64, data: u8) u64 {
+    return (pins & ~DataPinMask) | (@as(u64, data) << DataPinShift);
+}
+
+// get data pins in pin mask
+pub fn getData(pins: u64) u8 {
+    return @truncate(u8, pins >> DataPinShift);
+}
 
 // control register bits
 pub const Ctrl = struct {
     pub const EI:               u8 = 1<<7;      // 1: interrupt enabled, 0: interrupt disabled
-    
+
     pub const MODE:             u8 = 1<<6;      // 1: counter mode, 0: timer mode
     pub const MODE_COUNTER:     u8 = 1<<6;
     pub const MODE_TIMER:       u8 = 0;
@@ -54,7 +59,7 @@ pub const Ctrl = struct {
     pub const EDGE:             u8 = 1<<4;      // 1: rising edge, 0: falling edge
     pub const EDGE_RISING:      u8 = 1<<4;
     pub const EDGE_FALLING:     u8 = 0;
-    
+
     pub const TRIGGER:          u8 = 1<<3;      // 1: CLK/TRG pulse starts timer, 0: trigger when time constant loaded
     pub const TRIGGER_WAIT:     u8 = 1<<3;
     pub const TRIGGER_AUTO:     u8 = 0;
@@ -75,7 +80,7 @@ pub const Channel = struct {
     waiting_for_trigger: bool = false,
     ext_trigger: bool = false,
     prescaler_mask: u8 = 0x0F,
-    intr: daisy.DaisyChain = .{},
+    intr: DaisyChain = .{},
 };
 
 pub const NumChannels = 4;
@@ -85,20 +90,27 @@ pub const CTC = struct {
     channels: [NumChannels]Channel = [_]Channel{.{}} ** NumChannels,
     
     // reset the CTC chip
-    pub fn reset(ctc: *CTC) void { impl.reset(ctc); }
+    pub fn reset(ctc: *CTC) void {
+        impl.reset(ctc);
+    }
     // perform an IO request
-    pub fn iorq(ctc: *CTC, pins: u64) u64 { return impl.iorq(ctc, pins); }
+    pub fn iorq(ctc: *CTC, pins: u64) u64 {
+        return impl.iorq(ctc, pins);
+    }
     // execute one clock tick
-    pub fn tick(ctc: *CTC, pins: u64) u64 { return impl.tick(ctc, pins); }
-    // call once per machine cycle to handle interrupts
-    pub fn int(ctc: *CTC, pins: u64) u64 { return impl.int(ctc, pins); }
+    pub fn tick(ctc: *CTC, pins: u64) u64 {
+        return impl.tick(ctc, pins);
+    }
+    // call once per CPU machine cycle to handle interrupts
+    pub fn int(ctc: *CTC, pins: u64) u64 {
+        return impl.int(ctc, pins);
+    }
 };
 
 //=== IMPLEMENTATION ===========================================================
 
 const impl = struct {
 
-usingnamespace Pins;
 usingnamespace Ctrl;
 
 fn reset(ctc: *CTC) void {
@@ -115,7 +127,7 @@ fn reset(ctc: *CTC) void {
 
 fn int(ctc: *CTC, in_pins: u64) u64 {
     var pins = in_pins;
-    inline for (ctc.channels) |*chn| {
+    for (ctc.channels) |*chn| {
         pins = chn.intr.int(pins);
     }
     return pins;
@@ -124,7 +136,7 @@ fn int(ctc: *CTC, in_pins: u64) u64 {
 fn iorq(ctc: *CTC, in_pins: u64) u64 {
     var pins = in_pins;
     // check for chip-enabled and IO requested
-    if ((pins & CE|IORQ|M1) == (CE|IORQ)) {
+    if ((pins & (CE|IORQ|M1)) == (CE|IORQ)) {
         const chn_index: u2 = (pins >> CS0PinShift) & 3;
         if (0 != (pins & RD)) {
             // an IO read request
@@ -279,11 +291,10 @@ fn counterZero(ctc: *CTC, chn_index: u3, in_pins: u64) u64 {
 const expect = @import("std").testing.expect;
 
 usingnamespace Ctrl;
-usingnamespace Pins;
 
 test "ctc intvector" {
     var ctc = CTC{ };
-    var pins = Pins.setData(0, 0xE0);
+    var pins = setData(0, 0xE0);
     pins = impl.ioWrite(&ctc, 0, pins);
     try expect(0xE0 == ctc.channels[0].intr.vector);
     try expect(0xE2 == ctc.channels[1].intr.vector);

@@ -3,11 +3,7 @@
 ///
 const build_options = @import("build_options");
 const print  = @import("std").debug.print;
-const CPU    = @import("cpu").CPU;
-usingnamespace @import("cpu").Pins;
-usingnamespace @import("cpu").Flags;
-usingnamespace @import("cpu").Reg8;
-usingnamespace @import("cpu").Reg16;
+usingnamespace @import("cpu");
 
 var mem: [0x10000]u8 = undefined;
 

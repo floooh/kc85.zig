@@ -3,19 +3,15 @@
 //
 
 // shared pins relevant for interrupt handling
-pub const Pins = struct {
-    pub const M1:   u64 = 1<<24;    // machine cycle 1
-    pub const IORQ: u64 = 1<<26;    // IO request
-    pub const INT:  u64 = 1<<31;    // maskable interrupt requested
-    pub const IEIO: u64 = 1<<37;    // interrupt daisy chain: interrupt-enable-I/O
-    pub const RETI: u64 = 1<<38;    // interrupt daisy chain: RETI decoded
-};
+pub const M1:   u64 = 1<<24;    // machine cycle 1
+pub const IORQ: u64 = 1<<26;    // IO request
+pub const INT:  u64 = 1<<31;    // maskable interrupt requested
+pub const IEIO: u64 = 1<<37;    // interrupt daisy chain: interrupt-enable-I/O
+pub const RETI: u64 = 1<<38;    // interrupt daisy chain: RETI decoded
 
-pub const Flags = struct {
-    pub const INT_NEEDED:       u3 = 1<<0;  // interrupt request needed
-    pub const INT_REQUESTED:    u3 = 1<<1;  // interrupt request issued, waiting for ACK from CPU
-    pub const INT_SERVICING:    u3 = 1<<2;  // interrupt was acknoledged, now serving 
-};
+pub const INT_NEEDED:       u3 = 1<<0;  // interrupt request needed
+pub const INT_REQUESTED:    u3 = 1<<1;  // interrupt request issued, waiting for ACK from CPU
+pub const INT_SERVICING:    u3 = 1<<2;  // interrupt was acknoledged, now serving 
 
 pub const DaisyChain = struct {
     state:  u8 = 0,         // combo of Flags
@@ -40,9 +36,6 @@ pub const DaisyChain = struct {
 //== IMPLEMENTATION ============================================================
 
 const impl = struct {
-
-usingnamespace Flags;
-usingnamespace Pins;
 
 const DataPinShift = 16;
 const DataPinMask: u64 = 0xFF0000;
