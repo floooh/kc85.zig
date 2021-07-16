@@ -3,9 +3,13 @@ test "memory tests" {
 }
 
 test "cpu" {
-    const cpu = @import("cpu.zig");
+    const z80 = @import("z80.zig");
 }
 
 test "ctc" {
-    const ctc = @import("ctc.zig");
+    const z80ctc = @import("z80ctc.zig");
+}
+
+test "pio" {
+    const z80pio = @import("z80pio.zig");
 }

@@ -38,7 +38,7 @@ fn addZ80Test(b: *Builder, target: CrossTarget, mode: Mode) void {
     const exe = b.addExecutable("z80test", "tests/z80test.zig");
     exe.setTarget(target);
     exe.setBuildMode(mode);
-    exe.addPackagePath("cpu", "src/cpu.zig");
+    exe.addPackagePath("z80", "src/z80.zig");
     exe.install();
     const run_cmd = exe.run();
     run_cmd.step.dependOn(b.getInstallStep());
@@ -55,7 +55,7 @@ fn addZ80ZEXDOC(b: *Builder, target: CrossTarget, mode: Mode) void {
     exe.setBuildMode(mode);
     exe.addBuildOption(bool, "zexdoc", true);
     exe.addBuildOption(bool, "zexall", false);
-    exe.addPackagePath("cpu", "src/cpu.zig");
+    exe.addPackagePath("z80", "src/z80.zig");
     exe.install();
     const run_cmd = exe.run();
     run_cmd.step.dependOn(b.getInstallStep());
@@ -72,7 +72,7 @@ fn addZ80ZEXALL(b: *Builder, target: CrossTarget, mode: Mode) void {
     exe.setBuildMode(mode);
     exe.addBuildOption(bool, "zexdoc", false);
     exe.addBuildOption(bool, "zexall", true);
-    exe.addPackagePath("cpu", "src/cpu.zig");
+    exe.addPackagePath("z80", "src/z80.zig");
     exe.install();
     const run_cmd = exe.run();
     run_cmd.step.dependOn(b.getInstallStep());

@@ -1,7 +1,7 @@
 //
 //  Z80 CTC emulator
 //
-const DaisyChain = @import("daisy.zig").DaisyChain;
+const DaisyChain = @import("z80daisy.zig").DaisyChain;
 
 // data bus pins shared with CPU
 pub const D0: u64 = 1<<16;

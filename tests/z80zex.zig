@@ -3,7 +3,7 @@
 ///
 const build_options = @import("build_options");
 const print  = @import("std").debug.print;
-usingnamespace @import("cpu");
+usingnamespace @import("z80");
 
 var mem: [0x10000]u8 = undefined;
 

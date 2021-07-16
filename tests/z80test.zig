@@ -7,7 +7,7 @@
 
 const print  = @import("std").debug.print;
 const assert = @import("std").debug.assert;
-usingnamespace @import("cpu");
+usingnamespace @import("z80");
 
 // 64 KB memory
 var mem = [_]u8{0} ** 0x10000;
