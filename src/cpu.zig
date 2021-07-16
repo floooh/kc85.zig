@@ -222,7 +222,7 @@ const Regs = [NumRegs8]u8;
 const UseIX = (1<<0);
 const UseIY = (1<<1);
 
-const TickFunc = fn(usize, u64) u64;
+const TickFunc = fn(num_ticks: usize, pins: u64) u64;
 
 /// CPU state and related functions
 pub const CPU = struct {
