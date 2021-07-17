@@ -15,7 +15,10 @@ pub fn build(b: *Builder) void {
 }
 
 fn addKC85(b: *Builder, target: CrossTarget, mode: Mode) void {
+    const sokol = buildSokol(b, "");
     const exe = b.addExecutable("kc85", "src/main.zig");
+    exe.addPackagePath("sokol", "src/sokol/sokol.zig");
+    exe.linkLibrary(sokol);
     exe.setTarget(target);
     exe.setBuildMode(mode);
     exe.install();
@@ -81,4 +84,50 @@ fn addZ80ZEXALL(b: *Builder, target: CrossTarget, mode: Mode) void {
     }
     const run_step = b.step("z80zexall", "Run the Z80 ZEXALL test");
     run_step.dependOn(&run_cmd.step);
+}
+
+fn buildSokol(b: *Builder, comptime prefix_path: []const u8) *LibExeObjStep {
+    const lib = b.addStaticLibrary("sokol", null);
+    lib.linkLibC();
+    lib.setBuildMode(b.standardReleaseOptions());
+    const sokol_path = prefix_path ++ "src/sokol/c/";
+    const csources = [_][]const u8 {
+        "sokol_app.c",
+        "sokol_gfx.c",
+        "sokol_time.c",
+        "sokol_audio.c",
+        "sokol_gl.c",
+        "sokol_debugtext.c",
+    };
+    if (lib.target.isDarwin()) {
+        b.env_map.put("ZIG_SYSTEM_LINKER_HACK", "1") catch unreachable;
+        inline for (csources) |csrc| {
+            lib.addCSourceFile(sokol_path ++ csrc, &[_][]const u8{"-ObjC", "-DIMPL"});
+        }
+        lib.linkFramework("MetalKit");
+        lib.linkFramework("Metal");
+        lib.linkFramework("Cocoa");
+        lib.linkFramework("QuartzCore");
+        lib.linkFramework("AudioToolbox");
+    } else {
+        inline for (csources) |csrc| {
+            lib.addCSourceFile(sokol_path ++ csrc, &[_][]const u8{"-DIMPL"});
+        }
+        if (lib.target.isLinux()) {
+            lib.linkSystemLibrary("X11");
+            lib.linkSystemLibrary("Xi");
+            lib.linkSystemLibrary("Xcursor");
+            lib.linkSystemLibrary("GL");
+            lib.linkSystemLibrary("asound");
+        }
+        else if (lib.target.isWindows()) {
+            lib.linkSystemLibrary("kernel32");
+            lib.linkSystemLibrary("user32");
+            lib.linkSystemLibrary("gdi32");
+            lib.linkSystemLibrary("ole32");
+            lib.linkSystemLibrary("d3d11");
+            lib.linkSystemLibrary("dxgi");
+        }
+    }
+    return lib;
 }
