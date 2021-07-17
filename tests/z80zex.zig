@@ -82,7 +82,6 @@ fn runTest(cpu: *CPU, name: []const u8) void {
 
 // run the ZEXDOC test
 fn zexdoc() void {
-    mem = [_]u8{0} ** 0x10000;
     copy(0x0100, @embedFile("roms/zexdoc.com"));
     var cpu = CPU{ .SP = 0xF000, .PC = 0x0100 };
     runTest(&cpu, "ZEXDOC");
@@ -90,7 +89,6 @@ fn zexdoc() void {
 
 // run the ZEXALL test
 fn zexall() void {
-    mem = [_]u8{0} ** 0x10000;
     copy(0x0100, @embedFile("roms/zexall.com"));
     var cpu = CPU{ .SP = 0xF000, .PC = 0x0100 };
     runTest(&cpu, "ZEXALL");
