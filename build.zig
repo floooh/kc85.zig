@@ -1,6 +1,7 @@
 const std = @import("std");
 const Builder = std.build.Builder;
 const LibExeObjStep = std.build.LibExeObjStep;
+const Pkg = std.build.Pkg;
 const CrossTarget = std.zig.CrossTarget;
 const Mode = std.builtin.Mode;
 
@@ -17,7 +18,12 @@ pub fn build(b: *Builder) void {
 fn addKC85(b: *Builder, target: CrossTarget, mode: Mode) void {
     const sokol = buildSokol(b, "");
     const exe = b.addExecutable("kc85", "src/main.zig");
-    exe.addPackagePath("sokol", "src/sokol/sokol.zig");
+    const pkg_sokol = Pkg{ .name="sokol", .path="src/sokol/sokol.zig" };
+    const pkg_emu   = Pkg{ .name="emu",   .path="src/emu/emu.zig" };
+    const pkg_host  = Pkg{ .name="host",  .path="src/host/host.zig", .dependencies=&[_]Pkg{ pkg_sokol} };
+    exe.addPackage(pkg_sokol);
+    exe.addPackage(pkg_emu);
+    exe.addPackage(pkg_host);
     exe.linkLibrary(sokol);
     exe.setTarget(target);
     exe.setBuildMode(mode);
@@ -41,7 +47,7 @@ fn addZ80Test(b: *Builder, target: CrossTarget, mode: Mode) void {
     const exe = b.addExecutable("z80test", "tests/z80test.zig");
     exe.setTarget(target);
     exe.setBuildMode(mode);
-    exe.addPackagePath("z80", "src/z80.zig");
+    exe.addPackagePath("emu", "src/emu/emu.zig");
     exe.install();
     const run_cmd = exe.run();
     run_cmd.step.dependOn(b.getInstallStep());
@@ -58,7 +64,7 @@ fn addZ80ZEXDOC(b: *Builder, target: CrossTarget, mode: Mode) void {
     exe.setBuildMode(mode);
     exe.addBuildOption(bool, "zexdoc", true);
     exe.addBuildOption(bool, "zexall", false);
-    exe.addPackagePath("z80", "src/z80.zig");
+    exe.addPackagePath("emu", "src/emu/emu.zig");
     exe.install();
     const run_cmd = exe.run();
     run_cmd.step.dependOn(b.getInstallStep());
@@ -75,7 +81,7 @@ fn addZ80ZEXALL(b: *Builder, target: CrossTarget, mode: Mode) void {
     exe.setBuildMode(mode);
     exe.addBuildOption(bool, "zexdoc", false);
     exe.addBuildOption(bool, "zexall", true);
-    exe.addPackagePath("z80", "src/z80.zig");
+    exe.addPackagePath("emu", "src/emu/emu.zig");
     exe.install();
     const run_cmd = exe.run();
     run_cmd.step.dependOn(b.getInstallStep());

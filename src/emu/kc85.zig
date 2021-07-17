@@ -339,7 +339,7 @@ pub const KC85 = struct {
         impl.reset(sys);
     }
     // run emulation for given number of microseconds
-    pub fn exec(sys: *KC85, micro_seconds: usize) void {
+    pub fn exec(sys: *KC85, micro_seconds: u64) void {
         impl.exec(sys, micro_seconds);
     }
 };
@@ -406,7 +406,7 @@ fn reset(sys: *KC85) void {
     // FIXME
 }
 
-fn exec(sys: *KC85, micro_secs: usize) void {
+fn exec(sys: *KC85, micro_secs: u64) void {
     // FIXME
 }
 

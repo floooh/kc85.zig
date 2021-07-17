@@ -3,9 +3,10 @@
 //  
 
 const std   = @import("std");
-const gfx   = @import("gfx.zig");
 const sapp  = @import("sokol").app;
-const KC85  = @import("kc85.zig").KC85;
+const KC85  = @import("emu").kc85.KC85;
+const gfx   = @import("host").gfx;
+const time  = @import("host").time;
 
 var kc85: *KC85 = undefined;
 
@@ -20,7 +21,7 @@ pub fn main() !void {
     });
     defer kc85.destroy(std.heap.c_allocator);
 
-    // run sokol-app "game loop"
+    // start sokol-app "game loop"
     sapp.run(.{
         .init_cb = init,
         .frame_cb = frame,
@@ -38,10 +39,18 @@ pub fn main() !void {
 
 export fn init() void {
     gfx.setup();
+    time.setup();
 }
 
 export fn frame() void {
     // FIXME: run emulator 
+    const frame_time_us = time.frameTime();
+
+    // FIXME: debug output
+    const sdtx = @import("sokol").debugtext;
+    sdtx.canvas(sapp.widthf()*0.5, sapp.heightf()*0.5);
+    sdtx.print("Frame time: {}us\n", .{ frame_time_us });
+
     gfx.draw();
 }
 

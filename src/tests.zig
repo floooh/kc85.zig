@@ -1,15 +1,15 @@
 test "memory tests" {
-    const mem = @import("memory.zig");
+    const mem = @import("emu/memory.zig");
 }
 
 test "cpu" {
-    const z80 = @import("z80.zig");
+    const z80 = @import("emu/z80.zig");
 }
 
 test "ctc" {
-    const z80ctc = @import("z80ctc.zig");
+    const z80ctc = @import("emu/z80ctc.zig");
 }
 
 test "pio" {
-    const z80pio = @import("z80pio.zig");
+    const z80pio = @import("emu/z80pio.zig");
 }
