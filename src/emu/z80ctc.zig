@@ -137,7 +137,7 @@ fn iorq(ctc: *CTC, in_pins: u64) u64 {
     var pins = in_pins;
     // check for chip-enabled and IO requested
     if ((pins & (CE|IORQ|M1)) == (CE|IORQ)) {
-        const chn_index: u2 = (pins >> CS0PinShift) & 3;
+        const chn_index: u2 = @truncate(u2, pins >> CS0PinShift);
         if (0 != (pins & RD)) {
             // an IO read request
             pins = ioRead(ctc, chn_index, pins);

@@ -50,8 +50,8 @@ pub const PB5:      u64 = 1<<61;
 pub const PB6:      u64 = 1<<62;
 pub const PB7:      u64 = 1<<63;
 
-pub const PAPinMask = 0x00FF_0000_0000_0000;
-pub const PBPinMask = 0xFF00_0000_0000_0000;
+pub const PAPinMask: u64 = 0x00FF_0000_0000_0000;
+pub const PBPinMask: u64 = 0xFF00_0000_0000_0000;
 pub const PAPinShift = 48;
 pub const PBPinShift = 56;
 
@@ -76,7 +76,7 @@ pub fn setPB(pins: u64, data: u8) u64 {
 }
 
 // set both port A and B pins
-pub fn setPAB(pins: u64, pa_data: u8, pb_data) u64 {
+pub fn setPAB(pins: u64, pa_data: u8, pb_data: u8) u64 {
     return setPB(setPA(pins, pa_data), pb_data);
 }
 
@@ -150,9 +150,15 @@ pub const Port = struct {
     intr:             DaisyChain = .{}, // interrupt daisychain state
 };
 
-// Port IO callbacks
-const PortInput = fn(port: u1) u8;
-const PortOutput = fn(port: u1, data: u8) void;
+// Port IO callbacks and userdata
+const PortInput = struct {
+    func: fn(port: u1, userdata: usize) u8,
+    userdata: usize = 0,
+};
+const PortOutput = struct {
+    func: fn(port: u1, data: u8, userdata: usize) void,
+    userdata: usize = 0,
+};
 
 // PIO state
 pub const PIO = struct {
@@ -213,12 +219,7 @@ fn iorq(pio: *PIO, in_pins: u64) u64 {
         const port_index = @truncate(u1, (pins & BASEL) >> BASELPinShift);
         if (0 != (pins & RD)) {
             // an IO read request
-            const data = if (0 != (pins & CDSEL)) {
-                readCtrl(pio);
-            }
-            else {
-                readData(pio, port_index);
-            };
+            const data = if (0 != (pins & CDSEL)) readCtrl(pio) else readData(pio, port_index);
             pins = setData(pins, data);
         }
         else {
@@ -283,7 +284,7 @@ fn writeCtrl(pio: *PIO, port_index: u1, data: u8) void {
                 Mode.OUTPUT => {
                     // make output visible on port pins
                     p.port = p.output;
-                    pio.out_func(port_index, p.port);
+                    pio.out_func.func(port_index, p.port, pio.out_func.userdata);
                 },
                 Mode.BITCONTROL => {
                     // next control word is the io_select mask
@@ -343,7 +344,7 @@ fn writeData(pio: *PIO, port_index: u1, data: u8) void {
         Mode.OUTPUT => {
             p.output = data;
             p.port = data;
-            pio.out_func(port_index, p.port);
+            pio.out_func.func(port_index, p.port, pio.out_func.userdata);
         },
         Mode.INPUT => {
             p.output = data;
@@ -354,7 +355,7 @@ fn writeData(pio: *PIO, port_index: u1, data: u8) void {
         Mode.BITCONTROL => {
             p.output = data;
             p.port = p.io_select | (p.output & ~p.io_select);
-            pio.out_func(port_index, p.port);
+            pio.out_func.func(port_index, p.port, pio.out_func.userdata);
         }
     }
 }
@@ -366,13 +367,13 @@ fn readData(pio: *PIO, port_index: u1) u8 {
         Mode.OUTPUT => {
             return p.output;
         },
-        Mode.INPUT => blk: {
-            p.input = pio.in_func(port_index);
+        Mode.INPUT => {
+            p.input = pio.in_func.func(port_index, pio.in_func.userdata);
             p.port = p.input;
             return p.port;
         },
         Mode.BIDIRECTIONAL => {
-            p.input = pio.in_func(port_index);
+            p.input = pio.in_func.func(port_index, pio.in_func.userdata);
             p.port = (p.input & p.io_select) | (p.output & ~p.io_select);
             return p.port;
         },
@@ -390,14 +391,14 @@ const expect = @import("std").testing.expect;
 var pa_val: u8 = 0;
 var pb_val: u8 = 0;
 
-fn in_func(port: u1) u8 {
+fn in_func(port: u1, userdata: usize) u8 {
     return switch (port) {
         PA => 0,
         PB => 1,
     };
 }
 
-fn out_func(port: u1, data: u8) void {
+fn out_func(port: u1, data: u8, userdata: usize) void {
     switch (port) {
         PA => { pa_val = data; },
         PB => { pb_val = data; },
@@ -406,8 +407,8 @@ fn out_func(port: u1, data: u8) void {
 
 test "read_write_control" {
     var pio = PIO{
-        .in_func = in_func,
-        .out_func = out_func,
+        .in_func = .{ .func = in_func },
+        .out_func = .{ .func = out_func },
     };
 
     // write interrupt vector 0xEE to port A    

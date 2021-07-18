@@ -364,8 +364,8 @@ fn create( allocator: *std.mem.Allocator, desc: Desc) !*KC85 {
         },
         .ctc = .{}, 
         .pio = .{
-            .in_func = pioIn,
-            .out_func = pioOut,
+            .in_func = .{ .func = pioIn, .userdata = @ptrToInt(sys) },
+            .out_func = .{ .func = pioOut, .userdata = @ptrToInt(sys) },
         },
         .pio_a = PIOABits.RAM | PIOABits.RAM_RO | PIOABits.IRM | PIOABits.CAOS_ROM,
         .pio_b = 0,
@@ -462,10 +462,36 @@ fn tick_func(num_ticks: u64, pins_in: u64, userdata: usize) u64 {
         //
         //      0x80:   controls the expansion module system, the upper
         //              8-bits of the port number address the module slot
-        //      0x84:   (KC85/4 only) control the vide memory bank switching
+        //      0x84:   (KC85/4 only) control the video memory bank switching
         //      0x86:   (KC85/4 only) control RAM block at 0x4000 and ROM switching
         
-        // FIXME FIXME FIXME
+        // check if any of the valid port number if addressed (0x80..0x8F)
+        if (z80.A7 == (pins & (z80.A7|z80.A6|z80.A5|z80.A4))) {
+            // check if the PIO or CTC is addressed (0x88..0x8F)
+            if (0 != (pins & z80.A3)) {
+                pins &= z80.PinMask;
+                // A2 selects PIO or CTC
+                if (0 != (pins & z80.A2)) {
+                    // a CTC IO request
+                    pins |= z80ctc.CE;
+                    if (0 != (pins & z80.A0)) { pins |= z80ctc.CS0; }
+                    if (0 != (pins & z80.A1)) { pins |= z80ctc.CS1; }
+                    pins = sys.ctc.iorq(pins) & z80.PinMask;
+                }
+                else {
+                    // a PIO IO request
+                    pins |= z80pio.CE;
+                    if (0 != (pins & z80.A0)) { pins |= z80pio.BASEL; }
+                    if (0 != (pins & z80.A1)) { pins |= z80pio.CDSEL; }
+                    pins = sys.pio.iorq(pins) & z80.PinMask;
+                }
+            }
+            else {
+                // we're in IO port range 0x80..0x87
+
+                // FIXME: expansion port and KC85/4 ports
+            }
+        }
     }
         
     // FIXME: tick video
@@ -474,7 +500,7 @@ fn tick_func(num_ticks: u64, pins_in: u64, userdata: usize) u64 {
 
     // FIXME: interrupt daisychains
 
-    return pins;
+    return pins & z80.PinMask;
 }
 
 fn updateMemoryMapping(sys: *KC85) void {
@@ -503,7 +529,7 @@ fn updateMemoryMapping(sys: *KC85) void {
     if (model != .KC85_4) {
         // KC 85/2, /3: 16 KB video ram at 0x8000
         if (0 != (sys.pio_a & PIOABits.IRM)) {
-            sys.mem.mapROM(0, 0x8000, sys.irm[0x0000..0x4000]);
+            sys.mem.mapRAM(0, 0x8000, sys.irm[0x0000..0x4000]);
         }
     }
     else {
@@ -552,13 +578,19 @@ fn updateMemoryMapping(sys: *KC85) void {
 }
 
 // PIO port input/output callbacks
-fn pioIn(port: u1) u8 {
+fn pioIn(port: u1, userdata: usize) u8 {
+    var sys = @intToPtr(*KC85, userdata);
     // FIXME
-    return 0xFF;
+    unreachable;
 }
 
-fn pioOut(port: u1, data: u8) void {
-    // FIXME
+fn pioOut(port: u1, data: u8, userdata: usize) void {
+    var sys = @intToPtr(*KC85, userdata);
+    switch (port) {
+        z80pio.PA => sys.pio_a = data,
+        z80pio.PB => sys.pio_b = data,
+    }
+    updateMemoryMapping(sys);
 }
 
 }; // impl

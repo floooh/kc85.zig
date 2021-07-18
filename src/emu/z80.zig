@@ -153,6 +153,9 @@ pub const RETI:  u64 = 1<<38;    // interrupt daisy chain: RETI decoded
 pub const WaitPinShift = 34;
 pub const WaitPinMask = WAIT0|WAIT1|WAIT2;
 
+// all pins mask
+pub const PinMask: u64 = (1<<40)-1;
+
 // set wait ticks on pin mask
 pub fn setWait(pins: u64, wait_ticks: u3) u64 {
     return (pins & ~WaitPinMask) | @as(u64, wait_ticks) << WaitPinShift;
