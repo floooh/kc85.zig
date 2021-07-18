@@ -337,7 +337,7 @@ pub const KC85 = struct {
     pub fn create(allocator: *std.mem.Allocator, desc: Desc) !*KC85 {
         return impl.create(allocator, desc);
     }
-    // destroy heap-allocated KC85 instance (FIXME: should allocator be stored in object instead?)
+    // destroy heap-allocated KC85 instance
     pub fn destroy(sys: *KC85) void {
         impl.destroy(sys);
     }
