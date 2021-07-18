@@ -50,12 +50,12 @@ fn addKC85(b: *Builder, target: CrossTarget, mode: Mode, comptime kc85_model: KC
     const pkg_emu = Pkg{
         .name = "emu",
         .path = "src/emu/emu.zig", 
-        .dependencies = &[_]Pkg{ pkg_buildoptions}
+        .dependencies = &[_]Pkg{ pkg_buildoptions }
     };
     const pkg_host = Pkg{
         .name = "host",
         .path = "src/host/host.zig",
-        .dependencies = &[_]Pkg{ pkg_sokol}
+        .dependencies = &[_]Pkg{ pkg_sokol }
     };
     exe.addPackage(pkg_sokol);
     exe.addPackage(pkg_emu);

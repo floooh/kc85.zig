@@ -54,13 +54,14 @@ export fn init() void {
 }
 
 export fn frame() void {
-    // FIXME: run emulator 
     const frame_time_us = time.frameTime();
-
-    // FIXME: debug output
+    kc85.exec(frame_time_us);
+    
+    // debug
     const sdtx = @import("sokol").debugtext;
-    sdtx.canvas(sapp.widthf()*0.5, sapp.heightf()*0.5);
-    sdtx.print("Frame time: {}us\n", .{ frame_time_us });
+    sdtx.canvas(sapp.widthf() * 0.5, sapp.widthf() * 0.5);
+    sdtx.print("PC: {X}\n", .{ kc85.cpu.PC });
+    sdtx.print("(A800): {X}\n", .{ kc85.mem.r8(0xA800) });
 
     gfx.draw();
 }

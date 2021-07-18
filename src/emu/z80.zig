@@ -222,13 +222,17 @@ const Regs = [NumRegs8]u8;
 const UseIX = (1<<0);
 const UseIY = (1<<1);
 
-const TickFunc = fn(num_ticks: usize, pins: u64) u64;
+// FIXME: that userdata thing is ugly AF
+pub const TickFunc = struct {
+    func: fn(num_ticks: u64, pins: u64, userdata: usize) u64,
+    userdata: usize = 0,
+};
 
 /// CPU state and related functions
 pub const CPU = struct {
 
     pins: u64 = 0,
-    ticks: usize = 0,
+    ticks: u64 = 0,
 
     regs: Regs = [_]u8{0xFF} ** NumRegs8,
 
@@ -249,7 +253,7 @@ pub const CPU = struct {
     ei:   bool = false,
     
     /// run the emulator for at least 'num_ticks', return number of executed ticks
-    pub fn exec(cpu: *CPU, num_ticks: usize, tick_func: TickFunc) usize {
+    pub fn exec(cpu: *CPU, num_ticks: u64, tick_func: TickFunc) u64 {
         return impl.exec(cpu, num_ticks, tick_func);
     }
     
@@ -267,7 +271,7 @@ pub const CPU = struct {
 const impl = struct {
 
 // instruction decoder loop
-fn exec(cpu: *CPU, num_ticks: usize, tick_func: TickFunc) usize {
+fn exec(cpu: *CPU, num_ticks: u64, tick_func: TickFunc) u64 {
     cpu.ticks = 0;
     var running = true;
     while (running): (running = cpu.ticks < num_ticks) {
@@ -438,11 +442,11 @@ fn opED_prefix(cpu: *CPU, tick_func: TickFunc) void {
 }
 
 // return flags for left/right-shift/rotate operations
-fn lsrFlags(d8: usize, r: usize) u8 {
+fn lsrFlags(d8: u64, r: u64) u8 {
     return szpFlags(@truncate(u8, r)) | @truncate(u8, d8 >> 7 & CF);
 }
 
-fn rsrFlags(d8: usize, r: usize) u8 {
+fn rsrFlags(d8: u64, r: u64) u8 {
     return szpFlags(@truncate(u8, r)) | @truncate(u8, d8 & CF);
 }
 
@@ -462,7 +466,7 @@ fn opCB_prefix(cpu: *CPU, tick_func: TickFunc) void {
     const z = @truncate(u3, op & 7);
     
     // load operand (for indexed ops always from memory)
-    const d8: usize = if ((z == 6) or (cpu.ixiy != 0)) blk: {
+    const d8: u64 = if ((z == 6) or (cpu.ixiy != 0)) blk: {
         tick(cpu, 1, 0, tick_func); // filler tick
         cpu.WZ = loadHLIXIY(cpu);
         if (cpu.ixiy != 0) {
@@ -473,8 +477,8 @@ fn opCB_prefix(cpu: *CPU, tick_func: TickFunc) void {
     }
     else load8(cpu, z, tick_func);
     
-    var f: usize = cpu.regs[F];
-    var r: usize = undefined;
+    var f: u64 = cpu.regs[F];
+    var r: u64 = undefined;
     switch (x) {
         0 => switch (y) {
             // rot/shift
@@ -489,7 +493,7 @@ fn opCB_prefix(cpu: *CPU, tick_func: TickFunc) void {
         },
         1 => {
             // BIT (bit test)
-            r = d8 & (@as(usize,1) << y);
+            r = d8 & (@as(u64,1) << y);
             f = (f & CF) | HF | if (r==0) ZF|PF else r&SF;
             if ((z == 6) or (cpu.ixiy != 0)) {
                 f |= (cpu.WZ >> 8) & (YF|XF);
@@ -500,11 +504,11 @@ fn opCB_prefix(cpu: *CPU, tick_func: TickFunc) void {
         },
         2 => {
             // RES (bit clear)
-            r = d8 & ~(@as(usize,1) << y);
+            r = d8 & ~(@as(u64,1) << y);
         },
         3 => {
             // SET (bit set)
-            r = d8 | (@as(usize, 1) << y);
+            r = d8 | (@as(u64, 1) << y);
         }
     }
     if (x != 1) {
@@ -541,14 +545,14 @@ fn bumpR(cpu: *CPU) void {
 }
 
 // invoke tick callback with control pins set
-fn tick(cpu: *CPU, num_ticks: usize, pin_mask: u64, tick_func: TickFunc) void {
-    cpu.pins = tick_func(num_ticks, (cpu.pins & ~CtrlPinMask) | pin_mask);
+fn tick(cpu: *CPU, num_ticks: u64, pin_mask: u64, tick_func: TickFunc) void {
+    cpu.pins = tick_func.func(num_ticks, (cpu.pins & ~CtrlPinMask) | pin_mask, tick_func.userdata);
     cpu.ticks += num_ticks;
 }
 
 // invoke tick callback with pin mask and wait state detection
-fn tickWait(cpu: *CPU, num_ticks: usize, pin_mask: u64, tick_func: TickFunc) void {
-    cpu.pins = tick_func(num_ticks, (cpu.pins & ~(CtrlPinMask|WaitPinMask) | pin_mask));
+fn tickWait(cpu: *CPU, num_ticks: u64, pin_mask: u64, tick_func: TickFunc) void {
+    cpu.pins = tick_func.func(num_ticks, (cpu.pins & ~(CtrlPinMask|WaitPinMask) | pin_mask), tick_func.userdata);
     cpu.ticks += num_ticks + getWait(cpu.pins);
 }
 
@@ -591,7 +595,7 @@ fn dimm8(cpu: *CPU, tick_func: TickFunc) u16 {
 }
 
 // generate effective address for (HL), (IX+d), (IY+d) and put into cpu.WZ
-fn addrWZ(cpu: *CPU, extra_ticks: usize, tick_func: TickFunc) void {
+fn addrWZ(cpu: *CPU, extra_ticks: u64, tick_func: TickFunc) void {
     cpu.WZ = loadHLIXIY(cpu);
     if (0 != cpu.ixiy) {
         const d = dimm8(cpu, tick_func);
@@ -998,7 +1002,7 @@ fn opEX_iSP_HL(cpu: *CPU, tick_func: TickFunc) void {
 
 // RLCA
 fn opRLCA(cpu: *CPU) void {
-    const a: usize = cpu.regs[A];
+    const a: u64 = cpu.regs[A];
     const r = (a<<1) | (a>>7);
     const f = cpu.regs[F];
     cpu.regs[F] = @truncate(u8, ((a>>7) & CF) | (f & (SF|ZF|PF)) | (r & (YF|XF)));
@@ -1007,7 +1011,7 @@ fn opRLCA(cpu: *CPU) void {
 
 // RRCA
 fn opRRCA(cpu: *CPU) void {
-    const a: usize = cpu.regs[A];
+    const a: u64 = cpu.regs[A];
     const r = (a>>1) | (a<<7);
     const f = cpu.regs[F];
     cpu.regs[F] = @truncate(u8, (a & CF) | (f & (SF|ZF|PF)) | (r & (YF|XF)));
@@ -1016,7 +1020,7 @@ fn opRRCA(cpu: *CPU) void {
 
 // RLA
 fn opRLA(cpu: *CPU) void {
-    const a: usize = cpu.regs[A];
+    const a: u64 = cpu.regs[A];
     const f = cpu.regs[F];
     const r = (a<<1) | (f & CF);
     cpu.regs[F] = @truncate(u8, ((a>>7) & CF) | (f & (SF|ZF|PF)) | (r & (YF|XF)));
@@ -1025,7 +1029,7 @@ fn opRLA(cpu: *CPU) void {
 
 // RRA
 fn opRRA(cpu: *CPU) void {
-    const a: usize = cpu.regs[A];
+    const a: u64 = cpu.regs[A];
     const f = cpu.regs[F];
     const r = (a >> 1) | ((f & CF) << 7);
     cpu.regs[F] = @truncate(u8, (a & CF) | (f & (SF|ZF|PF)) | (r & (YF|XF)));
@@ -1449,7 +1453,7 @@ fn opOUTI_OUTD_OTIR_OTDR(cpu: *CPU, y: u3, tick_func: TickFunc) void {
 }  
 
 // flag computation functions
-fn szFlags(val: usize) u8 {
+fn szFlags(val: u64) u8 {
     if ((val & 0xFF) == 0) {
         return ZF;
     }
@@ -1458,19 +1462,19 @@ fn szFlags(val: usize) u8 {
     }
 }
 
-fn szyxchFlags(acc: usize, val: u8, res: usize) u8 {
+fn szyxchFlags(acc: u64, val: u8, res: u64) u8 {
     return szFlags(res) | @truncate(u8, (res & (YF|XF)) | ((res >> 8) & CF) | ((acc^val^res) & HF));
 }
 
-fn addFlags(acc: usize, val: u8, res: usize) u8 {
+fn addFlags(acc: u64, val: u8, res: u64) u8 {
     return szyxchFlags(acc, val, res) | @truncate(u8, (((val^acc^0x80) & (val^res))>>5) & VF);
 }
 
-fn subFlags(acc: usize, val: u8, res: usize) u8 {
+fn subFlags(acc: u64, val: u8, res: u64) u8 {
     return NF | szyxchFlags(acc, val, res) | @truncate(u8, (((val^acc) & (res^acc))>>5) & VF);
 }
 
-fn cpFlags(acc: usize, val: u8, res: usize) u8 {
+fn cpFlags(acc: u64, val: u8, res: u64) u8 {
     return NF | szFlags(res) | @truncate(u8, (val & (YF|XF)) | ((res >> 8) & CF) | ((acc^val^res) & HF) | ((((val^acc) & (res^acc))>>5) & VF));
 }
 
@@ -1494,29 +1498,29 @@ fn cc(f: u8, y: u3) bool {
 
 // ALU functions
 fn add8(r: *Regs, val: u8) void {
-    const acc: usize = r[A];
-    const res: usize = acc + val;
+    const acc: u64 = r[A];
+    const res: u64 = acc + val;
     r[F] = addFlags(acc, val, res);
     r[A] = @truncate(u8, res);
 }
 
 fn adc8(r: *Regs, val: u8) void {
-    const acc: usize = r[A];
-    const res: usize = acc + val + (r[F] & CF);
+    const acc: u64 = r[A];
+    const res: u64 = acc + val + (r[F] & CF);
     r[F] = addFlags(acc, val, res);
     r[A] = @truncate(u8, res);
 }
 
 fn sub8(r: *Regs, val: u8) void {
-    const acc: usize = r[A];
-    const res: usize = acc -% val; 
+    const acc: u64 = r[A];
+    const res: u64 = acc -% val; 
     r[F] = subFlags(acc, val, res);
     r[A] = @truncate(u8, res);
 }
     
 fn sbc8(r: *Regs, val: u8) void {
-    const acc: usize = r[A];
-    const res: usize = acc -% val -% (r[F] & CF);
+    const acc: u64 = r[A];
+    const res: u64 = acc -% val -% (r[F] & CF);
     r[F] = subFlags(acc, val, res);
     r[A] = @truncate(u8, res);
 }
@@ -1537,8 +1541,8 @@ fn or8(r: *Regs, val: u8) void {
 }
 
 fn cp8(r: *Regs, val: u8) void {
-    const acc: usize = r[A];
-    const res: usize = acc -% val;
+    const acc: u64 = r[A];
+    const res: u64 = acc -% val;
     r[F] = cpFlags(acc, val, res);
 }
 
@@ -1599,7 +1603,7 @@ fn clearIO() void {
 }
 
 // a generic test tick callback
-fn testTick(ticks: usize, i_pins: u64) u64 {
+fn testTick(ticks: u64, i_pins: u64, userdata: usize) u64 {
     var pins = i_pins;
     const a = getAddr(pins);
     if ((pins & MREQ) != 0) {
@@ -1675,7 +1679,7 @@ test "set/get wait ticks" {
 
 test "tick" {
     const inner = struct {
-        fn tick_func(ticks: usize, pins: u64) u64 {
+        fn tick_func(ticks: u64, pins: u64, userdata: usize) u64 {
             if (ticks == 3 and getData(pins) == 0x56 and getAddr(pins) == 0x1234 and (pins & M1|MREQ|RD) == M1|MREQ|RD) {
                 // success
                 return setData(pins, 0x23);
@@ -1686,19 +1690,19 @@ test "tick" {
         }
     };
     var cpu = CPU{ .pins = setAddrData(0, 0x1234, 0x56) };
-    impl.tick(&cpu, 3, M1|MREQ|RD, inner.tick_func);
+    impl.tick(&cpu, 3, M1|MREQ|RD, .{ .func=inner.tick_func  });
     try expect(getData(cpu.pins) == 0x23);
     try expect(cpu.ticks == 3);
 }
 
 test "tickWait" {
     const inner = struct {
-        fn tick_func(ticks: usize, pins: u64) u64 {
+        fn tick_func(ticks: u64, pins: u64, userdata: usize) u64 {
             return setWait(pins, 5);
         }
     };
     var cpu = CPU{ .pins = setWait(0, 7) };
-    impl.tickWait(&cpu, 3, M1|MREQ|RD, inner.tick_func);
+    impl.tickWait(&cpu, 3, M1|MREQ|RD, .{ .func=inner.tick_func });
     try expect(getWait(cpu.pins) == 5);
     try expect(cpu.ticks == 8);
 }
@@ -1707,7 +1711,7 @@ test "memRead" {
     clearMem();
     mem[0x1234] = 0x23;
     var cpu = CPU{ };
-    const val = impl.memRead(&cpu, 0x1234, testTick);
+    const val = impl.memRead(&cpu, 0x1234, .{ .func=testTick });
     try expect((cpu.pins & CtrlPinMask) == MREQ|RD);
     try expect(getData(cpu.pins) == 0x23);
     try expect(val == 0x23);
@@ -1717,7 +1721,7 @@ test "memRead" {
 test "memWrite" {
     clearMem();
     var cpu = CPU{ };
-    impl.memWrite(&cpu, 0x1234, 0x56, testTick);
+    impl.memWrite(&cpu, 0x1234, 0x56, .{ .func=testTick });
     try expect((cpu.pins & CtrlPinMask) == MREQ|WR);
     try expect(getData(cpu.pins) == 0x56);
     try expect(cpu.ticks == 3);
@@ -1727,7 +1731,7 @@ test "ioRead" {
     clearIO();
     io[0x1234] = 0x23;
     var cpu = CPU{ };
-    const val = impl.ioRead(&cpu, 0x1234, testTick);
+    const val = impl.ioRead(&cpu, 0x1234, .{ .func=testTick });
     try expect((cpu.pins & CtrlPinMask) == IORQ|RD);
     try expect(getData(cpu.pins) == 0x23);
     try expect(val == 0x23);
@@ -1737,7 +1741,7 @@ test "ioRead" {
 test "ioWrite" {
     clearIO();
     var cpu = CPU{ };
-    impl.ioWrite(&cpu, 0x1234, 0x56, testTick);
+    impl.ioWrite(&cpu, 0x1234, 0x56, .{ .func=testTick });
     try expect((cpu.pins & CtrlPinMask) == IORQ|WR);
     try expect(getData(cpu.pins) == 0x56);
     try expect(cpu.ticks == 4);
@@ -1756,7 +1760,7 @@ test "fetch" {
     clearMem();
     mem[0x2345] = 0x42;
     var cpu = CPU{ .PC = 0x2345, .R = 0 };
-    const op = impl.fetch(&cpu, testTick);
+    const op = impl.fetch(&cpu, .{ .func=testTick });
     try expect(op == 0x42);
     try expect((cpu.pins & CtrlPinMask) == M1|MREQ|RD);
     try expect(getData(cpu.pins) == 0x42);

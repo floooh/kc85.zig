@@ -28,7 +28,7 @@ fn ok() void {
 }
 
 // tick callback which handles memory and IO requests
-fn tick(num_ticks: usize, p: u64) u64 {
+fn tick(num_ticks: usize, p: u64, userdata: usize) u64 {
     var pins = p;
     if ((pins & MREQ) != 0) {
         if ((pins & RD) != 0) {
@@ -77,9 +77,9 @@ fn copy(start_addr: u16, bytes: []const u8) void {
 }
 
 fn step(cpu: *CPU) usize {
-    var ticks = cpu.exec(0, tick);
+    var ticks = cpu.exec(0, .{ .func=tick, .userdata=0 });
     while (!cpu.opdone()) {
-        ticks += cpu.exec(0, tick);
+        ticks += cpu.exec(0, .{ .func=tick, .userdata=0 });
     }
     return ticks;
 }

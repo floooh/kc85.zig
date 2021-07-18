@@ -8,7 +8,7 @@ usingnamespace @import("emu").z80;
 var mem: [0x10000]u8 = undefined;
 
 // tick callback
-fn tick(num_ticks: usize, pins: usize) u64 {
+fn tick(num_ticks: usize, pins: usize, userdata: usize) u64 {
     if (0 != (pins & MREQ)) {
         // a memory request
         if (0 != (pins & RD)) {
@@ -70,7 +70,7 @@ fn runTest(cpu: *CPU, name: []const u8) void {
     print("Running {s}:\n\n", .{ name });
     var ticks: usize = 0;
     while (true) {
-        ticks += cpu.exec(0, tick);
+        ticks += cpu.exec(0, .{ .func=tick, .userdata=0 });
         switch (cpu.PC) {
             0 => break, // done
             5 => { if (!cpmBDOS(cpu)) break; },

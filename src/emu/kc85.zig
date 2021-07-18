@@ -211,6 +211,7 @@ const z80 = @import("z80.zig");
 const z80pio = @import("z80pio.zig");
 const z80ctc = @import("z80ctc.zig");
 const Memory = @import("memory.zig").Memory;
+const Clock  = @import("clock.zig").Clock;
 
 const model: Model = switch (@import("build_options").kc85_model) {
     .KC85_2 => .KC85_2,
@@ -311,9 +312,9 @@ pub const KC85 = struct {
     h_count: u32,               // video timing generator counter
     v_count: u32,
 
-    // FIXME: clk
-    // FIXME: kbd
+    clk: Clock,
     mem: Memory,
+    // FIXME: kbd
     // FIXME: expansion system
 
     pixel_buffer:   ?[]u32,
@@ -345,7 +346,7 @@ pub const KC85 = struct {
         impl.reset(sys);
     }
     // run emulation for given number of microseconds
-    pub fn exec(sys: *KC85, micro_seconds: u64) void {
+    pub fn exec(sys: *KC85, micro_seconds: u32) void {
         impl.exec(sys, micro_seconds);
     }
 };
@@ -374,6 +375,12 @@ fn create( allocator: *std.mem.Allocator, desc: Desc) !*KC85 {
         .h_count = 0,
         .v_count = 0,
         .mem = .{ },
+        .clk = .{
+            .freq_hz = switch (model) {
+                .KC85_2, .KC85_3 => 1_750_000,
+                .KC85_4          => 1_770_000,
+            }
+        },
         .sample_pos = 0,
         .sample_buffer = [_]f32{0.0} ** max_audio_samples,
         .pixel_buffer = desc.pixel_buffer,
@@ -401,7 +408,7 @@ fn create( allocator: *std.mem.Allocator, desc: Desc) !*KC85 {
     
     // setup initial memory map
     updateMemoryMapping(sys);
-
+    
     return sys;
 }
 
@@ -409,12 +416,65 @@ fn destroy(sys: *KC85) void {
     sys.allocator.destroy(sys);
 }
 
-fn reset(model: Model, sys: *KC85) void {
+fn reset(sys: *KC85) void {
     // FIXME
 }
 
-fn exec(model: Model, sys: *KC85, micro_secs: u64) void {
-    // FIXME
+fn exec(sys: *KC85, micro_secs: u32) void {
+    const ticks_to_run = sys.clk.ticksToRun(micro_secs);
+    const ticks_executed = sys.cpu.exec(ticks_to_run, z80.TickFunc{ .func=tick_func, .userdata=@ptrToInt(sys) });
+    sys.clk.ticksExecuted(ticks_executed);
+    // FIXME: handle keyboard
+}
+
+fn tick_func(num_ticks: u64, pins_in: u64, userdata: usize) u64 {
+    var sys = @intToPtr(*KC85, userdata);
+    var pins = pins_in;
+    
+    // memory and IO requests
+    if (0 != (pins & z80.MREQ)) {
+        // a memory request machine cycle
+        const addr = z80.getAddr(pins);
+        if (0 != (pins & z80.RD)) {
+            pins = z80.setData(pins, sys.mem.r8(addr));
+        }
+        else if (0 != (pins & z80.WR)) {
+            sys.mem.w8(addr, z80.getData(pins));
+        }
+    }
+    else if (0 != (pins & z80.IORQ)) {
+        // IO request machine cycle
+        // 
+        // on the KC85/3, the chips-select signals for the CTC and PIO
+        // are generated through logic gates, on KC85/4 this is implemented
+        // with a PROM chip (details are in the KC85/3 and KC85/4 service manuals)
+        //
+        // the I/O addresses are as follows:
+        //
+        //      0x88:   PIO Port A, data
+        //      0x89:   PIO Port B, data
+        //      0x8A:   PIO Port A, control
+        //      0x8B:   PIO Port B, control
+        //      0x8C:   CTC Channel 0
+        //      0x8D:   CTC Channel 1
+        //      0x8E:   CTC Channel 2
+        //      0x8F:   CTC Channel 3
+        //
+        //      0x80:   controls the expansion module system, the upper
+        //              8-bits of the port number address the module slot
+        //      0x84:   (KC85/4 only) control the vide memory bank switching
+        //      0x86:   (KC85/4 only) control RAM block at 0x4000 and ROM switching
+        
+        // FIXME FIXME FIXME
+    }
+        
+    // FIXME: tick video
+
+    // FIXME: tick CTC and beepers
+
+    // FIXME: interrupt daisychains
+
+    return pins;
 }
 
 fn updateMemoryMapping(sys: *KC85) void {
