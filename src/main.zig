@@ -2,13 +2,21 @@
 //  KC85 emulator main loop and host bindings
 //  
 
+const build_options = @import("build_options");
 const std   = @import("std");
 const sapp  = @import("sokol").app;
 const KC85  = @import("emu").kc85.KC85;
+const Model = @import ("emu").kc85.Model;
 const gfx   = @import("host").gfx;
 const time  = @import("host").time;
 
 var kc85: *KC85 = undefined;
+
+const kc85_model: Model = switch (build_options.kc85_model) {
+    .KC85_2 => .KC85_2,
+    .KC85_3 => .KC85_3,
+    .KC85_4 => .KC85_4,
+};
 
 pub fn main() !void {
     // setup KC85 emulator instance
@@ -19,7 +27,7 @@ pub fn main() !void {
         .rom_caos42e = @embedFile("roms/caos42e.854"),
         .rom_kcbasic = @embedFile("roms/basic_c0.853")
     });
-    defer kc85.destroy(std.heap.c_allocator);
+    defer kc85.destroy();
 
     // start sokol-app "game loop"
     sapp.run(.{
@@ -32,8 +40,11 @@ pub fn main() !void {
             // FIXME: KC85 logo
             .sokol_default = true,
         },
-        // FIXME: depending on selected model
-        .window_title = "KC85"
+        .window_title = switch (kc85_model) {
+            .KC85_2 => "KC85/2",
+            .KC85_3 => "KC85/3",
+            .KC85_4 => "KC85/4"
+        }
     });
 }
 

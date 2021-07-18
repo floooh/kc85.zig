@@ -212,16 +212,21 @@ const z80pio = @import("z80pio.zig");
 const z80ctc = @import("z80ctc.zig");
 const Memory = @import("memory.zig").Memory;
 
-const MaxAudioSamples = 1024;
-const DefaultAudioSamples = 128;
-const MaxTapeSize = 1024;
-const NumExpansionSlots = 2;    // max number of expansion slots
-const ExpansionBufferSize = NumExpansionSlots * 64 * 1024; // expansion system buffer size (64 KB per slot)
-const MaxRAMSize = 4 * 0x4000;  // up to 64 KB regular RAM
-const MaxIRMSize = 4 * 0x4000;  // up to 64 KB video RAM
-const RomCSize = 0x1000;
-const RomESize = 0x2000;
-const RomBasicSize = 0x2000;
+const model: Model = switch (@import("build_options").kc85_model) {
+    .KC85_2 => .KC85_2,
+    .KC85_3 => .KC85_3,
+    .KC85_4 => .KC85_4,
+};
+const max_audio_samples         = 1024;
+const default_num_audio_samples = 128;
+const max_tape_size             = 1024;
+const num_expansion_slots       =  2;    // max number of expansion slots
+const expansion_buffer_size     = num_expansion_slots * 64 * 1024; // expansion system buffer size (64 KB per slot)
+const max_ram_size              = 4 * 0x4000;  // up to 64 KB regular RAM
+const max_irm_size              = 4 * 0x4000;  // up to 64 KB video RAM
+const rom_c_size                = 0x1000;
+const rom_e_size                = 0x2000;
+const rom_basic_size            = 0x2000;
 
 // IO bits
 const PIOABits = struct {
@@ -259,7 +264,7 @@ const IO86Bits = struct {
     const CAOS_ROM_C:       u8 = 1<<7;
 };
 
-const Type = enum {
+pub const Model = enum {
     KC85_2,
     KC85_3,
     KC85_4,
@@ -272,32 +277,31 @@ const PatchFunc = fn(snapshot_name: []const u8) void;
 
 // config parameter for KC85.init()
 const Desc = struct {
-    type: Type = .KC85_2,
-    
     pixel_buffer: ?[]u32 = null,    // must have room for 320x256 pixels
 
     audio_func:         ?AudioFunc = null,
-    audio_num_samples:  usize = DefaultAudioSamples,
+    audio_num_samples:  usize = default_num_audio_samples,
     audio_sample_rate:  u32 = 44100,
     audio_volume:       f32 = 0.4,
 
     patch_func: ?PatchFunc = null,
 
-    rom_caos22:     []const u8, // CAOS 2.2 ROM image (used in KC85/2)
-    rom_caos31:     []const u8, // CAOS 3.1 ROM image (used in KC85/3)
-    rom_caos42c:    []const u8, // CAOS 4.2 at 0xC000 (KC85/4)
-    rom_caos42e:    []const u8, // CAOS 4.2 at 0xE000 (KC85/4)
-    rom_kcbasic:    []const u8, // same BASIC version for KC85/3 and KC85/4
+    rom_caos22:     ?[]const u8 = null, // CAOS 2.2 ROM image (used in KC85/2)
+    rom_caos31:     ?[]const u8 = null, // CAOS 3.1 ROM image (used in KC85/3)
+    rom_caos42c:    ?[]const u8 = null, // CAOS 4.2 at 0xC000 (KC85/4)
+    rom_caos42e:    ?[]const u8 = null, // CAOS 4.2 at 0xE000 (KC85/4)
+    rom_kcbasic:    ?[]const u8 = null, // same BASIC version for KC85/3 and KC85/4
 };
 
 // KC85 emulator state
 pub const KC85 = struct {
+    model: Model,
+
     cpu: z80.CPU,
     ctc: z80ctc.CTC,
     pio: z80pio.PIO,
     // FIXME: 2 beepers
 
-    type: Type,
     pio_a: u8,                  // current PIO Port A value, used for bankswitching
     pio_b: u8,                  // current PIO Port B value, used for bankswitching
     io84:  u8,                  // byte latch on port 0x84, only on KC85/4
@@ -316,23 +320,25 @@ pub const KC85 = struct {
     audio_func:     ?AudioFunc,
     num_samples:    usize,
     sample_pos:     usize,
-    sample_buffer:  [MaxAudioSamples]f32,
+    sample_buffer:  [max_audio_samples]f32,
     patch_func:     ?PatchFunc,
 
-    ram:        [MaxRAMSize]u8,
-    irm:        [MaxIRMSize]u8,
-    rom_caos_c: [RomCSize]u8,
-    rom_caos_e: [RomESize]u8,
-    rom_basic:  [RomBasicSize]u8,
-    exp_buf:    [ExpansionBufferSize]u8,
+    ram:        [max_ram_size]u8,
+    irm:        [max_irm_size]u8,
+    rom_caos_c: [rom_c_size]u8,
+    rom_caos_e: [rom_e_size]u8,
+    rom_basic:  [rom_basic_size]u8,
+    exp_buf:    [expansion_buffer_size]u8,
+    
+    allocator:  *std.mem.Allocator,
     
     // create a KC85 instance on the heap
     pub fn create(allocator: *std.mem.Allocator, desc: Desc) !*KC85 {
         return impl.create(allocator, desc);
     }
     // destroy heap-allocated KC85 instance (FIXME: should allocator be stored in object instead?)
-    pub fn destroy(sys: *KC85, allocator: *std.mem.Allocator) void {
-        impl.destroy(sys, allocator);
+    pub fn destroy(sys: *KC85) void {
+        impl.destroy(sys);
     }
     // reset KC85 instance
     pub fn reset(sys: *KC85) void {
@@ -347,10 +353,11 @@ pub const KC85 = struct {
 //=== IMPLEMENTATION ===========================================================
 
 const impl = struct {
-
-fn create(allocator: *std.mem.Allocator, desc: Desc) !*KC85 {
+    
+fn create( allocator: *std.mem.Allocator, desc: Desc) !*KC85 {
     var sys = try allocator.create(KC85);
     sys.* = .{
+        .model = model,
         .cpu = .{
             .PC = 0xF000,
         },
@@ -359,7 +366,6 @@ fn create(allocator: *std.mem.Allocator, desc: Desc) !*KC85 {
             .in_func = pioIn,
             .out_func = pioOut,
         },
-        .type = desc.type,
         .pio_a = PIOABits.RAM | PIOABits.RAM_RO | PIOABits.IRM | PIOABits.CAOS_ROM,
         .pio_b = 0,
         .io84 = 0,
@@ -369,27 +375,28 @@ fn create(allocator: *std.mem.Allocator, desc: Desc) !*KC85 {
         .v_count = 0,
         .mem = .{ },
         .sample_pos = 0,
-        .sample_buffer = [_]f32{0.0} ** MaxAudioSamples,
+        .sample_buffer = [_]f32{0.0} ** max_audio_samples,
         .pixel_buffer = desc.pixel_buffer,
         .audio_func = desc.audio_func,
         .num_samples = desc.audio_num_samples,
         .patch_func = desc.patch_func,
-        .ram = [_]u8{0} ** MaxRAMSize,
-        .irm = [_]u8{0} ** MaxIRMSize,
-        .rom_caos_c = switch(desc.type) {
-            .KC85_4 => desc.rom_caos42c[0..RomCSize].*,
-            else => [_]u8{0} ** RomCSize,
+        .ram = [_]u8{0} ** max_ram_size,
+        .irm = [_]u8{0} ** max_irm_size,
+        .rom_caos_c = switch(model) {
+            .KC85_4 => desc.rom_caos42c.?[0..rom_c_size].*,
+            else => [_]u8{0} ** rom_c_size,
         },
-        .rom_caos_e = switch(desc.type) {
-            .KC85_2 => desc.rom_caos22[0..RomESize].*,
-            .KC85_3 => desc.rom_caos31[0..RomESize].*,
-            .KC85_4 => desc.rom_caos42e[0..RomESize].*,
+        .rom_caos_e = switch(model) {
+            .KC85_2 => desc.rom_caos22.?[0..rom_e_size].*,
+            .KC85_3 => desc.rom_caos31.?[0..rom_e_size].*,
+            .KC85_4 => desc.rom_caos42e.?[0..rom_e_size].*,
         },
-        .rom_basic = switch(desc.type) {
-            .KC85_3, .KC85_4 => desc.rom_kcbasic[0..RomBasicSize].*,
-            else => [_]u8{0} ** RomBasicSize,
+        .rom_basic = switch(model) {
+            .KC85_3, .KC85_4 => desc.rom_kcbasic.?[0..rom_basic_size].*,
+            else => [_]u8{0} ** rom_basic_size,
         },
-        .exp_buf = [_]u8{0} ** ExpansionBufferSize,
+        .exp_buf = [_]u8{0} ** expansion_buffer_size,
+        .allocator = allocator,
     };
     
     // setup initial memory map
@@ -398,15 +405,15 @@ fn create(allocator: *std.mem.Allocator, desc: Desc) !*KC85 {
     return sys;
 }
 
-fn destroy(sys: *KC85, allocator: *std.mem.Allocator) void {
-    allocator.destroy(sys);
+fn destroy(sys: *KC85) void {
+    sys.allocator.destroy(sys);
 }
 
-fn reset(sys: *KC85) void {
+fn reset(model: Model, sys: *KC85) void {
     // FIXME
 }
 
-fn exec(sys: *KC85, micro_secs: u64) void {
+fn exec(model: Model, sys: *KC85, micro_secs: u64) void {
     // FIXME
 }
 
@@ -427,13 +434,13 @@ fn updateMemoryMapping(sys: *KC85) void {
     }
     
     // KC85/3 and /4: builtin 8 KB BASIC ROM at 0xC000
-    if (sys.type != .KC85_2) {
+    if (model != .KC85_2) {
         if (0 != (sys.pio_a & PIOABits.BASIC_ROM)) {
             sys.mem.mapROM(0, 0xC000, &sys.rom_basic);
         }
     }
 
-    if (sys.type != .KC85_4) {
+    if (model != .KC85_4) {
         // KC 85/2, /3: 16 KB video ram at 0x8000
         if (0 != (sys.pio_a & PIOABits.IRM)) {
             sys.mem.mapROM(0, 0x8000, sys.irm[0x0000..0x4000]);

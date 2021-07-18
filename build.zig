@@ -5,22 +5,58 @@ const Pkg = std.build.Pkg;
 const CrossTarget = std.zig.CrossTarget;
 const Mode = std.builtin.Mode;
 
+const KC85Model = enum {
+    KC85_2 = 0,
+    KC85_3 = 1,
+    KC85_4 = 2,
+};
+
 pub fn build(b: *Builder) void {
     const target = b.standardTargetOptions(.{});
     const mode = b.standardReleaseOptions();
-    addKC85(b, target, mode);
+    addKC85(b, target, mode, .KC85_2);
+    addKC85(b, target, mode, .KC85_3);
+    addKC85(b, target, mode, .KC85_4);
     addZ80Test(b, target, mode);
     addZ80ZEXDOC(b, target, mode);
     addZ80ZEXALL(b, target, mode);
     addTests(b);
 }
 
-fn addKC85(b: *Builder, target: CrossTarget, mode: Mode) void {
+fn addKC85(b: *Builder, target: CrossTarget, mode: Mode, comptime kc85_model: KC85Model) void {
+    const name = switch (kc85_model) {
+        .KC85_2 => "kc852",
+        .KC85_3 => "kc853",
+        .KC85_4 => "kc854"
+    };
     const sokol = buildSokol(b, "");
-    const exe = b.addExecutable("kc85", "src/main.zig");
-    const pkg_sokol = Pkg{ .name="sokol", .path="src/sokol/sokol.zig" };
-    const pkg_emu   = Pkg{ .name="emu",   .path="src/emu/emu.zig" };
-    const pkg_host  = Pkg{ .name="host",  .path="src/host/host.zig", .dependencies=&[_]Pkg{ pkg_sokol} };
+    const exe = b.addExecutable(name, "src/main.zig");
+    exe.addBuildOption(KC85Model, "kc85_model", kc85_model);
+    
+    // FIXME: HACK to make buildoptions available to other packages than root
+    // see: https://github.com/ziglang/zig/issues/5375
+    const pkg_buildoptions = Pkg{
+        .name = "build_options", 
+        .path = switch (kc85_model) {
+            .KC85_2 => "zig-cache/kc852_build_options.zig",
+            .KC85_3 => "zig-cache/kc853_build_options.zig",
+            .KC85_4 => "zig-cache/kc854_build_options.zig"
+        },
+    };
+    const pkg_sokol = Pkg{
+        .name = "sokol",
+        .path = "src/sokol/sokol.zig"
+    };
+    const pkg_emu = Pkg{
+        .name = "emu",
+        .path = "src/emu/emu.zig", 
+        .dependencies = &[_]Pkg{ pkg_buildoptions}
+    };
+    const pkg_host = Pkg{
+        .name = "host",
+        .path = "src/host/host.zig",
+        .dependencies = &[_]Pkg{ pkg_sokol}
+    };
     exe.addPackage(pkg_sokol);
     exe.addPackage(pkg_emu);
     exe.addPackage(pkg_host);
@@ -33,7 +69,7 @@ fn addKC85(b: *Builder, target: CrossTarget, mode: Mode) void {
     if (b.args) |args| {
         run_cmd.addArgs(args);
     }
-    const run_step = b.step("run", "Run the app");
+    const run_step = b.step("run-" ++ name, "Run " ++ name);
     run_step.dependOn(&run_cmd.step);
 }
 
