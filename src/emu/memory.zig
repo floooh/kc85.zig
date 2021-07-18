@@ -155,7 +155,7 @@ fn map(self: *Memory, bank_index: usize, addr: u16, size: usize, read: ?[]const 
         else {
             bank.write = null;
         }
-        updatePage(self, offset >> page_shift);
+        updatePage(self, page_index);
     }
 }
 
