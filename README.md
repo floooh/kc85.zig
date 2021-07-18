@@ -21,3 +21,11 @@ Run the much more thorough ZEXDOC and ZEXALL tests (tests/z80zex.zig):
 > zig build z80zexdoc -Drelease-safe=true
 > zig build z80zexall -Drelease-safe=true
 ```
+
+WIP emulators:
+
+```sh
+> zig build run-kc852 -Drelease-fast=true
+> zig build run-kc853 -Drelease-fast=true
+> zig build run-kc854 -Drelease-fast=true
+```
