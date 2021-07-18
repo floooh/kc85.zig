@@ -18,7 +18,7 @@ const BorderHeight = 10;
 pub const WindowWidth = 2 * KC85DisplayWidth + 2 * BorderWidth;
 pub const WindowHeight = 2 * KC85DisplayHeight + 2 * BorderHeight;
 
-pub var pixel_buffer: [KC85NumPixels]u32 = [_]u32{ 0xFFFF00FF }**KC85NumPixels;
+pub var pixel_buffer: [KC85NumPixels]u32 = undefined;
 
 const state = struct {
     const upscale = struct {
@@ -119,9 +119,9 @@ pub fn setup() void {
 
 pub fn draw() void {
     // copy emulator pixel data into upscaling source texture
-//    var image_data = sg.ImageData{ };
-//    image_data.subimage[0][0] = sg.asRange(pixel_buffer);
-//    sg.updateImage(state.upscale.bind.fs_images[0], image_data);
+    var image_data = sg.ImageData{ };
+    image_data.subimage[0][0] = sg.asRange(pixel_buffer);
+    sg.updateImage(state.upscale.bind.fs_images[0], image_data);
 
     // upscale the source texture 2x with nearest filtering
     sg.beginPass(state.upscale.pass, state.upscale.pass_action);

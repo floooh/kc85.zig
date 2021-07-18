@@ -21,6 +21,7 @@ const kc85_model: Model = switch (build_options.kc85_model) {
 pub fn main() !void {
     // setup KC85 emulator instance
     kc85 = try KC85.create(std.heap.c_allocator, .{
+        .pixel_buffer = gfx.pixel_buffer[0..],
         .rom_caos22  = @embedFile("roms/caos22.852"),
         .rom_caos31  = @embedFile("roms/caos31.853"),
         .rom_caos42c = @embedFile("roms/caos42c.854"),
@@ -56,13 +57,6 @@ export fn init() void {
 export fn frame() void {
     const frame_time_us = time.frameTime();
     kc85.exec(frame_time_us);
-    
-    // debug
-    const sdtx = @import("sokol").debugtext;
-    sdtx.canvas(sapp.widthf() * 0.5, sapp.widthf() * 0.5);
-    sdtx.print("PC: {X}\n", .{ kc85.cpu.PC });
-    sdtx.print("(A800): {X}\n", .{ kc85.mem.r8(0xA800) });
-
     gfx.draw();
 }
 

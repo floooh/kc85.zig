@@ -278,7 +278,7 @@ const PatchFunc = fn(snapshot_name: []const u8) void;
 
 // config parameter for KC85.init()
 const Desc = struct {
-    pixel_buffer: ?[]u32 = null,    // must have room for 320x256 pixels
+    pixel_buffer: []u32,    // must have room for 320x256 pixels
 
     audio_func:         ?AudioFunc = null,
     audio_num_samples:  usize = default_num_audio_samples,
@@ -309,15 +309,15 @@ pub const KC85 = struct {
     io86:  u8,                  // byte latch on port 0x86, only on KC85/4
     blink_flag: bool,           // foreground color blinking flag toggled by CTC
 
-    h_count: u32,               // video timing generator counter
-    v_count: u32,
+    h_count: usize,             // video timing generator counter
+    v_count: usize,
 
     clk: Clock,
     mem: Memory,
     // FIXME: kbd
     // FIXME: expansion system
 
-    pixel_buffer:   ?[]u32,
+    pixel_buffer:   []u32,
     audio_func:     ?AudioFunc,
     num_samples:    usize,
     sample_pos:     usize,
@@ -355,11 +355,21 @@ pub const KC85 = struct {
 
 const impl = struct {
     
+// pseudo-rand helper function
+fn xorshift32(r: u32) u32 {
+    var x = r;
+    x ^= x<<13;
+    x ^= x>>17;
+    x ^= x<<5;
+    return x;
+}
+    
 fn create( allocator: *std.mem.Allocator, desc: Desc) !*KC85 {
     var sys = try allocator.create(KC85);
     sys.* = .{
         .model = model,
         .cpu = .{
+            // execution on powerup starts at address 0xF000
             .PC = 0xF000,
         },
         .ctc = .{}, 
@@ -406,6 +416,21 @@ fn create( allocator: *std.mem.Allocator, desc: Desc) !*KC85 {
         .allocator = allocator,
     };
     
+    // on KC85/2 and KC85/3, memory is initially filled with random noise
+    if (model != .KC85_4) {
+        var r: u32 = 0x6D98302B;
+        for (sys.ram) |*ptr| {
+            r = xorshift32(r);
+            ptr.* = @truncate(u8, r);
+        }
+        for (sys.irm) |*ptr| {
+            r = xorshift32(r);
+            ptr.* = @truncate(u8, r);
+        }
+    }
+    
+    // FIXME: setup expansion system
+
     // setup initial memory map
     updateMemoryMapping(sys);
     
@@ -494,7 +519,7 @@ fn tick_func(num_ticks: u64, pins_in: u64, userdata: usize) u64 {
         }
     }
         
-    // FIXME: tick video
+    pins = tickVideo(sys, num_ticks, pins);
 
     // FIXME: tick CTC and beepers
 
@@ -591,6 +616,121 @@ fn pioOut(port: u1, data: u8, userdata: usize) void {
         z80pio.PB => sys.pio_b = data,
     }
     updateMemoryMapping(sys);
+}
+
+// foreground colors
+const fg_pal = [16]u32 {
+    0xFF000000,     // black
+    0xFFFF0000,     // blue
+    0xFF0000FF,     // red
+    0xFFFF00FF,     // magenta
+    0xFF00FF00,     // green
+    0xFFFFFF00,     // cyan
+    0xFF00FFFF,     // yellow
+    0xFFFFFFFF,     // white
+    0xFF000000,     // black #2
+    0xFFFF00A0,     // violet
+    0xFF00A0FF,     // orange
+    0xFFA000FF,     // purple
+    0xFFA0FF00,     // blueish green
+    0xFFFFA000,     // greenish blue
+    0xFF00FFA0,     // yellow-green
+    0xFFFFFFFF,     // white #2
+};
+
+// background colors
+const bg_pal = [8]u32 {
+    0xFF000000,      // black
+    0xFFA00000,      // dark-blue
+    0xFF0000A0,      // dark-red
+    0xFFA000A0,      // dark-magenta
+    0xFF00A000,      // dark-green
+    0xFFA0A000,      // dark-cyan
+    0xFF00A0A0,      // dark-yellow
+    0xFFA0A0A0,      // gray
+};
+
+// KC85/4 hicolor palette
+const hi_pal = [4]const u32 {
+    0xFF000000,     // black
+    0xFF0000FF,     // red
+    0xFFFFFF00,     // cyan
+    0xFFFFFFFF,     // white
+};
+
+fn decode8Pixels(dst: []u32, pixel_bits: u8, color_bits: u8, force_bg: bool) void {
+    // select foreground- and background color:
+    // bit 7: blinking
+    // bits 6..3: foreground color
+    // bits 2..0: background color
+    //
+    // index 0 is background color, index 1 is foreground color
+    const bg_index = color_bits & 0x7;
+    const fg_index = (color_bits >> 3) & 0xF;
+    const bg = bg_pal[bg_index];
+    const fg = if (force_bg) bg else fg_pal[fg_index];
+    dst[0] = if (0 != (pixel_bits & 0x80)) fg else bg;
+    dst[1] = if (0 != (pixel_bits & 0x40)) fg else bg;
+    dst[2] = if (0 != (pixel_bits & 0x20)) fg else bg;
+    dst[3] = if (0 != (pixel_bits & 0x10)) fg else bg;
+    dst[4] = if (0 != (pixel_bits & 0x08)) fg else bg;
+    dst[5] = if (0 != (pixel_bits & 0x04)) fg else bg;
+    dst[6] = if (0 != (pixel_bits & 0x02)) fg else bg;
+    dst[7] = if (0 != (pixel_bits & 0x01)) fg else bg;   
+}
+
+fn tickVideoKC85_2_3(sys: *KC85, num_ticks: u64, in_pins: u64) u64 {
+    // FIXME: display needling
+    var pins = in_pins;
+    const blink_bg = sys.blink_flag and (0 != (sys.pio_b & PIOBBits.BLINK_ENABLED));
+    var tick: u64 = 0;
+    while (tick < num_ticks): (tick += 1) {
+        // every 2 ticks 8 pixels are decoded
+        if (0 != (sys.h_count & 1)) {
+            // decode visible 8-pixel group
+            const x: usize = sys.h_count / 2;
+            const y: usize = sys.v_count;
+            if ((y < 256) and (x < 40)) {
+                const dst_index = y * 320 + x * 8;
+                var dst = sys.pixel_buffer[dst_index .. dst_index+8];
+                var pixel_offset: usize = undefined;
+                var color_offset: usize = undefined;
+                if (x < 0x20) {
+                    // left 256x256 area
+                    pixel_offset = x | (((y>>2)&0x3)<<5) | ((y&0x3)<<7) | (((y>>4)&0xF)<<9);
+                    color_offset = x | (((y>>2)&0x3f)<<5);
+                }
+                else {
+                    // right 64x256 area
+                    pixel_offset = 0x2000 + ((x&0x7) | (((y>>4)&0x3)<<3) | (((y>>2)&0x3)<<5) | ((y&0x3)<<7) | (((y>>6)&0x3)<<9));
+                    color_offset = 0x0800 + ((x&0x7) | (((y>>4)&0x3)<<3) | (((y>>2)&0x3)<<5) | (((y>>6)&0x3)<<7));
+                }
+                const pixel_bits = sys.irm[pixel_offset];
+                const color_bits = sys.irm[0x2800 + color_offset];
+                const force_bg = blink_bg and (0 != (color_bits & 0x80));
+                decode8Pixels(dst, pixel_bits, color_bits, force_bg);
+            }
+        }
+        // scanline and frame update
+        sys.h_count += 1;
+        if (sys.h_count >= 112) {
+            sys.h_count = 0;
+            sys.v_count += 1;
+            if (sys.v_count >= 321) {
+                sys.v_count = 0;
+                // vertical sync, trigger CTC CLKTRG2 input for video blinking effect
+                pins |= z80ctc.CLKTRG2;
+            }
+        }
+    }
+    return pins;
+}
+
+fn tickVideo(sys: *KC85, num_ticks: u64, pins: u64) u64 {
+    return switch (model) {
+        .KC85_2, .KC85_3 => tickVideoKC85_2_3(sys, num_ticks, pins),
+        .KC85_4          => unreachable,
+    };
 }
 
 }; // impl
