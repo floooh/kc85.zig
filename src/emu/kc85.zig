@@ -513,8 +513,27 @@ fn tick_func(num_ticks: u64, pins_in: u64, userdata: usize) u64 {
             }
             else {
                 // we're in IO port range 0x80..0x87
-
-                // FIXME: expansion port and KC85/4 ports
+                const data = z80.getData(pins);
+                switch (pins & (z80.A2|z80.A1|z80.A0)) {
+                    0x00 => {
+                        // FIXME: expansion system
+                    },
+                    0x04 => if (model == .KC85_4) {
+                        // KC85/4 specific port 0x84 
+                        if (0 != (pins & z80.WR)) {
+                            sys.io84 = data;
+                            updateMemoryMapping(sys);
+                        }
+                    },
+                    0x06 => if (model == .KC85_4) {
+                        // KC85/4 specific port 0x86
+                        if (0 != (pins & z80.WR)) {
+                            sys.io86 = data;
+                            updateMemoryMapping(sys);
+                        }
+                    },
+                    else => { }
+                }
             }
         }
     }
@@ -679,7 +698,23 @@ fn decode8Pixels(dst: []u32, pixel_bits: u8, color_bits: u8, force_bg: bool) voi
     dst[7] = if (0 != (pixel_bits & 0x01)) fg else bg;   
 }
 
-fn tickVideoKC85_2_3(sys: *KC85, num_ticks: u64, in_pins: u64) u64 {
+fn tickVideoCounters(sys: *KC85, in_pins: u64) u64 {
+    var pins = in_pins;
+    const h_width = if (model == .KC85_4) 113 else 112;
+    sys.h_count += 1;
+    if (sys.h_count >= h_width) {
+        sys.h_count = 0;
+        sys.v_count += 1;
+        if (sys.v_count >= 312) {
+            sys.v_count = 0;
+            // vertical sync, trigger CTC CLKTRG2 input for video blinking effect
+            pins |= z80ctc.CLKTRG2;
+        }
+    }
+    return pins;
+}
+
+fn tickVideoKC8523(sys: *KC85, num_ticks: u64, in_pins: u64) u64 {
     // FIXME: display needling
     var pins = in_pins;
     const blink_bg = sys.blink_flag and (0 != (sys.pio_b & PIOBBits.BLINK_ENABLED));
@@ -688,11 +723,11 @@ fn tickVideoKC85_2_3(sys: *KC85, num_ticks: u64, in_pins: u64) u64 {
         // every 2 ticks 8 pixels are decoded
         if (0 != (sys.h_count & 1)) {
             // decode visible 8-pixel group
-            const x: usize = sys.h_count / 2;
-            const y: usize = sys.v_count;
+            const x = sys.h_count / 2;
+            const y = sys.v_count;
             if ((y < 256) and (x < 40)) {
                 const dst_index = y * 320 + x * 8;
-                var dst = sys.pixel_buffer[dst_index .. dst_index+8];
+                const dst = sys.pixel_buffer[dst_index .. dst_index+8];
                 var pixel_offset: usize = undefined;
                 var color_offset: usize = undefined;
                 if (x < 0x20) {
@@ -711,25 +746,53 @@ fn tickVideoKC85_2_3(sys: *KC85, num_ticks: u64, in_pins: u64) u64 {
                 decode8Pixels(dst, pixel_bits, color_bits, force_bg);
             }
         }
-        // scanline and frame update
-        sys.h_count += 1;
-        if (sys.h_count >= 112) {
-            sys.h_count = 0;
-            sys.v_count += 1;
-            if (sys.v_count >= 321) {
-                sys.v_count = 0;
-                // vertical sync, trigger CTC CLKTRG2 input for video blinking effect
-                pins |= z80ctc.CLKTRG2;
-            }
-        }
+        pins = tickVideoCounters(sys, pins);
     }
     return pins;
 }
 
+fn tickVideoKC854Std(sys: *KC85, num_ticks: u64, in_pins: u64) u64 {
+    var pins = in_pins;
+    const blink_bg = sys.blink_flag and (0 != (sys.pio_b & PIOBBits.BLINK_ENABLED));
+    var tick: u64 = 0;
+    while (tick < num_ticks): (tick += 1) {
+        if (0 != (sys.h_count & 1)) {
+            const x = sys.h_count / 2;
+            const y = sys.v_count;
+            if ((y < 256) and (x < 40)) {
+                const dst_index = y * 320 + x * 8;
+                const dst = sys.pixel_buffer[dst_index .. dst_index+8];
+                const irm_bank_index: usize = (sys.io84 & IO84Bits.SEL_VIEW_IMG) * 2;
+                const irm_offset: usize = irm_bank_index * 0x4000 + x * 256 + y;
+                const pixel_bits = sys.irm[irm_offset];
+                const color_bits = sys.irm[irm_offset + 0x4000];
+                const force_bg = blink_bg and (0 != (color_bits & 0x80));
+                decode8Pixels(dst, pixel_bits, color_bits, force_bg);
+            }
+        }
+        pins = tickVideoCounters(sys, pins);
+    }
+    return pins;
+}
+
+fn tickVideoKC854HiColor(sys: *KC85, num_ticks: u64, pins: u64) u64 {
+    // FIXME
+    return pins;
+}
+
+fn tickVideoKC854(sys: *KC85, num_ticks: u64, pins: u64) u64 {
+    if (0 != (sys.io84 & IO84Bits.HICOLOR)) {
+        return tickVideoKC854Std(sys, num_ticks, pins);
+    }
+    else {
+        return tickVideoKC854HiColor(sys, num_ticks, pins);
+    }
+}
+
 fn tickVideo(sys: *KC85, num_ticks: u64, pins: u64) u64 {
     return switch (model) {
-        .KC85_2, .KC85_3 => tickVideoKC85_2_3(sys, num_ticks, pins),
-        .KC85_4          => unreachable,
+        .KC85_2, .KC85_3 => tickVideoKC8523(sys, num_ticks, pins),
+        .KC85_4 => tickVideoKC854(sys, num_ticks, pins),
     };
 }
 
