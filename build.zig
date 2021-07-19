@@ -14,22 +14,22 @@ const KC85Model = enum {
 pub fn build(b: *Builder) void {
     const target = b.standardTargetOptions(.{});
     const mode = b.standardReleaseOptions();
-    addKC85(b, target, mode, .KC85_2);
-    addKC85(b, target, mode, .KC85_3);
-    addKC85(b, target, mode, .KC85_4);
+    const sokol = buildSokol(b, target, mode, "");
+    addKC85(b, sokol, target, mode, .KC85_2);
+    addKC85(b, sokol, target, mode, .KC85_3);
+    addKC85(b, sokol, target, mode, .KC85_4);
     addZ80Test(b, target, mode);
     addZ80ZEXDOC(b, target, mode);
     addZ80ZEXALL(b, target, mode);
     addTests(b);
 }
 
-fn addKC85(b: *Builder, target: CrossTarget, mode: Mode, comptime kc85_model: KC85Model) void {
+fn addKC85(b: *Builder, sokol: *LibExeObjStep, target: CrossTarget, mode: Mode, comptime kc85_model: KC85Model) void {
     const name = switch (kc85_model) {
         .KC85_2 => "kc852",
         .KC85_3 => "kc853",
         .KC85_4 => "kc854"
     };
-    const sokol = buildSokol(b, "");
     const exe = b.addExecutable(name, "src/main.zig");
     exe.addBuildOption(KC85Model, "kc85_model", kc85_model);
     
@@ -128,10 +128,11 @@ fn addZ80ZEXALL(b: *Builder, target: CrossTarget, mode: Mode) void {
     run_step.dependOn(&run_cmd.step);
 }
 
-fn buildSokol(b: *Builder, comptime prefix_path: []const u8) *LibExeObjStep {
+fn buildSokol(b: *Builder, target: CrossTarget, mode: Mode, comptime prefix_path: []const u8) *LibExeObjStep {
     const lib = b.addStaticLibrary("sokol", null);
+    lib.setTarget(target);
+    lib.setBuildMode(mode);
     lib.linkLibC();
-    lib.setBuildMode(b.standardReleaseOptions());
     const sokol_path = prefix_path ++ "src/sokol/c/";
     const csources = [_][]const u8 {
         "sokol_app.c",
