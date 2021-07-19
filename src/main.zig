@@ -86,18 +86,16 @@ export fn input(event: ?*const sapp.Event) void {
         },
         .KEY_DOWN, .KEY_UP => {
             const key: u8 = switch (ev.key_code) {
-                // FIXME: the @as() is weird, but otherwise there's an error
-                // values of type 'comptime_int' must be comptime known
-                .SPACE      => @as(u8, if (shift) 0x5B else 0x20),  // 0x5B: inverted space, 0x20: space
+                .SPACE      => 0x20,
                 .ENTER      => 0x0D,
                 .RIGHT      => 0x09,
                 .LEFT       => 0x08,
                 .DOWN       => 0x0A,
                 .UP         => 0x0B,
                 .HOME       => 0x10,
-                .INSERT     => @as(u8, if (shift) 0x0C else 0x1A),   // 0x0C: CLS, 0x1A: INS
-                .BACKSPACE  => @as(u8, if (shift) 0x0C else 0x01),   // 0x0C: CLS, 0x01: DEL
-                .ESCAPE     => @as(u8, if (shift) 0x13 else 0x03),   // 0x13: STP, 0x03: BRK
+                .INSERT     => 0x1A,
+                .BACKSPACE  => 0x01,
+                .ESCAPE     => 0x03,
                 .F1         => 0xF1,
                 .F2         => 0xF2,
                 .F3         => 0xF3,
