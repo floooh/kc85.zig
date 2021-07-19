@@ -212,6 +212,7 @@ const z80pio = @import("z80pio.zig");
 const z80ctc = @import("z80ctc.zig");
 const Memory = @import("memory.zig").Memory;
 const Clock  = @import("clock.zig").Clock;
+const KeyBuffer = @import("keybuf.zig").KeyBuffer;
 
 const model: Model = switch (@import("build_options").kc85_model) {
     .KC85_2 => .KC85_2,
@@ -314,7 +315,7 @@ pub const KC85 = struct {
 
     clk: Clock,
     mem: Memory,
-    // FIXME: kbd
+    kbd: KeyBuffer,
     // FIXME: expansion system
 
     pixel_buffer:   []u32,
@@ -348,6 +349,14 @@ pub const KC85 = struct {
     // run emulation for given number of microseconds
     pub fn exec(sys: *KC85, micro_seconds: u32) void {
         impl.exec(sys, micro_seconds);
+    }
+    // send a key down
+    pub fn keyDown(sys: *KC85, key_code: u8) void {
+        impl.keyDown(sys, key_code);
+    }
+    // send a key up
+    pub fn keyUp(sys: *KC85, key_code: u8) void {
+        impl.keyUp(sys, key_code);
     }
 };
 
@@ -385,6 +394,9 @@ fn create( allocator: *std.mem.Allocator, desc: Desc) !*KC85 {
         .h_count = 0,
         .v_count = 0,
         .mem = .{ },
+        .kbd = .{
+            .sticky_duration = 2 * 16667,
+        },
         .clk = .{
             .freq_hz = switch (model) {
                 .KC85_2, .KC85_3 => 1_750_000,
@@ -449,7 +461,8 @@ fn exec(sys: *KC85, micro_secs: u32) void {
     const ticks_to_run = sys.clk.ticksToRun(micro_secs);
     const ticks_executed = sys.cpu.exec(ticks_to_run, z80.TickFunc{ .func=tickFunc, .userdata=@ptrToInt(sys) });
     sys.clk.ticksExecuted(ticks_executed);
-    // FIXME: handle keyboard
+    sys.kbd.update(micro_secs);
+    handleKeyboard(sys);
 }
 
 fn tickFunc(num_ticks: u64, pins_in: u64, userdata: usize) u64 {
@@ -814,6 +827,105 @@ fn tickVideo(sys: *KC85, num_ticks: u64, pins: u64) u64 {
         .KC85_2, .KC85_3 => tickVideoKC8523(sys, num_ticks, pins),
         .KC85_4 => tickVideoKC854(sys, num_ticks, pins),
     };
+}
+
+fn keyDown(sys: *KC85, key_code: u8) void {
+    sys.kbd.keyDown(key_code);
+}
+
+fn keyUp(sys: *KC85, key_code: u8) void {
+    sys.kbd.keyUp(key_code);
+}
+
+// helper functions for keyboard handler to directly set and clear bits in memory
+fn clearBits(sys: *KC85, addr: u16, mask: u8) void {
+    sys.mem.w8(addr, sys.mem.r8(addr) & ~mask);
+}
+
+fn setBits(sys: *KC85, addr: u16, mask: u8) void {
+    sys.mem.w8(addr, sys.mem.r8(addr) | mask);
+}
+
+fn handleKeyboard(sys: *KC85) void {
+    // KEYBOARD INPUT
+    //
+    // this is a simplified version of the PIO-B interrupt service routine
+    // which is normally triggered when the serial keyboard hardware
+    // sends a new pulse (for details, see
+    // https://github.com/floooh/yakc/blob/master/misc/kc85_3_kbdint.md )
+    //
+    // we ignore the whole tricky serial decoding and patch the
+    // keycode directly into the right memory locations
+    //
+    const ready_bit:    u8 = (1<<0);
+    const timeout_bit:  u8 = (1<<3);
+    const repeat_bit:   u8 = (1<<4);
+    const short_repeat_count: u8 = 8;
+    const long_repeat_count: u8 = 60;
+
+    // don't do anything if interrupts are disabled, IX might point
+    // to the wrong base addess in this case!
+    if (!sys.cpu.iff1) {
+        return;
+    }
+    
+    // get the most recently pressed key
+    const key_code = sys.kbd.mostRecentKey();
+    
+    // system base address, where CAOS stores important system variables
+    // (like the currently pressed key)
+    const ix = sys.cpu.IX;
+    const addr_keystatus = ix +% 0x8;
+    const addr_keycode   = ix +% 0xD;
+    const addr_keyrepeat = ix +% 0xA;
+
+    if (0 == key_code) {
+        // if keycode is 0, this basically means the CTC3 timeout was hit
+        setBits(sys, addr_keystatus, timeout_bit);
+        // clear current key code
+        sys.mem.w8(addr_keycode, 0);
+    }
+    else {
+        // a valid keycode has been received, clear the timeout bit
+        clearBits(sys, addr_keystatus, timeout_bit);
+
+        // check for key repeat
+        if (key_code != sys.mem.r8(addr_keycode)) {
+            // no key repeat, write new keycode
+            sys.mem.w8(addr_keycode, key_code);
+            // clear the key-repeat bit and set the key-ready bit
+            clearBits(sys, addr_keystatus, repeat_bit);
+            setBits(sys, addr_keystatus, ready_bit);
+            // clear the repeat counter
+            sys.mem.w8(addr_keyrepeat, 0);
+        }
+        else {
+            // handle key repeat
+            // increment repeat-pause counter
+            sys.mem.w8(addr_keyrepeat, sys.mem.r8(addr_keyrepeat) +% 1);
+            if (0 != (sys.mem.r8(addr_keystatus) & repeat_bit)) {
+                // this is a followup, short key repeat
+                if (sys.mem.r8(addr_keyrepeat) < short_repeat_count) {
+                    // wait some more...
+                    return;
+                }
+            }
+            else {
+                // this is the first, long key repeat
+                if (sys.mem.r8(addr_keyrepeat) < long_repeat_count) {
+                    // wait some more...
+                    return;
+                }
+                else {
+                    // first key repeat pause over, set first-key-repeat flag
+                    setBits(sys, addr_keystatus, repeat_bit);
+                }
+            }
+            // key-repeat triggered, just set the key ready flag, and reset repeat count
+            setBits(sys, addr_keystatus, ready_bit);
+            sys.mem.w8(addr_keyrepeat, 0);
+        }
+    }
 }
 
 }; // impl

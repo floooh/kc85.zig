@@ -35,6 +35,7 @@ pub fn main() !void {
         .init_cb = init,
         .frame_cb = frame,
         .cleanup_cb = cleanup,
+        .event_cb = input,
         .width = gfx.WindowWidth,
         .height = gfx.WindowHeight,
         .icon = .{
@@ -62,4 +63,63 @@ export fn frame() void {
 
 export fn cleanup() void {
     gfx.shutdown();
+}
+
+export fn input(event: ?*const sapp.Event) void {
+    const ev = event.?;
+    var shift = 0 != (ev.modifiers & sapp.modifier_shift);
+    switch (ev.type) {
+        .CHAR => {
+            var char = ev.char_code;
+            if ((char > 0x20) and (char < 0x7F)) {
+                // need to invert case
+                if ((char >= 'A') and (char <= 'Z')) {
+                    char |= 0x20;
+                }
+                else if ((char >= 'a') and (char <= 'z')) {
+                    char &= ~@as(u8,0x20);
+                }
+                const key = @truncate(u8, char);
+                kc85.keyDown(key);
+                kc85.keyUp(key);
+            }
+        },
+        .KEY_DOWN, .KEY_UP => {
+            const key: u8 = switch (ev.key_code) {
+                // FIXME: the @as() is weird, but otherwise there's an error
+                // values of type 'comptime_int' must be comptime known
+                .SPACE      => @as(u8, if (shift) 0x5B else 0x20),  // 0x5B: inverted space, 0x20: space
+                .ENTER      => 0x0D,
+                .RIGHT      => 0x09,
+                .LEFT       => 0x08,
+                .DOWN       => 0x0A,
+                .UP         => 0x0B,
+                .HOME       => 0x10,
+                .INSERT     => @as(u8, if (shift) 0x0C else 0x1A),   // 0x0C: CLS, 0x1A: INS
+                .BACKSPACE  => @as(u8, if (shift) 0x0C else 0x01),   // 0x0C: CLS, 0x01: DEL
+                .ESCAPE     => @as(u8, if (shift) 0x13 else 0x03),   // 0x13: STP, 0x03: BRK
+                .F1         => 0xF1,
+                .F2         => 0xF2,
+                .F3         => 0xF3,
+                .F4         => 0xF4,
+                .F5         => 0xF5,
+                .F6         => 0xF6,
+                .F7         => 0xF7,
+                .F8         => 0xF8,
+                .F9         => 0xF9,
+                .F10        => 0xFA,
+                .F11        => 0xFB,
+                .F12        => 0xFC,
+                else        => 0,
+            };
+            if (0 != key) {
+                switch (ev.type) {
+                    .KEY_DOWN => kc85.keyDown(key),
+                    .KEY_UP => kc85.keyUp(key),
+                    else => unreachable,
+                }
+            }
+        },
+        else => { },
+    }
 }
