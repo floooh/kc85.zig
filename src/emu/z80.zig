@@ -246,7 +246,7 @@ pub const CPU = struct {
     PC: u16 = 0x0000,
     I:  u8 = 0x00,
     R:  u8 = 0x00,
-    IM: u8 = 0x00,
+    IM: u2 = 0x00,
 
     ex: [NumRegs16]u16 = [_]u16{0xFFFF} ** NumRegs16,    // shadow registers
     
@@ -278,6 +278,8 @@ fn exec(cpu: *CPU, num_ticks: u64, tick_func: TickFunc) u64 {
     cpu.ticks = 0;
     var running = true;
     while (running): (running = cpu.ticks < num_ticks) {
+
+        const pre_pins = cpu.pins;
 
         // fetch next opcode byte
         const op = fetch(cpu, tick_func);
@@ -372,15 +374,90 @@ fn exec(cpu: *CPU, num_ticks: u64, tick_func: TickFunc) u64 {
                 7 => opRSTy(cpu, y, tick_func),
             }
         }
-        // FIXME: interrupt handling here
+
+        // handle IRQ and NMI
+        const nmi: bool = 0 != ((cpu.pins & (cpu.pins ^ pre_pins)) & NMI);
+        const int: bool = cpu.iff1 and (0 != (cpu.pins & INT));
+        if (nmi or int) {
+            handleInterrupt(cpu, nmi, int, tick_func);
+        }
+
+        // clear IX/IY prefix flag and update enable-interrupt flags if last op was EI
         cpu.ixiy = 0;
         if (cpu.ei) {
             cpu.ei = false;
             cpu.iff1 = true;
             cpu.iff2 = true;
         }
+        cpu.pins &= ~INT;
     }
     return cpu.ticks;
+}
+
+// handle maskable and non-maskable interrupt requests
+fn handleInterrupt(cpu: *CPU, nmi: bool, int: bool, tick_func: TickFunc) void {
+    // clear IFF flags (disables interrupt)
+    cpu.iff1 = false;
+    if (int) {
+        cpu.iff2 = false;
+    }
+    // if in HALT state, continue
+    if (0 != (cpu.pins & HALT)) {
+        cpu.pins &= ~HALT;
+        cpu.PC +%= 1;
+    }
+    // put PC on address bus
+    cpu.pins = setAddr(cpu.pins, cpu.PC);
+    if (nmi) {
+        // non-maskable interrupt
+
+        // perform a dummy 5-tick (not 4!) opcode fetch, don't bump PC
+        tickWait(cpu, 5, M1|MREQ|RD, tick_func);
+        bumpR(cpu);
+        // put PC on stack
+        push16(cpu, cpu.PC, tick_func);
+        // jump to address 0x66
+        cpu.PC = 0x0066;
+        cpu.WZ = cpu.PC;
+    }
+    else {
+        // maskable interrupt
+
+        // interrupt acknowledge machine cycle, interrupt 
+        // controller is expected to put interrupt vector low byte
+        // on address bus
+        tickWait(cpu, 4, M1|IORQ, tick_func);
+        const int_vec = getData(cpu.pins);
+        bumpR(cpu);
+        tick(cpu, 2, 0, tick_func); // 2 filler ticks
+        switch (cpu.IM) {
+            0 => {
+                // interrupt mode 0 not supported
+            },
+            1 => {
+                // interrupt mode 1:
+                //  - put PC on stack
+                //  - load address 0x0038 into PC
+                push16(cpu, cpu.PC, tick_func);
+                cpu.PC = 0x0038;
+                cpu.WZ = cpu.PC;
+            },
+            2 => {
+                // interrupt mode 2:
+                //  - put PC on stack
+                //  - build interrupt vector address
+                //  - load interrupt service routine from interrupt vector into PC
+                push16(cpu, cpu.PC, tick_func);
+                var addr = (@as(u16, cpu.I)<<8) | (int_vec & 0xFE);
+                const z: u16 = memRead(cpu, addr, tick_func);
+                addr +%= 1;
+                const w: u16 = memRead(cpu, addr, tick_func);
+                cpu.PC = (w << 8) | z;
+                cpu.WZ = cpu.PC;
+            },
+            else => unreachable,
+        }
+    }
 }
 
 // ED-prefix decoding
@@ -595,6 +672,23 @@ fn imm8(cpu: *CPU, tick_func: TickFunc) u8 {
 // read the signed 8-bit address offset for IX/IX+d ops extended to unsigned 16-bit
 fn dimm8(cpu: *CPU, tick_func: TickFunc) u16 {
     return @bitCast(u16, @as(i16, @bitCast(i8, imm8(cpu, tick_func))));
+}
+
+// helper function to push 16 bit value on stack
+fn push16(cpu: *CPU, val: u16, tick_func: TickFunc) void {
+    cpu.SP -%= 1;
+    memWrite(cpu, cpu.SP, @truncate(u8, val>>8), tick_func);
+    cpu.SP -%= 1;
+    memWrite(cpu, cpu.SP, @truncate(u8, val), tick_func);
+}
+
+// helper function pop 16 bit value from stack
+fn pop16(cpu: *CPU, tick_func: TickFunc) u16 {
+    const l: u16 = memRead(cpu, cpu.SP, tick_func);
+    cpu.SP +%= 1;
+    const h: u16 = memRead(cpu, cpu.SP, tick_func);
+    cpu.SP +%= 1;
+    return (h<<8) | l;
 }
 
 // generate effective address for (HL), (IX+d), (IY+d) and put into cpu.WZ
@@ -954,19 +1048,13 @@ fn opLD_A_R(cpu: *CPU, tick_func: TickFunc) void {
 fn opPUSH_rp2(cpu: *CPU, p: u2, tick_func: TickFunc) void {
     tick(cpu, 1, 0, tick_func);     // 1 filler tick
     const val = load16AF(cpu, p);
-    cpu.SP -%= 1;
-    memWrite(cpu, cpu.SP, @truncate(u8, val>>8), tick_func);
-    cpu.SP -%= 1;
-    memWrite(cpu, cpu.SP, @truncate(u8, val), tick_func);
+    push16(cpu, val, tick_func);
 }
 
 // POP BC/DE/HL/AF/IX/IY
 fn opPOP_rp2(cpu: *CPU, p: u2, tick_func: TickFunc) void {
-    const l: u16 = memRead(cpu, cpu.SP, tick_func);
-    cpu.SP +%= 1;
-    const h: u16 = memRead(cpu, cpu.SP, tick_func);
-    cpu.SP +%= 1;
-    store16AF(cpu, p, (h<<8) | l);
+    const val = pop16(cpu, tick_func);
+    store16AF(cpu, p, val);
 }
 
 // EX DE,HL
@@ -1198,7 +1286,7 @@ fn opEI(cpu: *CPU) void {
 
 // IM
 fn opIM(cpu: *CPU, y: u3) void {
-    const im = [8]u8 { 0, 0, 1, 2, 0, 0, 1, 2 };
+    const im = [8]u2 { 0, 0, 1, 2, 0, 0, 1, 2 };
     cpu.IM = im[y];
 }
 
@@ -1255,11 +1343,7 @@ fn opDJNZ_d(cpu: *CPU, tick_func: TickFunc) void {
 fn opCALL_nn(cpu: *CPU, tick_func: TickFunc) void {
     const addr = imm16(cpu, tick_func);
     tick(cpu, 1, 0, tick_func); // filler tick
-    var sp = cpu.SP -% 1;
-    memWrite(cpu, sp, @truncate(u8, cpu.PC>>8), tick_func);
-    sp -%= 1;
-    memWrite(cpu, sp, @truncate(u8, cpu.PC), tick_func);
-    cpu.SP = sp;
+    push16(cpu, cpu.PC, tick_func);
     cpu.PC = addr;
 }
 
@@ -1268,24 +1352,14 @@ fn opCALL_cc_nn(cpu: *CPU, y: u3, tick_func: TickFunc) void {
     const addr = imm16(cpu, tick_func);
     if (cc(cpu.regs[F], y)) {
         tick(cpu, 1, 0, tick_func); // filler tick
-        var sp = cpu.SP -% 1;
-        memWrite(cpu, sp, @truncate(u8, cpu.PC>>8), tick_func);
-        sp -%= 1;
-        memWrite(cpu, sp, @truncate(u8, cpu.PC), tick_func);
-        cpu.SP = sp;
+        push16(cpu, cpu.PC, tick_func);
         cpu.PC = addr;
     }
 }
 
 // RET
 fn opRET(cpu: *CPU, tick_func: TickFunc) void {
-    var sp = cpu.SP;
-    const l: u16 = memRead(cpu, sp, tick_func);
-    sp +%= 1;
-    const h: u16 = memRead(cpu, sp, tick_func);
-    sp +%= 1;
-    cpu.SP = sp;
-    cpu.PC = (h<<8) | l;
+    cpu.PC = pop16(cpu, tick_func);
     cpu.WZ = cpu.PC;
 }
 
@@ -1295,7 +1369,8 @@ fn opRETNI(cpu: *CPU, tick_func: TickFunc) void {
     // copied into IFF1 in RETI, not just RETN, and RETI and RETN
     // are in fact identical
     cpu.pins |= RETI;
-    opRET(cpu, tick_func);
+    cpu.PC = pop16(cpu, tick_func);
+    cpu.WZ = cpu.PC;
     cpu.iff1 = cpu.iff2;
 }
 
@@ -1303,13 +1378,7 @@ fn opRETNI(cpu: *CPU, tick_func: TickFunc) void {
 fn opRET_cc(cpu: *CPU, y: u3, tick_func: TickFunc) void {
     tick(cpu, 1, 0, tick_func); // filler tick
     if (cc(cpu.regs[F], y)) {
-        var sp = cpu.SP;
-        const l: u16 = memRead(cpu, sp, tick_func);
-        sp +%= 1;
-        const h: u16 = memRead(cpu, sp, tick_func);
-        sp +%= 1;
-        cpu.SP = sp;
-        cpu.PC = (h<<8) | l;
+        cpu.PC = pop16(cpu, tick_func);
         cpu.WZ = cpu.PC;
     }
 }
@@ -1468,11 +1537,7 @@ fn opOUTI_OUTD_OTIR_OTDR(cpu: *CPU, y: u3, tick_func: TickFunc) void {
 // RST y*8
 fn opRSTy(cpu: *CPU, y: u3, tick_func: TickFunc) void {
     tick(cpu, 1, 0, tick_func);    // filler tick
-    var sp = cpu.SP -% 1;
-    memWrite(cpu, sp, @truncate(u8, cpu.PC >> 8), tick_func);
-    sp -%= 1;
-    memWrite(cpu, sp, @truncate(u8, cpu.PC), tick_func);
-    cpu.SP = sp;
+    push16(cpu, cpu.PC, tick_func);
     cpu.PC = @as(u16, y) * 8; 
     cpu.WZ = cpu.WZ;
 }
