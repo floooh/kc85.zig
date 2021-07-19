@@ -369,7 +369,7 @@ fn exec(cpu: *CPU, num_ticks: u64, tick_func: TickFunc) u64 {
                     }
                 },
                 6 => opALU_n(cpu, y, tick_func),
-                7 => unreachable,   // FIXME: RST
+                7 => opRSTy(cpu, y, tick_func),
             }
         }
         // FIXME: interrupt handling here
@@ -409,7 +409,7 @@ fn opED_prefix(cpu: *CPU, tick_func: TickFunc) void {
                 1 => opLD_rp_inn(cpu, p, tick_func),
             },
             4 => opNEG(cpu),
-            5 => unreachable,   // FIXME: RETN/RETI
+            5 => opRETNI(cpu, tick_func),
             6 => opIM(cpu, y),
             7 => switch(y) {
                 0 => opLD_I_A(cpu, tick_func),
@@ -438,9 +438,9 @@ fn opED_prefix(cpu: *CPU, tick_func: TickFunc) void {
                 4...7 => opOUTI_OUTD_OTIR_OTDR(cpu, y, tick_func),
                 else => { }, // NONI + NOP
             },
-            else => { },   // NONI + NOP
+            else => { }, // NONI + NOP
         },
-        else => { },        // 0, 3 -> NONI + NOP
+        else => { }, // 0, 3 -> NONI + NOP
     }
 }
 
@@ -1289,6 +1289,16 @@ fn opRET(cpu: *CPU, tick_func: TickFunc) void {
     cpu.WZ = cpu.PC;
 }
 
+// RETN/RETI
+fn opRETNI(cpu: *CPU, tick_func: TickFunc) void {
+    // NOTE: according to Undocumented Z80 Documented, IFF2 is also 
+    // copied into IFF1 in RETI, not just RETN, and RETI and RETN
+    // are in fact identical
+    cpu.pins |= RETI;
+    opRET(cpu, tick_func);
+    cpu.iff1 = cpu.iff2;
+}
+
 // RET_cc
 fn opRET_cc(cpu: *CPU, y: u3, tick_func: TickFunc) void {
     tick(cpu, 1, 0, tick_func); // filler tick
@@ -1454,6 +1464,18 @@ fn opOUTI_OUTD_OTIR_OTDR(cpu: *CPU, y: u3, tick_func: TickFunc) void {
         tick(cpu, 5, 0, tick_func); // filler ticks
     }
 }  
+
+// RST y*8
+fn opRSTy(cpu: *CPU, y: u3, tick_func: TickFunc) void {
+    tick(cpu, 1, 0, tick_func);    // filler tick
+    var sp = cpu.SP -% 1;
+    memWrite(cpu, sp, @truncate(u8, cpu.PC >> 8), tick_func);
+    sp -%= 1;
+    memWrite(cpu, sp, @truncate(u8, cpu.PC), tick_func);
+    cpu.SP = sp;
+    cpu.PC = @as(u16, y) * 8; 
+    cpu.WZ = cpu.WZ;
+}
 
 // flag computation functions
 fn szFlags(val: u64) u8 {
