@@ -377,7 +377,7 @@ fn create( allocator: *std.mem.Allocator, desc: Desc) !*KC85 {
             .in_func = .{ .func = pioIn, .userdata = @ptrToInt(sys) },
             .out_func = .{ .func = pioOut, .userdata = @ptrToInt(sys) },
         },
-        .pio_a = PIOABits.RAM | PIOABits.RAM_RO | PIOABits.IRM | PIOABits.CAOS_ROM,
+        .pio_a = PIOABits.RAM | PIOABits.RAM_RO | PIOABits.IRM | PIOABits.CAOS_ROM, // initial memory map
         .pio_b = 0,
         .io84 = 0,
         .io86 = 0,
@@ -447,12 +447,12 @@ fn reset(sys: *KC85) void {
 
 fn exec(sys: *KC85, micro_secs: u32) void {
     const ticks_to_run = sys.clk.ticksToRun(micro_secs);
-    const ticks_executed = sys.cpu.exec(ticks_to_run, z80.TickFunc{ .func=tick_func, .userdata=@ptrToInt(sys) });
+    const ticks_executed = sys.cpu.exec(ticks_to_run, z80.TickFunc{ .func=tickFunc, .userdata=@ptrToInt(sys) });
     sys.clk.ticksExecuted(ticks_executed);
     // FIXME: handle keyboard
 }
 
-fn tick_func(num_ticks: u64, pins_in: u64, userdata: usize) u64 {
+fn tickFunc(num_ticks: u64, pins_in: u64, userdata: usize) u64 {
     var sys = @intToPtr(*KC85, userdata);
     var pins = pins_in;
     
@@ -540,10 +540,32 @@ fn tick_func(num_ticks: u64, pins_in: u64, userdata: usize) u64 {
         
     pins = tickVideo(sys, num_ticks, pins);
 
-    // FIXME: tick CTC and beepers
+    var tick: u64 = 0;
+    while (tick < num_ticks): (tick += 1) {
+        // tick the CTC
+        pins = sys.ctc.tick(pins);
+        // FIXME: CTC channels 0 and 1 control audio frequency
+        if (0 != (pins & z80ctc.ZCTO0)) {
+            // FIXME: toggle beeper 1
+        }
+        if (0 != (pins & z80ctc.ZCTO1)) {
+            // FIXME: toggle beeper 2
+        }
+        // CTC channel 2 trigger controls video blink frequency
+        if (0 != (pins & z80ctc.ZCTO2)) {
+            sys.blink_flag = !sys.blink_flag;
+        }
+        pins &= z80.PinMask;
+        // FIXME: tick beepers and update audio
+    }
 
-    // FIXME: interrupt daisychains
-
+    // interrupt daisychain handling, the CTC is higher priority than the PIO
+    if (0 != (pins & z80.M1)) {
+        pins |= z80.IEIO;
+        pins = sys.ctc.int(pins);
+        pins = sys.pio.int(pins);
+        pins &= ~z80.RETI;
+    }
     return pins & z80.PinMask;
 }
 
@@ -623,9 +645,7 @@ fn updateMemoryMapping(sys: *KC85) void {
 
 // PIO port input/output callbacks
 fn pioIn(port: u1, userdata: usize) u8 {
-    var sys = @intToPtr(*KC85, userdata);
-    // FIXME
-    unreachable;
+    return 0xFF;
 }
 
 fn pioOut(port: u1, data: u8, userdata: usize) void {
