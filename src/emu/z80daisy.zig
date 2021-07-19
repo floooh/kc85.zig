@@ -104,7 +104,7 @@ fn tick(self: *DaisyChain, in_pins: u64) u64 {
                 self.state |= INT_SERVICING;
             }
             // disable interrupts for downstream devices?
-            if (0 != self.int_state) {
+            if (0 != self.state) {
                 pins &= ~IEIO;
             }
             // set INT pin state during INT_REQUESTED

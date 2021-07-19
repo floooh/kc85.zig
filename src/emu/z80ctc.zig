@@ -128,7 +128,7 @@ fn reset(ctc: *CTC) void {
 fn int(ctc: *CTC, in_pins: u64) u64 {
     var pins = in_pins;
     for (ctc.channels) |*chn| {
-        pins = chn.intr.int(pins);
+        pins = chn.intr.tick(pins);
     }
     return pins;
 }

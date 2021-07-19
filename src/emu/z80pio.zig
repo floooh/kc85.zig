@@ -208,7 +208,7 @@ fn reset(pio: *PIO) void {
 fn int(pio: *PIO, in_pins: u64) u64 {
     var pins = in_pins;
     for (pio.ports) |*p| {
-        pins = p.intr.int(pins);
+        pins = p.intr.tick(pins);
     }
     return pins;
 }
