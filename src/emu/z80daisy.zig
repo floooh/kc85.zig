@@ -90,27 +90,26 @@ fn tick(self: *DaisyChain, in_pins: u64) u64 {
             // means we have an interrupt request pending but the CPU
             // denied the request (because interruprs were disabled)
             //
-            
-            // need to request interrupt?
-            if (0 != (self.state & INT_NEEDED)) {
-                self.state &= ~INT_NEEDED;
-                self.state |= INT_REQUESTED;
-            }
-            // need to place interrupt vector on data bus?
-            if ((pins & (IORQ|M1)) == (IORQ|M1)) {
-                // CPU has acknowledged the interrupt, place interrupt vector on data bus
-                pins = setData(pins, self.vector);
-                self.state &= ~INT_REQUESTED;
-                self.state |= INT_SERVICING;
-            }
-            // disable interrupts for downstream devices?
-            if (0 != self.state) {
-                pins &= ~IEIO;
-            }
-            // set INT pin state during INT_REQUESTED
-            if (0 != (self.state & INT_REQUESTED)) {
-                pins |= INT;
-            }
+        }
+        // need to request interrupt?
+        if (0 != (self.state & INT_NEEDED)) {
+            self.state &= ~INT_NEEDED;
+            self.state |= INT_REQUESTED;
+        }
+        // need to place interrupt vector on data bus?
+        if ((pins & (IORQ|M1)) == (IORQ|M1)) {
+            // CPU has acknowledged the interrupt, place interrupt vector on data bus
+            pins = setData(pins, self.vector);
+            self.state &= ~INT_REQUESTED;
+            self.state |= INT_SERVICING;
+        }
+        // disable interrupts for downstream devices?
+        if (0 != self.state) {
+            pins &= ~IEIO;
+        }
+        // set INT pin state during INT_REQUESTED
+        if (0 != (self.state & INT_REQUESTED)) {
+            pins |= INT;
         }
     }
     return pins;
