@@ -54,12 +54,11 @@ pub fn setup() void {
     state.upscale.pass_action.colors[0] = .{ .action = .DONTCARE };
     state.display.pass_action.colors[0] = .{ .action = .CLEAR, .value = .{ .r=0.05, .g=0.05, .b=0.05, .a=1.0 } };
     
-    // fullscreen quad vertices
+    // fullscreen triangle vertices
     const verts = [_]f32{
-        0.0, 0.0, 0.0, 0.0,
-        1.0, 0.0, 1.0, 0.0,
-        0.0, 1.0, 0.0, 1.0,
-        1.0, 1.0, 1.0, 1.0
+        0.0, 0.0,
+        2.0, 0.0,
+        0.0, 2.0,
     };
     state.upscale.bind.vertex_buffers[0] = sg.makeBuffer(.{
         .data = sg.asRange(verts)
@@ -71,10 +70,8 @@ pub fn setup() void {
     // 2 pipeline state objects for rendering to display and upscaling
     var pip_desc = sg.PipelineDesc{
         .shader = sg.makeShader(shd.displayShaderDesc(sg.queryBackend())),
-        .primitive_type = .TRIANGLE_STRIP
     };
     pip_desc.layout.attrs[0].format = .FLOAT2;
-    pip_desc.layout.attrs[1].format = .FLOAT2;
     state.display.pip = sg.makePipeline(pip_desc);
     
     pip_desc.shader = sg.makeShader(shd.upscaleShaderDesc(sg.queryBackend()));
@@ -125,7 +122,7 @@ pub fn draw() void {
     sg.beginPass(state.upscale.pass, state.upscale.pass_action);
     sg.applyPipeline(state.upscale.pip);
     sg.applyBindings(state.upscale.bind);
-    sg.draw(0, 4, 1);
+    sg.draw(0, 3, 1);
     sg.endPass();
 
     // draw the display pass with linear filtering
@@ -135,7 +132,7 @@ pub fn draw() void {
     applyViewport(w, h);
     sg.applyPipeline(state.display.pip);
     sg.applyBindings(state.display.bind);
-    sg.draw(0, 4, 1);
+    sg.draw(0, 3, 1);
     sg.applyViewportf(0, 0, w, h, true);
     sdtx.draw();
     sg.endPass();
