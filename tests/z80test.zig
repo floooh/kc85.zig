@@ -28,8 +28,8 @@ fn ok() void {
 }
 
 // tick callback which handles memory and IO requests
-fn tick(num_ticks: usize, p: u64, userdata: usize) u64 {
-    var pins = p;
+fn tick(num_ticks: usize, pins_in: u64, userdata: usize) u64 {
+    var pins = pins_in;
     if ((pins & MREQ) != 0) {
         if ((pins & RD) != 0) {
             // a memory read access
@@ -58,6 +58,11 @@ fn mem16(addr: u16) u16 {
     const l = mem[addr];
     const h = mem[addr +% 1];
     return @as(u16,h)<<8 | l;
+}
+
+fn w16(addr: u16, data: u16) void {
+    mem[addr] = @truncate(u8, data);
+    mem[addr +% 1] = @truncate(u8, data >> 8);
 }
 
 fn makeCPU() CPU {
@@ -2681,6 +2686,91 @@ fn OTIR_OTDR() void {
     ok();
 }
 
+fn IRQ() void {
+    start("IRQ");
+
+    // a special version of the tick callback to test interrupt handling
+    const inner = struct {
+        var reti_executed = false;
+        fn tick(num_ticks: usize, pins_in: u64, userdata: usize) u64 {
+            var pins = pins_in;
+            if ((pins & MREQ) != 0) {
+                if ((pins & RD) != 0) {
+                    pins = setData(pins, mem[getAddr(pins)]);
+                }
+                else if ((pins & WR) != 0) {
+                    mem[getAddr(pins)] = getData(pins);
+                }
+            }
+            else if ((pins & IORQ) != 0) {
+                if ((pins & RD) != 0) {
+                    pins = setData(pins, 0xFF);
+                }
+                else if ((pins & WR) != 0) {
+                    // request interrupt when a IORQ|WR happens
+                    pins |= INT;            
+                }
+                else if ((pins & M1) != 0) {
+                    // an interrupt ackowledge cycle, need to provide interrupt vector
+                    pins = setData(pins, 0xE0);
+                }
+            }
+            if (0 != (pins & RETI)) {
+                // reti was executed
+                reti_executed = true;
+                pins &= ~RETI;
+            }
+            return pins;
+        }
+        fn step(cpu: *CPU) usize {
+            var ticks = cpu.exec(0, .{ .func=tick, .userdata=0 });
+            while (!cpu.opdone()) {
+                ticks += cpu.exec(0, .{ .func=tick, .userdata=0 });
+            }
+            return ticks;
+        }
+    };
+
+    // the main program loads I with 0, and executes an OUT,
+    // which triggeres an interrupt, afterwards load some
+    // value into HL
+    const prog = [_]u8 {
+        0x31, 0x00, 0x03,   // LD SP,0x0300
+        0xFB,               // EI
+        0xED, 0x5E,         // IM 2
+        0xAF,               // XOR A
+        0xED, 0x47,         // LD I,A
+        0xD3, 0x01,         // OUT (0x01),A -> this should request an interrupt 
+        0x21, 0x33, 0x33,   // LD HL,0x3333 
+    };
+    copy(0x0100, &prog);
+
+    // the interrupt service routine
+    const isr = [_]u8 {
+        0xFB,               // EI
+        0x21, 0x11, 0x11,   // LD HL,0x1111
+        0xED, 0x4D,         // RETI
+    };
+    copy(0x0200, &isr);
+    
+    // interrupt vector at 0x00E0 points to ISR at 0x0200
+    w16(0x00E0, 0x0200);
+    
+    var cpu = makeCPU();
+    cpu.PC = 0x0100;
+    T(10 == inner.step(&cpu)); T(cpu.SP == 0x0300); // LD SP, 0x0300)
+    T(4  == inner.step(&cpu)); T(cpu.iff1); // EI
+    T(8  == inner.step(&cpu)); T(cpu.iff2); T(cpu.IM == 2); // IM 2
+    T(4  == inner.step(&cpu)); T(cpu.regs[A] == 0); // XOR A
+    T(9  == inner.step(&cpu)); T(cpu.I == 0);   // LD I,A 
+    T(29 == inner.step(&cpu)); T(cpu.PC == 0x0200); T(cpu.iff2 == false); T(cpu.SP == 0x02FE); // OUT (0x01),A
+    T(4  == inner.step(&cpu)); T(cpu.iff2); // EI
+    T(10 == inner.step(&cpu)); T(cpu.r16(HL) == 0x1111); T(cpu.iff2 == true);  // LD HL,0x1111
+    T(14 == inner.step(&cpu)); T(cpu.PC == 0x010B); T(inner.reti_executed); // RETI
+    _ = inner.step(&cpu); T(cpu.r16(HL) == 0x3333); // LD HL,0x3333
+    ok();
+}
+
 pub fn main() void {
     LD_A_RI();
     LD_IR_A();
@@ -2754,5 +2844,6 @@ pub fn main() void {
     OUT();
     INIR_INDR();
     OTIR_OTDR();
+    IRQ();
 }
 
