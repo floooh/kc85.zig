@@ -73,6 +73,7 @@ fn reset(self: *Beeper) void {
 fn dcadjust(self: *Beeper, sample: f32) f32 {
     self.dcadjust_sum -= self.dcadjust_buf[self.dcadjust_pos];
     self.dcadjust_sum += sample;
+    self.dcadjust_buf[self.dcadjust_pos] = sample;
     self.dcadjust_pos +%= 1;
     return sample - (self.dcadjust_sum / @intToFloat(f32, dcadjust_buflen));
 }
