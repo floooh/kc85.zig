@@ -212,6 +212,7 @@ const z80pio = @import("z80pio.zig");
 const z80ctc = @import("z80ctc.zig");
 const Memory = @import("memory.zig").Memory;
 const Clock  = @import("clock.zig").Clock;
+const Beeper = @import("beeper.zig").Beeper;
 const KeyBuffer = @import("keybuf.zig").KeyBuffer;
 
 const model: Model = switch (@import("build_options").kc85_model) {
@@ -273,36 +274,42 @@ pub const Model = enum {
 };
 
 // audio sample callback
-const AudioFunc = fn(samples: []const f32) void;
+const AudioFunc = struct {
+    func: fn(samples: []const f32, userdata: usize) void,
+    userdata: usize = 0,
+};
+
 // callback to apply patches after a snapshot is loaded
-const PatchFunc = fn(snapshot_name: []const u8) void;
-
-// config parameter for KC85.init()
-const Desc = struct {
-    pixel_buffer: []u32,    // must have room for 320x256 pixels
-
-    audio_func:         ?AudioFunc = null,
-    audio_num_samples:  usize = default_num_audio_samples,
-    audio_sample_rate:  u32 = 44100,
-    audio_volume:       f32 = 0.4,
-
-    patch_func: ?PatchFunc = null,
-
-    rom_caos22:     ?[]const u8 = null, // CAOS 2.2 ROM image (used in KC85/2)
-    rom_caos31:     ?[]const u8 = null, // CAOS 3.1 ROM image (used in KC85/3)
-    rom_caos42c:    ?[]const u8 = null, // CAOS 4.2 at 0xC000 (KC85/4)
-    rom_caos42e:    ?[]const u8 = null, // CAOS 4.2 at 0xE000 (KC85/4)
-    rom_kcbasic:    ?[]const u8 = null, // same BASIC version for KC85/3 and KC85/4
+const PatchFunc = struct {
+    func: fn(snapshot_name: []const u8, userdata: usize) void,
+    userdata: usize = 0,
 };
 
 // KC85 emulator state
 pub const KC85 = struct {
+    // config parameter for KC85.init()
+    const Desc = struct {
+        pixel_buffer: []u32,    // must have room for 320x256 pixels
+
+        audio_func:         ?AudioFunc = null,
+        audio_num_samples:  usize = default_num_audio_samples,
+        audio_sample_rate:  u32 = 44100,
+        audio_volume:       f32 = 0.4,
+
+        patch_func: ?PatchFunc = null,
+
+        rom_caos22:     ?[]const u8 = null, // CAOS 2.2 ROM image (used in KC85/2)
+        rom_caos31:     ?[]const u8 = null, // CAOS 3.1 ROM image (used in KC85/3)
+        rom_caos42c:    ?[]const u8 = null, // CAOS 4.2 at 0xC000 (KC85/4)
+        rom_caos42e:    ?[]const u8 = null, // CAOS 4.2 at 0xE000 (KC85/4)
+        rom_kcbasic:    ?[]const u8 = null, // same BASIC version for KC85/3 and KC85/4
+    };
+
     model: Model,
 
     cpu: z80.CPU,
     ctc: z80ctc.CTC,
     pio: z80pio.PIO,
-    // FIXME: 2 beepers
 
     pio_a: u8,                  // current PIO Port A value, used for bankswitching
     pio_b: u8,                  // current PIO Port B value, used for bankswitching
@@ -316,6 +323,8 @@ pub const KC85 = struct {
     clk: Clock,
     mem: Memory,
     kbd: KeyBuffer,
+    beeper_1: Beeper,
+    beeper_2: Beeper,
     // FIXME: expansion system
 
     pixel_buffer:   []u32,
@@ -373,8 +382,12 @@ fn xorshift32(r: u32) u32 {
     return x;
 }
     
-fn create( allocator: *std.mem.Allocator, desc: Desc) !*KC85 {
+fn create( allocator: *std.mem.Allocator, desc: KC85.Desc) !*KC85 {
     var sys = try allocator.create(KC85);
+    const freq_hz = switch (model) {
+        .KC85_2, .KC85_3 => 1_750_000,
+        .KC85_4          => 1_770_000,
+    };
     sys.* = .{
         .model = model,
         .cpu = .{
@@ -397,12 +410,17 @@ fn create( allocator: *std.mem.Allocator, desc: Desc) !*KC85 {
         .kbd = .{
             .sticky_duration = 2 * 16667,
         },
-        .clk = .{
-            .freq_hz = switch (model) {
-                .KC85_2, .KC85_3 => 1_750_000,
-                .KC85_4          => 1_770_000,
-            }
-        },
+        .beeper_1 = Beeper.init(.{
+            .tick_hz = freq_hz,
+            .sound_hz = desc.audio_sample_rate,
+            .volume = desc.audio_volume
+        }),
+        .beeper_2 = Beeper.init(.{
+            .tick_hz = freq_hz,
+            .sound_hz = desc.audio_sample_rate,
+            .volume = desc.audio_volume
+        }),
+        .clk = .{ .freq_hz = freq_hz },
         .sample_pos = 0,
         .sample_buffer = [_]f32{0.0} ** max_audio_samples,
         .pixel_buffer = desc.pixel_buffer,
@@ -455,6 +473,7 @@ fn destroy(sys: *KC85) void {
 
 fn reset(sys: *KC85) void {
     // FIXME
+    unreachable;
 }
 
 fn exec(sys: *KC85, micro_secs: u32) void {
@@ -557,19 +576,33 @@ fn tickFunc(num_ticks: u64, pins_in: u64, userdata: usize) u64 {
     while (tick < num_ticks): (tick += 1) {
         // tick the CTC
         pins = sys.ctc.tick(pins);
-        // FIXME: CTC channels 0 and 1 control audio frequency
+        // CTC channels 0 and 1 control audio frequency
         if (0 != (pins & z80ctc.ZCTO0)) {
-            // FIXME: toggle beeper 1
+            // toggle beeper 1
+            sys.beeper_1.toggle();
         }
         if (0 != (pins & z80ctc.ZCTO1)) {
-            // FIXME: toggle beeper 2
+            sys.beeper_2.toggle();
         }
         // CTC channel 2 trigger controls video blink frequency
         if (0 != (pins & z80ctc.ZCTO2)) {
             sys.blink_flag = !sys.blink_flag;
         }
         pins &= z80.PinMask;
-        // FIXME: tick beepers and update audio
+        // tick beepers and update audio
+        _ = sys.beeper_1.tick();
+        if (sys.beeper_2.tick()) {
+            // new audio sample ready
+            sys.sample_buffer[sys.sample_pos] = sys.beeper_1.sample + sys.beeper_2.sample;
+            sys.sample_pos += 1;
+            if (sys.sample_pos == sys.num_samples) {
+                // flush sample buffer to audio backend
+                sys.sample_pos = 0;
+                if (sys.audio_func) |audio_func| {
+                    audio_func.func(sys.sample_buffer[0..], audio_func.userdata);
+                }
+            }
+        }
     }
 
     // interrupt daisychain handling, the CTC is higher priority than the PIO
