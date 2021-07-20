@@ -117,6 +117,11 @@ pub fn setup() void {
     state.upscale.pass = sg.makePass(pass_desc);
 }
 
+pub fn shutdown() void {
+    sdtx.shutdown();
+    sg.shutdown();
+}
+
 pub fn draw() void {
     // copy emulator pixel data into upscaling source texture
     var image_data = sg.ImageData{ };
@@ -142,11 +147,6 @@ pub fn draw() void {
     sdtx.draw();
     sg.endPass();
     sg.commit();
-}
-
-pub fn shutdown() void {
-    sdtx.shutdown();
-    sg.shutdown();
 }
 
 fn applyViewport(canvas_width: f32, canvas_height: f32) void {

@@ -599,7 +599,7 @@ fn tickFunc(num_ticks: u64, pins_in: u64, userdata: usize) u64 {
                 // flush sample buffer to audio backend
                 sys.sample_pos = 0;
                 if (sys.audio_func) |audio_func| {
-                    audio_func.func(sys.sample_buffer[0..], audio_func.userdata);
+                    audio_func.func(sys.sample_buffer[0..sys.num_samples], audio_func.userdata);
                 }
             }
         }

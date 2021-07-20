@@ -8,6 +8,7 @@ const sapp  = @import("sokol").app;
 const KC85  = @import("emu").kc85.KC85;
 const Model = @import ("emu").kc85.Model;
 const gfx   = @import("host").gfx;
+const audio = @import("host").audio;
 const time  = @import("host").time;
 
 var kc85: *KC85 = undefined;
@@ -19,17 +20,6 @@ const kc85_model: Model = switch (build_options.kc85_model) {
 };
 
 pub fn main() !void {
-    // setup KC85 emulator instance
-    kc85 = try KC85.create(std.heap.c_allocator, .{
-        .pixel_buffer = gfx.pixel_buffer[0..],
-        .rom_caos22  = @embedFile("roms/caos22.852"),
-        .rom_caos31  = @embedFile("roms/caos31.853"),
-        .rom_caos42c = @embedFile("roms/caos42c.854"),
-        .rom_caos42e = @embedFile("roms/caos42e.854"),
-        .rom_kcbasic = @embedFile("roms/basic_c0.853")
-    });
-    defer kc85.destroy();
-
     // start sokol-app "game loop"
     sapp.run(.{
         .init_cb = init,
@@ -52,7 +42,20 @@ pub fn main() !void {
 
 export fn init() void {
     gfx.setup();
+    audio.setup();
     time.setup();
+    
+    // setup KC85 emulator instance
+    kc85 = KC85.create(std.heap.c_allocator, .{
+        .pixel_buffer = gfx.pixel_buffer[0..],
+        .audio_func  = .{ .func = audio.push },
+        .audio_sample_rate = audio.sampleRate(),
+        .rom_caos22  = @embedFile("roms/caos22.852"),
+        .rom_caos31  = @embedFile("roms/caos31.853"),
+        .rom_caos42c = @embedFile("roms/caos42c.854"),
+        .rom_caos42e = @embedFile("roms/caos42e.854"),
+        .rom_kcbasic = @embedFile("roms/basic_c0.853")
+    }) catch unreachable;
 }
 
 export fn frame() void {
@@ -62,7 +65,9 @@ export fn frame() void {
 }
 
 export fn cleanup() void {
+    audio.shutdown();
     gfx.shutdown();
+    kc85.destroy();
 }
 
 export fn input(event: ?*const sapp.Event) void {
