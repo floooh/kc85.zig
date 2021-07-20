@@ -223,7 +223,7 @@ const model: Model = switch (@import("build_options").kc85_model) {
 const max_audio_samples         = 1024;
 const default_num_audio_samples = 128;
 const max_tape_size             = 1024;
-const num_expansion_slots       =  2;    // max number of expansion slots
+const num_expansion_slots       = 2;            // max number of expansion slots
 const expansion_buffer_size     = num_expansion_slots * 64 * 1024; // expansion system buffer size (64 KB per slot)
 const max_ram_size              = 4 * 0x4000;  // up to 64 KB regular RAM
 const max_irm_size              = 4 * 0x4000;  // up to 64 KB video RAM
@@ -271,6 +271,40 @@ pub const Model = enum {
     KC85_2,
     KC85_3,
     KC85_4,
+};
+
+// expansion system module types
+const ModuleType = enum {
+    NONE,
+    M006_BASIC,         // BASIC+CAOS 16K ROM module for the KC85/2 (id=0xFC)
+    M011_64KBYTE,       // 64 KB RAM expansion (id=0xF6)
+    M012_TEXOR,         // TEXOR text editing (ix=0xFB)
+    M022_16KBYTE,       // 16 KB RAM expansion (id=0xF4)
+    M026_FORTH,         // FORTH IDE (id=0xFB)
+    M027_DEVELOPMENT,   // Assembler IDE (id=0xFB)
+};
+
+// expansion module attributes
+const Module = struct {
+    type: ModuleType,
+    id: u8,
+    writable: bool,
+    addr_mask: u8,
+    size: u32,
+};
+
+// an expansion system slot for inserting modules
+const Slot = struct {
+    addr: u8,           // slot address, 0x0C (left slot) or 0x08 (right slot)
+    ctrl: u8,           // current control byte
+    buf_offset: u32,    // byte offset in expansion system data buffer
+    module: Module,     // attributes of currently inserted module
+};
+
+// expansion system state
+const ExpansionSystem = struct {
+    slot: [num_expansion_slots]Slot,    // KC85 main unit has 2 expansion slots builtin
+    buf_top: u32,       // top of buffer index in KC85.exp_buf
 };
 
 // audio sample callback
