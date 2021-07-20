@@ -61,18 +61,11 @@ pub fn setup() void {
         0.0, 1.0, 0.0, 1.0,
         1.0, 1.0, 1.0, 1.0
     };
-    const verts_flipped = [_]f32{
-        0.0, 0.0, 0.0, 1.0,
-        1.0, 0.0, 1.0, 1.0,
-        0.0, 1.0, 0.0, 0.0,
-        1.0, 1.0, 1.0, 0.0
-    };
     state.upscale.bind.vertex_buffers[0] = sg.makeBuffer(.{
         .data = sg.asRange(verts)
     });
-    const flip = !sg.queryFeatures().origin_top_left;
     state.display.bind.vertex_buffers[0] = sg.makeBuffer(.{
-        .data = if (flip) sg.asRange(verts_flipped) else sg.asRange(verts)
+        .data = sg.asRange(verts)
     });
     
     // 2 pipeline state objects for rendering to display and upscaling

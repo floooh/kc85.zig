@@ -18,6 +18,7 @@ void main() {
 @end
 
 @vs display_vs
+@glsl_options flip_vert_y
 layout(location=0) in vec2 in_pos;
 layout(location=1) in vec2 in_uv;
 out vec2 uv;
