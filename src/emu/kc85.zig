@@ -650,6 +650,8 @@ fn tickFunc(num_ticks: u64, pins_in: u64, userdata: usize) u64 {
 }
 
 fn updateMemoryMapping(sys: *KC85) void {
+    sys.mem.unmapBank(0);
+
     // all models have 16 KB builtin RAM at 0x0000 and 8 KB ROM at 0xE000
     if (0 != (sys.pio_a & PIOABits.RAM)) {
         // RAM may be write-protected
