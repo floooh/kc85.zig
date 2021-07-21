@@ -286,25 +286,25 @@ const ModuleType = enum {
 
 // expansion module attributes
 const Module = struct {
-    type: ModuleType,
-    id: u8,
-    writable: bool,
-    addr_mask: u8,
-    size: u32,
+    type: ModuleType = .NONE,
+    id: u8 = 0xFF,
+    writable: bool = false,
+    addr_mask: u8 = 0,
+    size: u32 = 0,
 };
 
 // an expansion system slot for inserting modules
 const Slot = struct {
-    addr: u8,           // slot address, 0x0C (left slot) or 0x08 (right slot)
-    ctrl: u8,           // current control byte
-    buf_offset: u32,    // byte offset in expansion system data buffer
-    module: Module,     // attributes of currently inserted module
+    addr: u8,               // slot address, 0x0C (left slot) or 0x08 (right slot)
+    ctrl: u8 = 0,           // current control byte
+    buf_offset: u32 = 0,    // byte offset in expansion system data buffer
+    module: Module = .{},   // attributes of currently inserted module
 };
 
 // expansion system state
-const ExpansionSystem = struct {
-    slot: [num_expansion_slots]Slot,    // KC85 main unit has 2 expansion slots builtin
-    buf_top: u32,       // top of buffer index in KC85.exp_buf
+pub const ExpansionSystem = struct {
+    slots: [num_expansion_slots]Slot,    // KC85 main unit has 2 expansion slots builtin
+    buf_top: u32 = 0,   // top of buffer index in KC85.exp_buf
 };
 
 // audio sample callback
@@ -359,7 +359,7 @@ pub const KC85 = struct {
     kbd: KeyBuffer,
     beeper_1: Beeper,
     beeper_2: Beeper,
-    // FIXME: expansion system
+    exp: ExpansionSystem,
 
     pixel_buffer:   []u32,
     audio_func:     ?AudioFunc,
@@ -400,6 +400,26 @@ pub const KC85 = struct {
     // send a key up
     pub fn keyUp(sys: *KC85, key_code: u8) void {
         impl.keyUp(sys, key_code);
+    }
+    // return expansion module name string by module type (return a C-compatible string)
+    pub fn moduleName(mod_type: ModuleType) [:0]const u8 {
+        return impl.moduleName(mod_type);
+    }
+    // return expansion module name string by slot address (or "NONE" if no module is inserted)
+    pub fn slotModuleName(sys: *KC85, slot_addr: u8) [:0]const u8 {
+        return impl.slotModuleName(sys, slot_addr);
+    }
+    // insert a RAM module into an expansion slot
+    pub fn insertRAMModule(sys: *KC85, slot_addr: u8, mod_type: ModuleType) bool {
+        return impl.insertRAMModule(sys, slot_addr, mod_type);
+    }
+    // insert a ROM module into an expansion slot
+    pub fn insertROMModule(sys: *KC85, slot_addr: u8, mod_type: ModuleType, content: []const u8) bool {
+        return impl.insertROMModule(self, slot_addr, mod_type, content);
+    }
+    // remove a module from an expansion slot
+    pub fn removeModule(sys: *KC85, slot_addr: u8) bool {
+        return impl.removeModule(self, slot_addr);
     }
 };
 
@@ -454,6 +474,12 @@ fn create( allocator: *std.mem.Allocator, desc: KC85.Desc) !*KC85 {
             .sound_hz = desc.audio_sample_rate,
             .volume = desc.audio_volume
         }),
+        .exp = .{
+            .slots = .{
+                .{ .addr = 0x08 },
+                .{ .addr = 0x0C },
+            }
+        },
         .clk = .{ .freq_hz = freq_hz },
         .sample_pos = 0,
         .sample_buffer = [_]f32{0.0} ** max_audio_samples,
@@ -995,6 +1021,91 @@ fn handleKeyboard(sys: *KC85) void {
             sys.mem.w8(addr_keyrepeat, 0);
         }
     }
+}
+
+fn moduleName(mod_type: ModuleType) [:0]const u8 {
+    return switch (mod_type) {
+        .NONE               => "NONE",
+        .M006_BASIC         => "M006 BASIC",
+        .M011_64KBYTE       => "M011 64KB",
+        .M012_TEXOR         => "M012 TEXOR",
+        .M022_16KBYTE       => "M022 16KB",
+        .M026_FORTH         => "M026 FORTH",
+        .M027_DEVELOPMENT   => "M027 DEV",
+    };
+}
+
+fn slotByAddr(sys: *KC85, addr: u8) ?*Slot {
+    for (sys.exp.slots) |*slot| {
+        if (addr == slot.addr) {
+            return slot;
+        }
+    }
+    else {
+        return null;
+    }
+}
+
+fn slotModuleName(sys: *KC85, addr: u8) [:0]const u8 {
+    if (slotByAddr(addr)) |*slot| {
+        return moduleName(slot.module.type);    
+    }
+    else {
+        return "NONE";
+    }
+}
+
+// allocate expansion buffer space for a module to be inserted
+// into a slot, updates sys.exp.buf_top and slot.buf_offset
+fn slotAlloc(sys: *KC85, slot: *Slot) bool {
+    if ((slot.mod.size + sys.exp.buf_top) > expansion_buffer_size) {
+        return false;
+    }
+    slot.buf_offset = sys.exp.buf_top;
+    sys.exp.buf_top += slot.mod.size;
+}
+
+// free an allocation in the expansion and close the gap
+// updates:
+//  sys.exp.buf_top
+//  sys.exp_buf (gaps are closed)
+//  for each slot behind the to be freed slot:
+//      slot.buf_offset
+fn slotFree(sys: *KC85, free_slot: *Slot) void {
+    assert(free_slot.mod.size > 0);
+    const bytes_to_free = free_slot.size;
+    sys.exp.buf_top -= bytes_to_free;
+    for (sys.exp.slots) |*slot| {
+        // skip empty slots
+        if (slot.mod.type == .NONE) {
+            continue;
+        }
+        // if slot is behind the to be freed slot:
+        if (slot.buf_offset > free_slot.buf_offset) {
+            // move data backward to close the hole
+            const from_start = slot.buf_offset;
+            const from_end = from_start + bytes_to_free;
+            const to_start = slot.buf_offset - bytes_to_free;
+            const to_end = to_start + bytes_to_free;
+            sys.exp_buf[to_start..to_end] = sys.exp_buf[from_start..from_end];
+            slot.buf_offset -= bytes_to_free;
+        }
+    }
+}
+
+fn insertRAMModule(self: *ExpansionSystem, slot_addr: u8, mod_type: ModuleType) bool {
+    // FIXME
+    return false;
+}
+
+fn insertROMModule(self: *ExpansionSystem, slot_addr: u8, mod_type: ModuleType, content: []const u8) bool {
+    // FIXME
+    return false;
+}
+
+fn removeModule(self: *ExpansionSystem, slot_addr: u8) bool {
+    // FIXME
+    return false;
 }
 
 }; // impl
