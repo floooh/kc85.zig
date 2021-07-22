@@ -5,13 +5,15 @@
 const build_options = @import("build_options");
 const std   = @import("std");
 const sapp  = @import("sokol").app;
-const KC85  = @import("emu").kc85.KC85;
-const Model = @import ("emu").kc85.Model;
 const gfx   = @import("host").gfx;
 const audio = @import("host").audio;
 const time  = @import("host").time;
+const kc85  = @import("emu").kc85;
+const KC85       = kc85.KC85;
+const Model      = kc85.Model;
+const ModuleType = kc85.ModuleType;
 
-var kc85: *KC85 = undefined;
+var kc: *KC85 = undefined;
 
 const kc85_model: Model = switch (build_options.kc85_model) {
     .KC85_2 => .KC85_2,
@@ -46,28 +48,34 @@ export fn init() void {
     time.setup();
     
     // setup KC85 emulator instance
-    kc85 = KC85.create(std.heap.c_allocator, .{
+    kc = KC85.create(std.heap.c_allocator, .{
         .pixel_buffer = gfx.pixel_buffer[0..],
         .audio_func  = .{ .func = audio.push },
         .audio_sample_rate = audio.sampleRate(),
-        .rom_caos22  = @embedFile("roms/caos22.852"),
-        .rom_caos31  = @embedFile("roms/caos31.853"),
-        .rom_caos42c = @embedFile("roms/caos42c.854"),
-        .rom_caos42e = @embedFile("roms/caos42e.854"),
-        .rom_kcbasic = @embedFile("roms/basic_c0.853")
+        .rom_caos22  = if (kc85_model == .KC85_2) @embedFile("roms/caos22.852") else null,
+        .rom_caos31  = if (kc85_model == .KC85_3) @embedFile("roms/caos31.853") else null,
+        .rom_caos42c = if (kc85_model == .KC85_4) @embedFile("roms/caos42c.854") else null,
+        .rom_caos42e = if (kc85_model == .KC85_4) @embedFile("roms/caos42e.854") else null,
+        .rom_kcbasic = if (kc85_model != .KC85_2) @embedFile("roms/basic_c0.853") else null,
     }) catch unreachable;
+
+    // on KC85/3 insert a 16 KB RAM module by default, CAOS will place
+    // this automatically at the 16 KByte gap at address 0x4000
+    if (kc85_model == .KC85_3) {
+        _ = kc.insertRAMModule(0x08, .M022_16KBYTE);
+    }
 }
 
 export fn frame() void {
     const frame_time_us = time.frameTime();
-    kc85.exec(frame_time_us);
+    kc.exec(frame_time_us);
     gfx.draw();
 }
 
 export fn cleanup() void {
     audio.shutdown();
     gfx.shutdown();
-    kc85.destroy();
+    kc.destroy();
 }
 
 export fn input(event: ?*const sapp.Event) void {
@@ -85,8 +93,8 @@ export fn input(event: ?*const sapp.Event) void {
                     char &= ~@as(u8,0x20);
                 }
                 const key = @truncate(u8, char);
-                kc85.keyDown(key);
-                kc85.keyUp(key);
+                kc.keyDown(key);
+                kc.keyUp(key);
             }
         },
         .KEY_DOWN, .KEY_UP => {
@@ -117,8 +125,8 @@ export fn input(event: ?*const sapp.Event) void {
             };
             if (0 != key) {
                 switch (ev.type) {
-                    .KEY_DOWN => kc85.keyDown(key),
-                    .KEY_UP => kc85.keyUp(key),
+                    .KEY_DOWN => kc.keyDown(key),
+                    .KEY_UP => kc.keyUp(key),
                     else => unreachable,
                 }
             }
