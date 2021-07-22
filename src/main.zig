@@ -4,16 +4,20 @@
 
 const build_options = @import("build_options");
 const std   = @import("std");
+const warn  = std.debug.warn;
 const sapp  = @import("sokol").app;
-const gfx   = @import("host").gfx;
-const audio = @import("host").audio;
-const time  = @import("host").time;
+const host  = @import("host");
+const gfx   = host.gfx;
+const audio = host.audio;
+const time  = host.time;
+const Args  = host.args.Args;
 const kc85  = @import("emu").kc85;
 const KC85       = kc85.KC85;
 const Model      = kc85.Model;
 const ModuleType = kc85.ModuleType;
 
 var kc: *KC85 = undefined;
+var args: Args = undefined;
 
 const kc85_model: Model = switch (build_options.kc85_model) {
     .KC85_2 => .KC85_2,
@@ -22,6 +26,16 @@ const kc85_model: Model = switch (build_options.kc85_model) {
 };
 
 pub fn main() !void {
+    
+    // parse arguments
+    args = Args.parse(std.heap.c_allocator) catch |err| {
+        warn("Failed to parse arguments\n", .{});
+        return;
+    };
+    if (args.help) {
+        return;
+    }
+
     // start sokol-app "game loop"
     sapp.run(.{
         .init_cb = init,
@@ -64,6 +78,7 @@ export fn init() void {
     if (kc85_model == .KC85_3) {
         _ = kc.insertRAMModule(0x08, .M022_16KBYTE);
     }
+    
 }
 
 export fn frame() void {
