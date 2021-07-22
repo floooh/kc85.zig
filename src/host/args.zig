@@ -34,19 +34,19 @@ pub fn parse(a: *std.mem.Allocator) !Args {
             res.help = true;
         }
         else if (mem.eql(u8, arg, "-slot8")) {
-            const mod_name = arg_iter.next(a) orelse {
+            res.slot8 = try arg_iter.next(a) orelse {
                 warn("Expected module name after '-slot8'\n", .{});
                 return error.InvalidArgs;
             };
         }
         else if (mem.eql(u8, arg, "-slotc")) {
-            const mod_name = arg_iter.next(a) orelse {
+            res.slotC = try arg_iter.next(a) orelse {
                 warn("Expected module name after '-slotC'\n", .{});
                 return error.InvalidArgs;
             };
         }
         else if (mem.eql(u8, arg, "-load")) {
-            const file = arg_iter.next(a) orelse {
+            res.file = try arg_iter.next(a) orelse {
                 warn("Expected path to .kcc or .tap file after '-load'\n", .{});
                 return error.InvalidArgs;
             };

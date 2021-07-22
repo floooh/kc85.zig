@@ -16,8 +16,10 @@ const KC85       = kc85.KC85;
 const Model      = kc85.Model;
 const ModuleType = kc85.ModuleType;
 
-var kc: *KC85 = undefined;
-var args: Args = undefined;
+const state = struct {
+    var kc: *KC85 = undefined;
+    var args: Args = undefined;
+};
 
 const kc85_model: Model = switch (build_options.kc85_model) {
     .KC85_2 => .KC85_2,
@@ -28,13 +30,14 @@ const kc85_model: Model = switch (build_options.kc85_model) {
 pub fn main() !void {
     
     // parse arguments
-    args = Args.parse(std.heap.c_allocator) catch |err| {
+    state.args = Args.parse(std.heap.c_allocator) catch |err| {
         warn("Failed to parse arguments\n", .{});
         return;
     };
-    if (args.help) {
+    if (state.args.help) {
         return;
     }
+    std.debug.print("args: {}\n", .{ state.args });
 
     // start sokol-app "game loop"
     sapp.run(.{
@@ -62,7 +65,7 @@ export fn init() void {
     time.setup();
     
     // setup KC85 emulator instance
-    kc = KC85.create(std.heap.c_allocator, .{
+    state.kc = KC85.create(std.heap.c_allocator, .{
         .pixel_buffer = gfx.pixel_buffer[0..],
         .audio_func  = .{ .func = audio.push },
         .audio_sample_rate = audio.sampleRate(),
@@ -76,21 +79,20 @@ export fn init() void {
     // on KC85/3 insert a 16 KB RAM module by default, CAOS will place
     // this automatically at the 16 KByte gap at address 0x4000
     if (kc85_model == .KC85_3) {
-        _ = kc.insertRAMModule(0x08, .M022_16KBYTE);
+        _ = state.kc.insertRAMModule(0x08, .M022_16KBYTE);
     }
-    
 }
 
 export fn frame() void {
     const frame_time_us = time.frameTime();
-    kc.exec(frame_time_us);
+    state.kc.exec(frame_time_us);
     gfx.draw();
 }
 
 export fn cleanup() void {
     audio.shutdown();
     gfx.shutdown();
-    kc.destroy();
+    state.kc.destroy();
 }
 
 export fn input(event: ?*const sapp.Event) void {
@@ -108,8 +110,8 @@ export fn input(event: ?*const sapp.Event) void {
                     char &= ~@as(u8,0x20);
                 }
                 const key = @truncate(u8, char);
-                kc.keyDown(key);
-                kc.keyUp(key);
+                state.kc.keyDown(key);
+                state.kc.keyUp(key);
             }
         },
         .KEY_DOWN, .KEY_UP => {
@@ -140,8 +142,8 @@ export fn input(event: ?*const sapp.Event) void {
             };
             if (0 != key) {
                 switch (ev.type) {
-                    .KEY_DOWN => kc.keyDown(key),
-                    .KEY_UP => kc.keyUp(key),
+                    .KEY_DOWN => state.kc.keyDown(key),
+                    .KEY_UP => state.kc.keyUp(key),
                     else => unreachable,
                 }
             }
