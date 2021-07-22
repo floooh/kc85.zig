@@ -274,7 +274,7 @@ pub const Model = enum {
 };
 
 // expansion system module types
-const ModuleType = enum {
+pub const ModuleType = enum {
     NONE,
     M006_BASIC,         // BASIC+CAOS 16K ROM module for the KC85/2 (id=0xFC)
     M011_64KBYTE,       // 64 KB RAM expansion (id=0xF6)
@@ -608,7 +608,18 @@ fn tickFunc(num_ticks: u64, pins_in: u64, userdata: usize) u64 {
                 const data = z80.getData(pins);
                 switch (pins & (z80.A2|z80.A1|z80.A0)) {
                     0x00 => {
-                        // FIXME: expansion system
+                        // port 0x80: expansion system control
+                        const slot_addr = @truncate(u8, z80.getAddr(pins) >> 8);
+                        if (0 != (pins & z80.WR)) {
+                            // write new module control byte and update memory mapping
+                            if (slotWriteCtrlByte(sys, slot_addr, data)) {
+                                updateMemoryMapping(sys);
+                            }
+                        }
+                        else {
+                            // read module id in slot
+                            pins = z80.setData(pins, slotModuleId(sys, slot_addr));
+                        }
                     },
                     0x04 => if (model == .KC85_4) {
                         // KC85/4 specific port 0x84 
@@ -748,7 +759,37 @@ fn updateMemoryMapping(sys: *KC85) void {
         }
     }
     
-    // FIXME: expansion system memory mapping
+    // expansion system memory mapping
+    for (sys.exp.slots) |*slot, slot_index| {
+        
+        // nothing to do if no module in slot
+        if (slot.module.type == .NONE) {
+            continue;
+        }
+
+        // each slot gets its own memory bank, bank 0 is used by the 
+        // computer base unit
+        const bank_index = slot_index + 1;
+        sys.mem.unmapBank(bank_index);
+        
+        // module is only active if bit 0 in control byte is set
+        if (0 != (slot.ctrl & 1)) {
+            // compute CPU and host address
+            const addr: u16 = @as(u16, (slot.ctrl & slot.module.addr_mask)) << 8;
+            const host_start = slot.buf_offset;
+            const host_end = host_start + slot.module.size;
+            const host_slice = sys.exp_buf[host_start .. host_end];
+
+            // RAM modules are only writable if bit 1 in control byte is set
+            const writable = (0 != (slot.ctrl & 2)) and slot.module.writable;
+            if (writable) {
+                sys.mem.mapRAM(bank_index, addr, host_slice);
+            }
+            else {
+                sys.mem.mapROM(bank_index, addr, host_slice);
+            }
+        }
+    }
 }
 
 // PIO port input/output callbacks
@@ -1055,14 +1096,34 @@ fn slotModuleName(sys: *KC85, addr: u8) [:0]const u8 {
     }
 }
 
+fn slotModuleId(sys: *KC85, addr: u8) u8 {
+    if (slotByAddr(sys, addr)) |slot| {
+        return slot.module.id;
+    }
+    else {
+        return 0xFF;
+    }
+}
+
+fn slotWriteCtrlByte(sys: *KC85, slot_addr: u8, ctrl_byte: u8) bool {
+    if (slotByAddr(sys, slot_addr)) |slot| {
+        slot.ctrl = ctrl_byte;
+        return true;
+    }
+    else {
+        return false;
+    }
+}
+
 // allocate expansion buffer space for a module to be inserted
 // into a slot, updates sys.exp.buf_top and slot.buf_offset
 fn slotAlloc(sys: *KC85, slot: *Slot) bool {
-    if ((slot.mod.size + sys.exp.buf_top) > expansion_buffer_size) {
+    if ((slot.module.size + sys.exp.buf_top) > expansion_buffer_size) {
         return false;
     }
     slot.buf_offset = sys.exp.buf_top;
-    sys.exp.buf_top += slot.mod.size;
+    sys.exp.buf_top += slot.module.size;
+    return true;
 }
 
 // free an allocation in the expansion and close the gap
@@ -1072,40 +1133,121 @@ fn slotAlloc(sys: *KC85, slot: *Slot) bool {
 //  for each slot behind the to be freed slot:
 //      slot.buf_offset
 fn slotFree(sys: *KC85, free_slot: *Slot) void {
-    assert(free_slot.mod.size > 0);
-    const bytes_to_free = free_slot.size;
+    std.debug.assert(free_slot.module.size > 0);
+    const bytes_to_free = free_slot.module.size;
     sys.exp.buf_top -= bytes_to_free;
     for (sys.exp.slots) |*slot| {
         // skip empty slots
-        if (slot.mod.type == .NONE) {
+        if (slot.module.type == .NONE) {
             continue;
         }
         // if slot is behind the to be freed slot:
         if (slot.buf_offset > free_slot.buf_offset) {
             // move data backward to close the hole
-            const from_start = slot.buf_offset;
-            const from_end = from_start + bytes_to_free;
-            const to_start = slot.buf_offset - bytes_to_free;
-            const to_end = to_start + bytes_to_free;
-            sys.exp_buf[to_start..to_end] = sys.exp_buf[from_start..from_end];
+            const src_start = slot.buf_offset;
+            const src_end   = slot.buf_offset + bytes_to_free;
+            const dst_start = slot.buf_offset - bytes_to_free;
+            for (sys.exp_buf[src_start..src_end]) |byte,i| {
+                sys.exp_buf[dst_start + i] = byte;
+            }
             slot.buf_offset -= bytes_to_free;
         }
     }
 }
 
-fn insertRAMModule(self: *ExpansionSystem, slot_addr: u8, mod_type: ModuleType) bool {
-    // FIXME
-    return false;
+fn insertModule(sys: *KC85, slot_addr: u8, mod_type: ModuleType, optional_rom: ?[]const u8) bool {
+    if (mod_type == .NONE) {
+        return false;
+    }
+    if (slotByAddr(sys, slot_addr)) |slot| {
+        slot.module = switch (mod_type) {
+            .M006_BASIC => .{
+                .type = mod_type,
+                .id = 0xFC,
+                .writable = false,
+                .addr_mask = 0xC0,
+                .size = 16 * 1024,
+            },
+            .M011_64KBYTE => .{
+                .type = mod_type,
+                .id = 0xF6,
+                .writable = true,
+                .addr_mask = 0xC0,
+                .size = 64 * 1024,
+            },
+            .M022_16KBYTE => .{
+                .type = mod_type,
+                .id = 0xF4,
+                .writable = true,
+                .addr_mask = 0xC0,
+                .size = 16 * 1024,
+            },
+            .M012_TEXOR, .M026_FORTH, .M027_DEVELOPMENT => .{
+                .type = mod_type,
+                .id = 0xFB,
+                .writable = false,
+                .addr_mask = 0xE0,
+                .size = 8 * 1024,
+            },
+            else => unreachable,
+        };
+        
+        // allocate space in expansion buffer
+        if (!slotAlloc(sys, slot)) {
+            // not enough space left in buffer
+            slot.module = .{ };
+        }
+        
+        // copy optional ROM image, or clear RAM
+        if (optional_rom) |rom| {
+            if (rom.len != slot.module.size) {
+                return false;
+            }
+            else {
+                for (rom) |byte,i| {
+                    sys.exp_buf[slot.buf_offset + i] = byte;
+                }
+            }
+        }
+        else {
+            for (sys.exp_buf[slot.buf_offset .. slot.buf_offset+slot.module.size]) |*p| {
+                p.* = 0;
+            }
+        }
+
+        // also update memory mapping
+        updateMemoryMapping(sys);
+
+        return true;
+    }
+    else {
+        return false;
+    }
 }
 
-fn insertROMModule(self: *ExpansionSystem, slot_addr: u8, mod_type: ModuleType, content: []const u8) bool {
-    // FIXME
-    return false;
+fn insertRAMModule(sys: *KC85, slot_addr: u8, mod_type: ModuleType) bool {
+    _ = removeModule(sys, slot_addr);
+    return insertModule(sys, slot_addr, mod_type, null);
 }
 
-fn removeModule(self: *ExpansionSystem, slot_addr: u8) bool {
-    // FIXME
-    return false;
+fn insertROMModule(sys: *KC85, slot_addr: u8, mod_type: ModuleType, content: []const u8) bool {
+    _ = removeModule(sys, slot_addr);
+    return insertModule(sys, slot_addr, mod_type, content);
+}
+
+fn removeModule(sys: *KC85, slot_addr: u8) bool {
+    if (slotByAddr(sys, slot_addr)) |slot| {
+        if (slot.module.type == .NONE) {
+            return false;
+        }
+        slotFree(sys, slot);
+        slot.module = .{ };
+        updateMemoryMapping(sys);
+        return true;
+    }
+    else {
+        return false;
+    }
 }
 
 }; // impl
