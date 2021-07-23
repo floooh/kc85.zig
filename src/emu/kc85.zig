@@ -407,13 +407,9 @@ pub const KC85 = struct {
     pub fn slotModuleName(sys: *KC85, slot_addr: u8) [:0]const u8 {
         return impl.slotModuleName(sys, slot_addr);
     }
-    // insert a RAM module into an expansion slot
-    pub fn insertRAMModule(sys: *KC85, slot_addr: u8, mod_type: ModuleType) bool {
-        return impl.insertRAMModule(sys, slot_addr, mod_type);
-    }
-    // insert a ROM module into an expansion slot
-    pub fn insertROMModule(sys: *KC85, slot_addr: u8, mod_type: ModuleType, content: []const u8) bool {
-        return impl.insertROMModule(self, slot_addr, mod_type, content);
+    // insert a module into an expansion slot
+    pub fn insertModule(sys: *KC85, slot_addr: u8, mod_type: ModuleType, optional_rom_image: ?[]const u8) bool {
+        return impl.insertModule(sys, slot_addr, mod_type, optional_rom_image);
     }
     // remove a module from an expansion slot
     pub fn removeModule(sys: *KC85, slot_addr: u8) bool {
@@ -1152,7 +1148,8 @@ fn slotFree(sys: *KC85, free_slot: *Slot) void {
     }
 }
 
-fn insertModule(sys: *KC85, slot_addr: u8, mod_type: ModuleType, optional_rom: ?[]const u8) bool {
+fn insertModule(sys: *KC85, slot_addr: u8, mod_type: ModuleType, optional_rom_image: ?[]const u8) bool {
+    _ = removeModule(sys, slot_addr);
     if (mod_type == .NONE) {
         return false;
     }
@@ -1196,7 +1193,7 @@ fn insertModule(sys: *KC85, slot_addr: u8, mod_type: ModuleType, optional_rom: ?
         }
         
         // copy optional ROM image, or clear RAM
-        if (optional_rom) |rom| {
+        if (optional_rom_image) |rom| {
             if (rom.len != slot.module.size) {
                 return false;
             }
@@ -1214,22 +1211,11 @@ fn insertModule(sys: *KC85, slot_addr: u8, mod_type: ModuleType, optional_rom: ?
 
         // also update memory mapping
         updateMemoryMapping(sys);
-
         return true;
     }
     else {
         return false;
     }
-}
-
-fn insertRAMModule(sys: *KC85, slot_addr: u8, mod_type: ModuleType) bool {
-    _ = removeModule(sys, slot_addr);
-    return insertModule(sys, slot_addr, mod_type, null);
-}
-
-fn insertROMModule(sys: *KC85, slot_addr: u8, mod_type: ModuleType, content: []const u8) bool {
-    _ = removeModule(sys, slot_addr);
-    return insertModule(sys, slot_addr, mod_type, content);
 }
 
 fn removeModule(sys: *KC85, slot_addr: u8) bool {

@@ -5,6 +5,8 @@
 const build_options = @import("build_options");
 const std   = @import("std");
 const warn  = std.debug.warn;
+const mem   = std.mem;
+const fs    = std.fs;
 const sapp  = @import("sokol").app;
 const host  = @import("host");
 const gfx   = host.gfx;
@@ -40,8 +42,6 @@ pub fn main() !void {
     if (state.args.help) {
         return;
     }
-    std.debug.print("args: {}\n", .{ state.args });
-
     // start sokol-app "game loop"
     sapp.run(.{
         .init_cb = init,
@@ -79,10 +79,21 @@ export fn init() void {
         .rom_kcbasic = if (kc85_model != .KC85_2) @embedFile("roms/basic_c0.853") else null,
     }) catch unreachable;
 
-    // on KC85/3 insert a 16 KB RAM module by default, CAOS will place
-    // this automatically at the 16 KByte gap at address 0x4000
-    if (kc85_model == .KC85_3) {
-        _ = state.kc.insertRAMModule(0x08, .M022_16KBYTE);
+    // insert any modules defined on the command line
+    for (state.args.slots) |slot| {
+        if (slot.mod_name) |mod_name| {
+            const max_file_size = 64 * 1024;
+            var mod_type = moduleNameToType(mod_name);
+            var rom_image: ?[]const u8 = null;
+            if (slot.mod_path) |path| {
+                rom_image = fs.cwd().readFileAlloc(&state.arena.allocator, path, max_file_size) catch |err| blk:{
+                    warn("Failed to load file '{s}' with: {}\n", .{ path, err });
+                    mod_type = .NONE;
+                    break :blk null;
+                };
+            }
+            _ = state.kc.insertModule(slot.addr, mod_type, rom_image);
+        }
     }
 }
 
@@ -152,5 +163,24 @@ export fn input(event: ?*const sapp.Event) void {
             }
         },
         else => { },
+    }
+}
+
+fn moduleNameToType(name: []const u8) kc85.ModuleType {
+    const modules = .{
+        .{ "m006", .M006_BASIC },
+        .{ "m011", .M011_64KBYTE },
+        .{ "m012", .M012_TEXOR },
+        .{ "m022", .M022_16KBYTE },
+        .{ "m026", .M026_FORTH },
+        .{ "m027", .M027_DEVELOPMENT },
+    };
+    inline for (modules) |module| {
+        if (mem.eql(u8, name, module[0])) {
+            return module[1];
+        }
+    }
+    else {
+        return .NONE;
     }
 }
