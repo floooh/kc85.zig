@@ -375,15 +375,13 @@ pub const KC85 = struct {
     rom_basic:  [rom_basic_size]u8,
     exp_buf:    [expansion_buffer_size]u8,
     
-    allocator:  *std.mem.Allocator,
-    
     // create a KC85 instance on the heap
     pub fn create(allocator: *std.mem.Allocator, desc: Desc) !*KC85 {
         return impl.create(allocator, desc);
     }
     // destroy heap-allocated KC85 instance
-    pub fn destroy(sys: *KC85) void {
-        impl.destroy(sys);
+    pub fn destroy(sys: *KC85, allocator: *std.mem.Allocator) void {
+        impl.destroy(sys, allocator);
     }
     // reset KC85 instance
     pub fn reset(sys: *KC85) void {
@@ -503,7 +501,6 @@ fn create( allocator: *std.mem.Allocator, desc: KC85.Desc) !*KC85 {
             else => [_]u8{0} ** rom_basic_size,
         },
         .exp_buf = [_]u8{0} ** expansion_buffer_size,
-        .allocator = allocator,
     };
     
     // on KC85/2 and KC85/3, memory is initially filled with random noise
@@ -527,8 +524,8 @@ fn create( allocator: *std.mem.Allocator, desc: KC85.Desc) !*KC85 {
     return sys;
 }
 
-fn destroy(sys: *KC85) void {
-    sys.allocator.destroy(sys);
+fn destroy(sys: *KC85, allocator: *std.mem.Allocator) void {
+    allocator.destroy(sys);
 }
 
 fn reset(sys: *KC85) void {

@@ -19,6 +19,7 @@ const ModuleType = kc85.ModuleType;
 const state = struct {
     var kc: *KC85 = undefined;
     var args: Args = undefined;
+    var arena: std.heap.ArenaAllocator = undefined;
 };
 
 const kc85_model: Model = switch (build_options.kc85_model) {
@@ -28,9 +29,11 @@ const kc85_model: Model = switch (build_options.kc85_model) {
 };
 
 pub fn main() !void {
+    state.arena = std.heap.ArenaAllocator.init(std.heap.c_allocator);
+    defer state.arena.deinit();
     
     // parse arguments
-    state.args = Args.parse(std.heap.c_allocator) catch |err| {
+    state.args = Args.parse(&state.arena.allocator) catch |err| {
         warn("Failed to parse arguments\n", .{});
         return;
     };
@@ -65,7 +68,7 @@ export fn init() void {
     time.setup();
     
     // setup KC85 emulator instance
-    state.kc = KC85.create(std.heap.c_allocator, .{
+    state.kc = KC85.create(&state.arena.allocator, .{
         .pixel_buffer = gfx.pixel_buffer[0..],
         .audio_func  = .{ .func = audio.push },
         .audio_sample_rate = audio.sampleRate(),
@@ -90,9 +93,9 @@ export fn frame() void {
 }
 
 export fn cleanup() void {
+    state.kc.destroy(&state.arena.allocator);
     audio.shutdown();
     gfx.shutdown();
-    state.kc.destroy();
 }
 
 export fn input(event: ?*const sapp.Event) void {
