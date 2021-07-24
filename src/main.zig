@@ -21,6 +21,7 @@ const ModuleType = kc85.ModuleType;
 const state = struct {
     var kc: *KC85 = undefined;
     var args: Args = undefined;
+    var file_data: ?[]const u8 = null;
     var arena: std.heap.ArenaAllocator = undefined;
 };
 
@@ -29,6 +30,11 @@ const kc85_model: Model = switch (build_options.kc85_model) {
     .KC85_3 => .KC85_3,
     .KC85_4 => .KC85_4,
 };
+const load_delay_us = switch(build_options.kc85_model) {
+    .KC85_2, .KC85_3 => 480 * 16_667,
+    .KC85_4          => 180 * 16_667,
+};
+const max_file_size = 64 * 1024;
 
 pub fn main() !void {
     state.arena = std.heap.ArenaAllocator.init(std.heap.c_allocator);
@@ -82,12 +88,11 @@ export fn init() void {
     // insert any modules defined on the command line
     for (state.args.slots) |slot| {
         if (slot.mod_name) |mod_name| {
-            const max_file_size = 64 * 1024;
             var mod_type = moduleNameToType(mod_name);
             var rom_image: ?[]const u8 = null;
             if (slot.mod_path) |path| {
                 rom_image = fs.cwd().readFileAlloc(&state.arena.allocator, path, max_file_size) catch |err| blk:{
-                    warn("Failed to load file '{s}' with: {}\n", .{ path, err });
+                    warn("Failed to load ROM file '{s}' with: {}\n", .{ path, err });
                     mod_type = .NONE;
                     break :blk null;
                 };
@@ -97,12 +102,33 @@ export fn init() void {
             };
         }
     }
+    
+    // preload the KCC or TAP file image, this will be loaded later when the
+    // system has finished booting
+    if (state.args.file) |path| {
+        state.file_data = fs.cwd().readFileAlloc(&state.arena.allocator, path, max_file_size) catch |err| blk:{
+            warn("Failed to load snapshot file '{s}' with: {}\n", .{ path, err });
+            break: blk null;
+        };
+    }
+    else {
+        state.file_data = null;
+    }
 }
 
 export fn frame() void {
     const frame_time_us = time.frameTime();
     state.kc.exec(frame_time_us);
     gfx.draw();
+    // check if KCC or TAP file should be loaded (after giving the system
+    // enough time to boot up)
+    if ((state.file_data != null) and time.elapsed(load_delay_us)) {
+        state.kc.load(state.file_data.?) catch |err| {
+            warn("Failed to load snapshot file '{s}' with: {}\n", .{ state.args.file.?, err });
+        };
+        // arena allocator takes care of deallocation
+        state.file_data = null;
+    }
 }
 
 export fn cleanup() void {

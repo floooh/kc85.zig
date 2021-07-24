@@ -407,6 +407,10 @@ pub const KC85 = struct {
     pub fn removeModule(sys: *KC85, slot_addr: u8) !void {
         return impl.removeModule(self, slot_addr);
     }
+    // load a KCC or TAP file image
+    pub fn load(sys: *KC85, data: []const u8) !void {
+        return impl.load(sys, data);
+    }
 };
 
 //=== IMPLEMENTATION ===========================================================
@@ -1205,6 +1209,138 @@ fn removeModule(sys: *KC85, slot_addr: u8) !void {
     slotFree(sys, slot);
     slot.module = .{ };
     updateMemoryMapping(sys);
+}
+
+// common autostart function for all loaders
+fn loadStart(sys: *KC85, exec_addr: u16) void {
+    // reset register values
+    sys.cpu.setR8(z80.A, 0);
+    sys.cpu.setR8(z80.A, 0x10);
+    sys.cpu.setR16(z80.BC, 0);
+    sys.cpu.setR16(z80.DE, 0);
+    sys.cpu.setR16(z80.HL, 0);
+    sys.cpu.ex[z80.BC] = 0;
+    sys.cpu.ex[z80.DE] = 0;
+    sys.cpu.ex[z80.HL] = 0;
+    sys.cpu.ex[z80.FA] = 0;
+    var addr: u16 = 0xB200;
+    while (addr < 0xB700): (addr += 1) {
+        sys.mem.w8(addr, 0);
+    }
+    sys.mem.w8(0xB7A0, 0);
+    if (model == .KC85_3) {
+        _ = tickFunc(1, z80.setAddrData(z80.IORQ|z80.WR, 0x0089, 0x9F), @ptrToInt(sys));
+        sys.mem.w16(sys.cpu.SP, 0xF15C);
+    }
+    else if (model == .KC85_4) {
+        _ = tickFunc(1, z80.setAddrData(z80.IORQ|z80.WR, 0x0089, 0xFF), @ptrToInt(sys));
+        sys.mem.w16(sys.cpu.SP, 0xF17E);
+    }
+    sys.cpu.PC = exec_addr;
+}
+
+// FIXME: this should "packed struct", but this results in a struct size
+// of 135 bytes for some reason
+const KCCHeader = extern struct {
+    name:           [16]u8,
+    num_addr:       u8,
+    load_addr_l:    u8,
+    load_addr_h:    u8,
+    end_addr_l:     u8,
+    end_addr_h:     u8,
+    exec_addr_l:    u8,
+    exec_addr_h:    u8,
+    pad:            [105]u8, // pads to 128 byte
+};
+
+const KCTAPHeader = extern struct {
+    magic:  [16]u8, // "\xC3KC-TAPE by AF. "
+    type:   u8,     // 00: KCTAP_Z9001, 01: KCTAP_KC85, else KCTAP_SYS
+    kcc:    KCCHeader,
+};
+
+// invoke the post-loading patch callback function
+fn invokePatchCallback(sys: *KC85, header: *const KCCHeader) void {
+    if (sys.patch_func) |patch_func| {
+        patch_func.func(header.name[0..], patch_func.userdata);
+    }
+}
+
+fn makeU16(hi: u8, lo: u8) u16 {
+    return (@as(u16, hi) << 8) | lo;
+}
+
+// NOTE: KCC files cannot really be identified because they have no magic number
+fn validateKCC(data: []const u8) !void {
+std.debug.warn("sizeof(KCCHeader): {}\n", .{ @sizeOf(KCCHeader)});
+//    std.debug.assert(@sizeOf(KCCHeader) == 128);
+    if (data.len < @sizeOf(KCCHeader)) {
+        return error.KCCWrongHeaderSize;
+    }
+    const hdr = @ptrCast(*const KCCHeader, data);
+    if (hdr.num_addr > 3) {
+        return error.KCCNumAddrTooBig;
+    }
+    const load_addr = makeU16(hdr.load_addr_h, hdr.load_addr_l);
+    const end_addr  = makeU16(hdr.end_addr_h, hdr.end_addr_l);
+    if (end_addr <= load_addr) {
+        return error.KCCEndAddrBeforeLoadAddr;
+    }
+    if (hdr.num_addr > 2) {
+        const exec_addr = makeU16(hdr.exec_addr_h, hdr.exec_addr_l);
+        if ((exec_addr < load_addr) or (exec_addr > end_addr)) {
+            return error.KCCExecAddrOutOfRange;
+        }
+    }
+    const expected_data_size = (end_addr - load_addr) + @sizeOf(KCCHeader);
+    if (expected_data_size > data.len) {
+        return error.KCCNotEnoughData;
+    }
+}
+
+fn loadKCC(sys: *KC85, data: []const u8) !void {
+    try validateKCC(data);
+    const hdr = @ptrCast(*const KCCHeader, data);
+    var addr = makeU16(hdr.load_addr_h, hdr.load_addr_l);
+    const end_addr = makeU16(hdr.end_addr_h, hdr.end_addr_l);
+    const payload = data[@sizeOf(KCCHeader)..];
+    for (payload) |byte| {
+        if (addr < end_addr) {
+            sys.mem.w8(addr, byte);
+        }
+        addr +%= 1;
+    }
+    invokePatchCallback(sys, hdr);
+    // if file has an exec address, start the program
+    if (hdr.num_addr > 2) {
+        const exec_addr = makeU16(hdr.exec_addr_h, hdr.exec_addr_l);
+        loadStart(sys, exec_addr);
+    }
+}
+
+// this only checks the KCTAP header
+fn isKCTAP(data: []const u8) bool {
+    if (data.len <= @sizeOf(KCTAPHeader)) {
+        return false;
+    }
+    const hdr = @ptrCast(*const KCTAPHeader, data);
+    const magic = [16]u8 { 0xC3,'K','C','-','T','A','P','E',0x20,'b','y',0x20,'A','F','.',0x20 };
+    return std.mem.eql(u8, magic[0..], hdr.magic[0..]);
+}
+
+
+fn loadKCTAP(sys: *KC85, data: []const u8) !void {
+    // FIXME
+    unreachable;
+}
+
+fn load(sys: *KC85, data: []const u8) !void {
+    if (isKCTAP(data)) {
+        return loadKCTAP(sys, data);
+    }
+    else {
+        return loadKCC(sys, data);
+    }
 }
 
 }; // impl
