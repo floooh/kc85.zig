@@ -47,3 +47,11 @@ zig build run-kc853 -- -slot8 m022 -file data/jungle.kcc
 
 Navigate with arrow keys, jump with [Space].
 
+## Run Pengo
+```
+zig build run-kc853 -- -file data/pengo.kcc
+```
+![Pengo Screenshot](screenshots/pengo.png)
+
+Navigate with the arrow keys, continue running against
+an ice block to push or destroy the block.
