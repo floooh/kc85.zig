@@ -508,8 +508,6 @@ fn create( allocator: *std.mem.Allocator, desc: KC85.Desc) !*KC85 {
         }
     }
     
-    // FIXME: setup expansion system
-
     // setup initial memory map
     updateMemoryMapping(sys);
     
