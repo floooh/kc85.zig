@@ -399,20 +399,12 @@ pub const KC85 = struct {
     pub fn keyUp(sys: *KC85, key_code: u8) void {
         impl.keyUp(sys, key_code);
     }
-    // return expansion module name string by module type (return a C-compatible string)
-    pub fn moduleName(mod_type: ModuleType) [:0]const u8 {
-        return impl.moduleName(mod_type);
-    }
-    // return expansion module name string by slot address (or "NONE" if no module is inserted)
-    pub fn slotModuleName(sys: *KC85, slot_addr: u8) [:0]const u8 {
-        return impl.slotModuleName(sys, slot_addr);
-    }
     // insert a module into an expansion slot
-    pub fn insertModule(sys: *KC85, slot_addr: u8, mod_type: ModuleType, optional_rom_image: ?[]const u8) bool {
+    pub fn insertModule(sys: *KC85, slot_addr: u8, mod_type: ModuleType, optional_rom_image: ?[]const u8) !void {
         return impl.insertModule(sys, slot_addr, mod_type, optional_rom_image);
     }
     // remove a module from an expansion slot
-    pub fn removeModule(sys: *KC85, slot_addr: u8) bool {
+    pub fn removeModule(sys: *KC85, slot_addr: u8) !void {
         return impl.removeModule(self, slot_addr);
     }
 };
@@ -1057,66 +1049,40 @@ fn handleKeyboard(sys: *KC85) void {
     }
 }
 
-fn moduleName(mod_type: ModuleType) [:0]const u8 {
-    return switch (mod_type) {
-        .NONE               => "NONE",
-        .M006_BASIC         => "M006 BASIC",
-        .M011_64KBYTE       => "M011 64KB",
-        .M012_TEXOR         => "M012 TEXOR",
-        .M022_16KBYTE       => "M022 16KB",
-        .M026_FORTH         => "M026 FORTH",
-        .M027_DEVELOPMENT   => "M027 DEV",
-    };
-}
-
-fn slotByAddr(sys: *KC85, addr: u8) ?*Slot {
+fn slotByAddr(sys: *KC85, addr: u8) !*Slot {
     for (sys.exp.slots) |*slot| {
         if (addr == slot.addr) {
             return slot;
         }
     }
     else {
-        return null;
-    }
-}
-
-fn slotModuleName(sys: *KC85, addr: u8) [:0]const u8 {
-    if (slotByAddr(addr)) |*slot| {
-        return moduleName(slot.module.type);    
-    }
-    else {
-        return "NONE";
+        return error.InvalidSlotAddress;
     }
 }
 
 fn slotModuleId(sys: *KC85, addr: u8) u8 {
-    if (slotByAddr(sys, addr)) |slot| {
-        return slot.module.id;
-    }
-    else {
+    const slot = slotByAddr(sys, addr) catch {
         return 0xFF;
-    }
+    };
+    return slot.module.id;
 }
 
 fn slotWriteCtrlByte(sys: *KC85, slot_addr: u8, ctrl_byte: u8) bool {
-    if (slotByAddr(sys, slot_addr)) |slot| {
-        slot.ctrl = ctrl_byte;
-        return true;
-    }
-    else {
+    var slot = slotByAddr(sys, slot_addr) catch {
         return false;
-    }
+    };
+    slot.ctrl = ctrl_byte;
+    return true;
 }
 
 // allocate expansion buffer space for a module to be inserted
 // into a slot, updates sys.exp.buf_top and slot.buf_offset
-fn slotAlloc(sys: *KC85, slot: *Slot) bool {
+fn slotAlloc(sys: *KC85, slot: *Slot) !void {
     if ((slot.module.size + sys.exp.buf_top) > expansion_buffer_size) {
-        return false;
+        return error.ExpansionBufferFull;
     }
     slot.buf_offset = sys.exp.buf_top;
     sys.exp.buf_top += slot.module.size;
-    return true;
 }
 
 // free an allocation in the expansion and close the gap
@@ -1148,11 +1114,23 @@ fn slotFree(sys: *KC85, free_slot: *Slot) void {
     }
 }
 
-fn insertModule(sys: *KC85, slot_addr: u8, mod_type: ModuleType, optional_rom_image: ?[]const u8) bool {
-    _ = removeModule(sys, slot_addr);
-    if (mod_type == .NONE) {
-        return false;
+fn moduleNeedsROMImage(mod_type: ModuleType) bool {
+    return switch (mod_type) {
+        .M011_64KBYTE, .M022_16KBYTE => false,
+        else => true,
+    };
+}
+
+fn insertModule(sys: *KC85, slot_addr: u8, mod_type: ModuleType, optional_rom_image: ?[]const u8) !void {
+    try removeModule(sys, slot_addr);
+
+    if (moduleNeedsROMImage(mod_type) and (optional_rom_image == null)) {
+        return error.ModuleTypeExpectsROMImage;
     }
+    else if (!moduleNeedsROMImage(mod_type) and (optional_rom_image != null)) {
+        return error.ModuleTypeDoesNotExpectROMImage;
+    }
+
     if (slotByAddr(sys, slot_addr)) |slot| {
         slot.module = switch (mod_type) {
             .M006_BASIC => .{
@@ -1183,19 +1161,21 @@ fn insertModule(sys: *KC85, slot_addr: u8, mod_type: ModuleType, optional_rom_im
                 .addr_mask = 0xE0,
                 .size = 8 * 1024,
             },
-            else => unreachable,
+            else => .{ }
         };
         
         // allocate space in expansion buffer
-        if (!slotAlloc(sys, slot)) {
+        slotAlloc(sys, slot) catch |err| {
             // not enough space left in buffer
             slot.module = .{ };
-        }
-        
+            return err;
+        };
+
         // copy optional ROM image, or clear RAM
-        if (optional_rom_image) |rom| {
+        if (moduleNeedsROMImage(mod_type)) {
+            const rom = optional_rom_image.?;
             if (rom.len != slot.module.size) {
-                return false;
+                return error.ModuleRomImageSizeMismatch;
             }
             else {
                 for (rom) |byte,i| {
@@ -1211,26 +1191,20 @@ fn insertModule(sys: *KC85, slot_addr: u8, mod_type: ModuleType, optional_rom_im
 
         // also update memory mapping
         updateMemoryMapping(sys);
-        return true;
     }
-    else {
-        return false;
+    else |err| {
+        return err;
     }
 }
 
-fn removeModule(sys: *KC85, slot_addr: u8) bool {
-    if (slotByAddr(sys, slot_addr)) |slot| {
-        if (slot.module.type == .NONE) {
-            return false;
-        }
-        slotFree(sys, slot);
-        slot.module = .{ };
-        updateMemoryMapping(sys);
-        return true;
+fn removeModule(sys: *KC85, slot_addr: u8) !void {
+    var slot = try slotByAddr(sys, slot_addr);
+    if (slot.module.type == .NONE) {
+        return;
     }
-    else {
-        return false;
-    }
+    slotFree(sys, slot);
+    slot.module = .{ };
+    updateMemoryMapping(sys);
 }
 
 }; // impl

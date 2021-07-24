@@ -92,7 +92,9 @@ export fn init() void {
                     break :blk null;
                 };
             }
-            _ = state.kc.insertModule(slot.addr, mod_type, rom_image);
+            state.kc.insertModule(slot.addr, mod_type, rom_image) catch |err| {
+                warn("Failed to insert module '{s}' with: {}\n", .{ mod_name, err });
+            };
         }
     }
 }
