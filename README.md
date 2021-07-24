@@ -1,5 +1,11 @@
 A simple KC85/2, /3 and /4 emulator for Windows, macOS and Linux, written in Zig. Uses the [sokol headers](https://github.com/floooh/sokol) for platform abstraction.
 
+Read more about the KC85 computer series here:
+
+- https://en.wikipedia.org/wiki/KC_85
+- https://floooh.github.io/virtualkc/p010_kc85.html
+- https://floooh.github.io/2017/01/14/yakc-diamond-scroll.html
+
 ## Build
 
 With Zig version 0.8.0, on Windows, macOS or Linux:
@@ -55,3 +61,19 @@ zig build run-kc853 -- -file data/pengo.kcc
 
 Navigate with the arrow keys, continue running against
 an ice block to push or destroy the block.
+
+## Run FORTH on the KC85/4
+```
+zig build run-kc854 -- -slot8 m026 data/forth.853
+```
+
+On the KC85/4's command line, first activate the module,
+and then start Forth:
+
+```
+switch 8 c1
+forth
+```
+(the characters will appear uppercase, don't worry, that's normal)
+
+![FORTH Screenshot](screenshots/forth.png)
