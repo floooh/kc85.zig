@@ -70,7 +70,7 @@ pub fn parse(a: *std.mem.Allocator) !Args {
                 };
             }
         }
-        else if (mem.eql(u8, arg, "-load")) {
+        else if (mem.eql(u8, arg, "-file")) {
             res.file = try arg_iter.next(a) orelse {
                 warn("Expected path to .kcc or .tap file after '-load'\n", .{});
                 return error.InvalidArgs;
