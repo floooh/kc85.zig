@@ -80,7 +80,7 @@ forth [Enter]
 
 ## Misc Stuff
 
-For a nostalgia kick, start the KC85/4:
+For an instant nostalgia kick, start the KC85/4:
 
 ```
 zig build run-kc854
