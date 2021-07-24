@@ -71,9 +71,26 @@ On the KC85/4's command line, first activate the module,
 and then start Forth:
 
 ```
-switch 8 c1
-forth
+switch 8 c1 [Enter]
+forth [Enter]
 ```
 (the characters will appear uppercase, don't worry, that's normal)
 
 ![FORTH Screenshot](screenshots/forth.png)
+
+## Misc Stuff
+
+For a nostalgia kick, start the KC85/4:
+
+```
+zig build run-kc854
+```
+
+...and then type this into the KC85/4 command line. Make sure you're volume
+isn't silent, but turn it up too much!
+
+```
+save f000 f800 [Enter]
+```
+...type anything for the name, and hit Enter again :D
+
