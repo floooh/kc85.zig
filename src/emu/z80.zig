@@ -265,9 +265,24 @@ pub const CPU = struct {
         return 0 == cpu.ixiy;
     }
     
-    /// get 16-bit register value (BC, DE, HL, FA)
+    // get 8-bit register value
+    pub fn r8(cpu: *CPU, reg: u3) u8 {
+        return cpu.regs[reg];
+    }
+
+    // set 8-bit register value
+    pub fn setR8(cpu: *CPU, reg: u3, val: u8) void {
+        cpu.regs[reg] = val;
+    }
+    
+    // get 16-bit register value (BC, DE, HL, FA)
     pub fn r16(cpu: *CPU, reg: u2) u16 {
         return impl.r16(&cpu.regs, reg);
+    }
+    
+    // write a 16-bit register value (BC, DE, HL, FA)
+    pub fn setR16(cpu: *CPU, reg: u2, val: u16) void {
+        impl.setR16(&cpu.regs, reg, val);
     }
 };
 
