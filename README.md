@@ -1,31 +1,19 @@
-This will become a little toy emulator for the KC85/2../4 home computer
-series written in Zig.
+A simple KC85/2, /3 and /4 emulator written in Zig.
 
-For now (with Zig version 0.8.0):
+## Build
 
-Run the module-integrated unit tests:
+With Zig version 0.8.0, on Windows, macOS or Linux:
 
-```sh
-> zig build tests
+```
+zig build -Drelease-fast=true
 ```
 
-Run the high-level instruction tester (tests/z80test.zig):
+(NOTE: on Linux you also need to install the ALSA, X11 and GL development packages)
 
-```sh
-> zig build z80test
+## Digger
 ```
-
-Run the much more thorough ZEXDOC and ZEXALL tests (tests/z80zex.zig):
-
-```sh
-> zig build z80zexdoc -Drelease-safe=true
-> zig build z80zexall -Drelease-safe=true
+zig-out/bin/kc853 -slot8 m022 -file data/digger3.tap
 ```
-
-WIP emulators:
-
-```sh
-> zig build run-kc852 -Drelease-fast=true
-> zig build run-kc853 -Drelease-fast=true
-> zig build run-kc854 -Drelease-fast=true
-```
+![Digger Screenshot](screenshots/digger.png)
+Press [Enter] to start a new game round, and [Esc] to continue
+after you died. Use the arrows keys to navigate.
