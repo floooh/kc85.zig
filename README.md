@@ -88,7 +88,7 @@ zig build run-kc854
 
 ...and then type this into the KC85/4 command line.
 
-Make sure you're volume isn't silent, but **don't** turn it up *too* much!
+Make sure your audio volume isn't silent, but **don't** turn it up *too* much!
 
 ```
 save f000 f800[Enter]
