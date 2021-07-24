@@ -1270,10 +1270,7 @@ fn makeU16(hi: u8, lo: u8) u16 {
     return (@as(u16, hi) << 8) | lo;
 }
 
-// NOTE: KCC files cannot really be identified because they have no magic number
 fn validateKCC(data: []const u8) !void {
-std.debug.warn("sizeof(KCCHeader): {}\n", .{ @sizeOf(KCCHeader)});
-//    std.debug.assert(@sizeOf(KCCHeader) == 128);
     if (data.len < @sizeOf(KCCHeader)) {
         return error.KCCWrongHeaderSize;
     }
@@ -1319,7 +1316,7 @@ fn loadKCC(sys: *KC85, data: []const u8) !void {
 }
 
 // this only checks the KCTAP header
-fn isKCTAP(data: []const u8) bool {
+fn checkKCTAPMagic(data: []const u8) bool {
     if (data.len <= @sizeOf(KCTAPHeader)) {
         return false;
     }
@@ -1328,14 +1325,56 @@ fn isKCTAP(data: []const u8) bool {
     return std.mem.eql(u8, magic[0..], hdr.magic[0..]);
 }
 
+fn validateKCTAP(data: []const u8) !void {
+    if (!checkKCTAPMagic(data)) {
+        return error.NoKCTAPMagicNumber;
+    }
+    const hdr = @ptrCast(*const KCTAPHeader, data);
+    if (hdr.kcc.num_addr > 3) {
+        return error.KCTAPNumAddrTooBig;
+    }
+    const load_addr = makeU16(hdr.kcc.load_addr_h, hdr.kcc.load_addr_l);
+    const end_addr  = makeU16(hdr.kcc.end_addr_h, hdr.kcc.end_addr_l);
+    if (end_addr <= load_addr) {
+        return error.KCTAPEndAddrBeforeLoadAddr;
+    }
+    if (hdr.kcc.num_addr > 2) {
+        const exec_addr = makeU16(hdr.kcc.exec_addr_h, hdr.kcc.exec_addr_l);
+        if ((exec_addr < load_addr) or (exec_addr > end_addr)) {
+            return error.KCTAPExecAddrOutOfRange;
+        }
+    }
+    const expected_data_size = (end_addr - load_addr) + @sizeOf(KCTAPHeader);
+    if (expected_data_size > data.len) {
+        return error.KCCNotEnoughData;
+    }
+}
 
 fn loadKCTAP(sys: *KC85, data: []const u8) !void {
-    // FIXME
-    unreachable;
+    try validateKCTAP(data);
+    const hdr = @ptrCast(*const KCTAPHeader, data);
+    var addr = makeU16(hdr.kcc.load_addr_h, hdr.kcc.load_addr_l);
+    const end_addr = makeU16(hdr.kcc.end_addr_h, hdr.kcc.end_addr_l);
+    const payload = data[@sizeOf(KCTAPHeader)..];
+    for (payload) |byte, i| {
+        // each block is one lead byte and 128 byte data
+        if ((i % 129) != 0) {
+            if (addr < end_addr) {
+                sys.mem.w8(addr, byte);
+            }
+            addr +%= 1;
+        }
+    }
+    invokePatchCallback(sys, &hdr.kcc);
+    // if file has an exec address, start the program
+    if (hdr.kcc.num_addr > 2) {
+        const exec_addr = makeU16(hdr.kcc.exec_addr_h, hdr.kcc.exec_addr_l);
+        loadStart(sys, exec_addr);
+    }
 }
 
 fn load(sys: *KC85, data: []const u8) !void {
-    if (isKCTAP(data)) {
+    if (checkKCTAPMagic(data)) {
         return loadKCTAP(sys, data);
     }
     else {
