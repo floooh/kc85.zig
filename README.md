@@ -1,4 +1,4 @@
-A simple KC85/2, /3 and /4 emulator written in Zig.
+A simple KC85/2, /3 and /4 emulator for Windows, macOS and Linux, written in Zig. Uses the [sokol headers](https://github.com/floooh/sokol) for platform abstraction.
 
 ## Build
 
@@ -15,5 +15,6 @@ zig build -Drelease-fast=true
 zig-out/bin/kc853 -slot8 m022 -file data/digger3.tap
 ```
 ![Digger Screenshot](screenshots/digger.png)
+
 Press [Enter] to start a new game round, and [Esc] to continue
 after you died. Use the arrows keys to navigate.
