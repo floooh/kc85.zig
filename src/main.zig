@@ -78,6 +78,7 @@ export fn init() void {
         .pixel_buffer = gfx.pixel_buffer[0..],
         .audio_func  = .{ .func = audio.push },
         .audio_sample_rate = audio.sampleRate(),
+        .patch_func = .{ .func = patchFunc },
         .rom_caos22  = if (kc85_model == .KC85_2) @embedFile("roms/caos22.852") else null,
         .rom_caos31  = if (kc85_model == .KC85_3) @embedFile("roms/caos31.853") else null,
         .rom_caos42c = if (kc85_model == .KC85_4) @embedFile("roms/caos42c.854") else null,
@@ -210,5 +211,29 @@ fn moduleNameToType(name: []const u8) kc85.ModuleType {
     }
     else {
         return .NONE;
+    }
+}
+
+// this patches some known issues with game images
+fn patchFunc(snapshot_name: []const u8, userdata: usize) void {
+    if (mem.startsWith(u8, snapshot_name, "JUNGLE     ")) {
+        // patch start level 1 into memory
+        state.kc.mem.w8(0x36B7, 1);
+        state.kc.mem.w8(0x3697, 1);
+        var i: u16 = 0;
+        while (i < 5): (i += 1) {
+            const b = state.kc.mem.r8(0x36B6 +% i);
+            state.kc.mem.w8(0x1770 +% i, b);
+        }
+    }
+    else if (mem.startsWith(u8, snapshot_name, "DIGGER  COM\x01")) {
+        // time for delay loop 0x0160 instead of 0x0260
+        state.kc.mem.w16(0x09AA, 0x0160);
+        // OR L instead of OR (HL)
+        state.kc.mem.w8(0x3D3A, 0xB5);
+    }
+    else if (mem.startsWith(u8, snapshot_name, "DIGGERJ")) {
+        state.kc.mem.w16(0x09AA, 0x0260);
+        state.kc.mem.w8(0x3D3A, 0xB5);
     }
 }
