@@ -225,7 +225,7 @@ const Regs = [NumRegs8]u8;
 const UseIX = (1<<0);
 const UseIY = (1<<1);
 
-// FIXME: that userdata thing is ugly AF
+// system tick callback with associated userdata
 pub const TickFunc = struct {
     func: fn(num_ticks: u64, pins: u64, userdata: usize) u64,
     userdata: usize = 0,
@@ -294,6 +294,7 @@ fn exec(cpu: *CPU, num_ticks: u64, tick_func: TickFunc) u64 {
     var running = true;
     while (running): (running = cpu.ticks < num_ticks) {
 
+        // store current pin state for edge-triggered NMI detection
         const pre_pins = cpu.pins;
 
         // fetch next opcode byte
@@ -390,7 +391,7 @@ fn exec(cpu: *CPU, num_ticks: u64, tick_func: TickFunc) u64 {
             }
         }
 
-        // handle IRQ and NMI
+        // handle IRQ (level-triggered) and NMI (edge-triggered)
         const nmi: bool = 0 != ((cpu.pins & (cpu.pins ^ pre_pins)) & NMI);
         const int: bool = cpu.iff1 and (0 != (cpu.pins & INT));
         if (nmi or int) {
@@ -416,7 +417,7 @@ fn handleInterrupt(cpu: *CPU, nmi: bool, int: bool, tick_func: TickFunc) void {
     if (int) {
         cpu.iff2 = false;
     }
-    // if in HALT state, continue
+    // interrupts deactivate HALT state
     if (0 != (cpu.pins & HALT)) {
         cpu.pins &= ~HALT;
         cpu.PC +%= 1;
@@ -447,7 +448,7 @@ fn handleInterrupt(cpu: *CPU, nmi: bool, int: bool, tick_func: TickFunc) void {
         tick(cpu, 2, 0, tick_func); // 2 filler ticks
         switch (cpu.IM) {
             0 => {
-                // interrupt mode 0 not supported
+                // interrupt mode 0 not implemented
             },
             1 => {
                 // interrupt mode 1:
@@ -538,7 +539,7 @@ fn opED_prefix(cpu: *CPU, tick_func: TickFunc) void {
 
 // return flags for left/right-shift/rotate operations
 fn lsrFlags(d8: u64, r: u64) u8 {
-    return szpFlags(@truncate(u8, r)) | @truncate(u8, d8 >> 7 & CF);
+    return szpFlags(@truncate(u8, r)) | @truncate(u8, (d8 >> 7) & CF);
 }
 
 fn rsrFlags(d8: u64, r: u64) u8 {

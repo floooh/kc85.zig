@@ -307,7 +307,7 @@ pub const ExpansionSystem = struct {
     buf_top: u32 = 0,   // top of buffer index in KC85.exp_buf
 };
 
-// audio sample callback
+// audio output callback, called to push samples into host audio backend
 const AudioFunc = struct {
     func: fn(samples: []const f32, userdata: usize) void,
     userdata: usize = 0,
@@ -321,9 +321,9 @@ const PatchFunc = struct {
 
 // KC85 emulator state
 pub const KC85 = struct {
-    // config parameter for KC85.init()
+    // config parameters for KC85.init()
     const Desc = struct {
-        pixel_buffer: []u32,    // must have room for 320x256 pixels
+        pixel_buffer: []u32,    // must have room for 320x256 RGBA8 pixels
 
         audio_func:         ?AudioFunc = null,
         audio_num_samples:  usize = default_num_audio_samples,
@@ -338,8 +338,6 @@ pub const KC85 = struct {
         rom_caos42e:    ?[]const u8 = null, // CAOS 4.2 at 0xE000 (KC85/4)
         rom_kcbasic:    ?[]const u8 = null, // same BASIC version for KC85/3 and KC85/4
     };
-
-    model: Model,
 
     cpu: z80.CPU,
     ctc: z80ctc.CTC,
@@ -433,7 +431,6 @@ fn create( allocator: *std.mem.Allocator, desc: KC85.Desc) !*KC85 {
         .KC85_4          => 1_770_000,
     };
     sys.* = .{
-        .model = model,
         .cpu = .{
             // execution on powerup starts at address 0xF000
             .PC = 0xF000,
@@ -523,6 +520,7 @@ fn reset(sys: *KC85) void {
     unreachable;
 }
 
+// run the CPU emulation for requested number of micro-secs
 fn exec(sys: *KC85, micro_secs: u32) void {
     const ticks_to_run = sys.clk.ticksToRun(micro_secs);
     const ticks_executed = sys.cpu.exec(ticks_to_run, z80.TickFunc{ .func=tickFunc, .userdata=@ptrToInt(sys) });
@@ -531,6 +529,7 @@ fn exec(sys: *KC85, micro_secs: u32) void {
     handleKeyboard(sys);
 }
 
+// the system tick function is called from within the CPU emulation
 fn tickFunc(num_ticks: u64, pins_in: u64, userdata: usize) u64 {
     var sys = @intToPtr(*KC85, userdata);
     var pins = pins_in;
