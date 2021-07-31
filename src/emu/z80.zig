@@ -1109,38 +1109,38 @@ fn opEX_iSP_HL(cpu: *CPU, tick_func: TickFunc) void {
 
 // RLCA
 fn opRLCA(cpu: *CPU) void {
-    const a: u64 = cpu.regs[A];
+    const a = cpu.regs[A];
     const r = (a<<1) | (a>>7);
     const f = cpu.regs[F];
-    cpu.regs[F] = @truncate(u8, ((a>>7) & CF) | (f & (SF|ZF|PF)) | (r & (YF|XF)));
-    cpu.regs[A] = @truncate(u8, r);
+    cpu.regs[F] = ((a>>7) & CF) | (f & (SF|ZF|PF)) | (r & (YF|XF));
+    cpu.regs[A] = r;
 }
 
 // RRCA
 fn opRRCA(cpu: *CPU) void {
-    const a: u64 = cpu.regs[A];
+    const a = cpu.regs[A];
     const r = (a>>1) | (a<<7);
     const f = cpu.regs[F];
-    cpu.regs[F] = @truncate(u8, (a & CF) | (f & (SF|ZF|PF)) | (r & (YF|XF)));
-    cpu.regs[A] = @truncate(u8, r);
+    cpu.regs[F] = (a & CF) | (f & (SF|ZF|PF)) | (r & (YF|XF));
+    cpu.regs[A] = r;
 }
 
 // RLA
 fn opRLA(cpu: *CPU) void {
-    const a: u64 = cpu.regs[A];
+    const a = cpu.regs[A];
     const f = cpu.regs[F];
     const r = (a<<1) | (f & CF);
-    cpu.regs[F] = @truncate(u8, ((a>>7) & CF) | (f & (SF|ZF|PF)) | (r & (YF|XF)));
-    cpu.regs[A] = @truncate(u8, r);
+    cpu.regs[F] = ((a>>7) & CF) | (f & (SF|ZF|PF)) | (r & (YF|XF));
+    cpu.regs[A] = r;
 }
 
 // RRA
 fn opRRA(cpu: *CPU) void {
-    const a: u64 = cpu.regs[A];
+    const a = cpu.regs[A];
     const f = cpu.regs[F];
     const r = (a >> 1) | ((f & CF) << 7);
-    cpu.regs[F] = @truncate(u8, (a & CF) | (f & (SF|ZF|PF)) | (r & (YF|XF)));
-    cpu.regs[A] = @truncate(u8, r);
+    cpu.regs[F] = (a & CF) | (f & (SF|ZF|PF)) | (r & (YF|XF));
+    cpu.regs[A] = r;
 }
 
 // RLD
@@ -1505,7 +1505,7 @@ fn opINI_IND_INIR_INDR(cpu: *CPU, y: u3, tick_func: TickFunc) void {
     if (0 != (val & SF)) {
         f |= NF;
     }
-    const t: u17 = @as(u17,c) + val;
+    const t = @as(u9,c) + val;
     if (0 != (t & 0x100)) {
         f |= HF|CF;
     }
@@ -1538,7 +1538,7 @@ fn opOUTI_OUTD_OTIR_OTDR(cpu: *CPU, y: u3, tick_func: TickFunc) void {
     if (0 != (val & SF)) {
         f |= NF;
     }
-    const t: u17 = @as(u17, cpu.regs[L]) + val;
+    const t = @as(u9, cpu.regs[L]) + val;
     if (0 != (t & 0x100)) {
         f |= HF|CF;
     }
@@ -1559,28 +1559,28 @@ fn opRSTy(cpu: *CPU, y: u3, tick_func: TickFunc) void {
 }
 
 // flag computation functions
-fn szFlags(val: u64) u8 {
-    if ((val & 0xFF) == 0) {
+fn szFlags(val: u9) u8 {
+    if (@truncate(u8, val) == 0) {
         return ZF;
     }
     else {
-        return @truncate(u8, val & SF);
+        return @truncate(u8, val) & SF;
     }
 }
 
-fn szyxchFlags(acc: u64, val: u8, res: u64) u8 {
+fn szyxchFlags(acc: u9, val: u8, res: u9) u8 {
     return szFlags(res) | @truncate(u8, (res & (YF|XF)) | ((res >> 8) & CF) | ((acc^val^res) & HF));
 }
 
-fn addFlags(acc: u64, val: u8, res: u64) u8 {
+fn addFlags(acc: u9, val: u8, res: u9) u8 {
     return szyxchFlags(acc, val, res) | @truncate(u8, (((val^acc^0x80) & (val^res))>>5) & VF);
 }
 
-fn subFlags(acc: u64, val: u8, res: u64) u8 {
+fn subFlags(acc: u9, val: u8, res: u9) u8 {
     return NF | szyxchFlags(acc, val, res) | @truncate(u8, (((val^acc) & (res^acc))>>5) & VF);
 }
 
-fn cpFlags(acc: u64, val: u8, res: u64) u8 {
+fn cpFlags(acc: u9, val: u8, res: u9) u8 {
     return NF | szFlags(res) | @truncate(u8, (val & (YF|XF)) | ((res >> 8) & CF) | ((acc^val^res) & HF) | ((((val^acc) & (res^acc))>>5) & VF));
 }
 
@@ -1604,29 +1604,29 @@ fn cc(f: u8, y: u3) bool {
 
 // ALU functions
 fn add8(r: *Regs, val: u8) void {
-    const acc: u64 = r[A];
-    const res: u64 = acc + val;
+    const acc: u9 = r[A];
+    const res: u9 = acc + val;
     r[F] = addFlags(acc, val, res);
     r[A] = @truncate(u8, res);
 }
 
 fn adc8(r: *Regs, val: u8) void {
-    const acc: u64 = r[A];
-    const res: u64 = acc + val + (r[F] & CF);
+    const acc: u9 = r[A];
+    const res: u9 = acc + val + (r[F] & CF);
     r[F] = addFlags(acc, val, res);
     r[A] = @truncate(u8, res);
 }
 
 fn sub8(r: *Regs, val: u8) void {
-    const acc: u64 = r[A];
-    const res: u64 = acc -% val; 
+    const acc: u9 = r[A];
+    const res: u9 = acc -% val; 
     r[F] = subFlags(acc, val, res);
     r[A] = @truncate(u8, res);
 }
     
 fn sbc8(r: *Regs, val: u8) void {
-    const acc: u64 = r[A];
-    const res: u64 = acc -% val -% (r[F] & CF);
+    const acc: u9 = r[A];
+    const res: u9 = acc -% val -% (r[F] & CF);
     r[F] = subFlags(acc, val, res);
     r[A] = @truncate(u8, res);
 }
@@ -1647,8 +1647,8 @@ fn or8(r: *Regs, val: u8) void {
 }
 
 fn cp8(r: *Regs, val: u8) void {
-    const acc: u64 = r[A];
-    const res: u64 = acc -% val;
+    const acc: u9 = r[A];
+    const res: u9 = acc -% val;
     r[F] = cpFlags(acc, val, res);
 }
 
