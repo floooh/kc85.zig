@@ -538,12 +538,12 @@ fn opED_prefix(cpu: *CPU, tick_func: TickFunc) void {
 }
 
 // return flags for left/right-shift/rotate operations
-fn lsrFlags(d8: u64, r: u64) u8 {
-    return szpFlags(@truncate(u8, r)) | @truncate(u8, (d8 >> 7) & CF);
+fn lsrFlags(d8: u8, r: u8) u8 {
+    return szpFlags(r) | ((d8 >> 7) & CF);
 }
 
-fn rsrFlags(d8: u64, r: u64) u8 {
-    return szpFlags(@truncate(u8, r)) | @truncate(u8, d8 & CF);
+fn rsrFlags(d8: u8, r: u8) u8 {
+    return szpFlags(r) | (d8 & CF);
 }
 
 // CB-prefix decoding (very, very special case)
@@ -562,7 +562,7 @@ fn opCB_prefix(cpu: *CPU, tick_func: TickFunc) void {
     const z = @truncate(u3, op & 7);
     
     // load operand (for indexed ops always from memory)
-    const d8: u64 = if ((z == 6) or (cpu.ixiy != 0)) blk: {
+    const d8: u8 = if ((z == 6) or (cpu.ixiy != 0)) blk: {
         tick(cpu, 1, 0, tick_func); // filler tick
         cpu.WZ = loadHLIXIY(cpu);
         if (cpu.ixiy != 0) {
@@ -573,8 +573,8 @@ fn opCB_prefix(cpu: *CPU, tick_func: TickFunc) void {
     }
     else load8(cpu, z, tick_func);
     
-    var f: u64 = cpu.regs[F];
-    var r: u64 = undefined;
+    var f: u8 = cpu.regs[F];
+    var r: u8 = undefined;
     switch (x) {
         0 => switch (y) {
             // rot/shift
@@ -589,10 +589,10 @@ fn opCB_prefix(cpu: *CPU, tick_func: TickFunc) void {
         },
         1 => {
             // BIT (bit test)
-            r = d8 & (@as(u64,1) << y);
+            r = d8 & (@as(u8,1) << y);
             f = (f & CF) | HF | if (r==0) ZF|PF else r&SF;
             if ((z == 6) or (cpu.ixiy != 0)) {
-                f |= (cpu.WZ >> 8) & (YF|XF);
+                f |= @truncate(u8, cpu.WZ >> 8) & (YF|XF);
             }
             else {
                 f |= d8 & (YF|XF);
@@ -600,11 +600,11 @@ fn opCB_prefix(cpu: *CPU, tick_func: TickFunc) void {
         },
         2 => {
             // RES (bit clear)
-            r = d8 & ~(@as(u64,1) << y);
+            r = d8 & ~(@as(u8,1) << y);
         },
         3 => {
             // SET (bit set)
-            r = d8 | (@as(u64, 1) << y);
+            r = d8 | (@as(u8,1) << y);
         }
     }
     if (x != 1) {
@@ -612,14 +612,14 @@ fn opCB_prefix(cpu: *CPU, tick_func: TickFunc) void {
         if ((z == 6) or (cpu.ixiy != 0)) {
             // (HL), (IX+d), (IY+d): write back to memory, for extended op,
             // even when the op is actually a register op
-            memWrite(cpu, cpu.WZ, @truncate(u8, r), tick_func);
+            memWrite(cpu, cpu.WZ, r, tick_func);
         }
         if (z != 6) {
             // write result back to register, never write back to overriden IXH/IYH/IXL/IYL
-            store8HL(cpu, z, @truncate(u8, r), tick_func);
+            store8HL(cpu, z, r, tick_func);
         }
     }
-    cpu.regs[F] = @truncate(u8, f);
+    cpu.regs[F] = f;
 }
 
 // set 16 bit register
