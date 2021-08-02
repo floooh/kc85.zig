@@ -84,7 +84,10 @@ export fn init() void {
         .rom_caos42c = if (kc85_model == .KC85_4) @embedFile("roms/caos42c.854") else null,
         .rom_caos42e = if (kc85_model == .KC85_4) @embedFile("roms/caos42e.854") else null,
         .rom_kcbasic = if (kc85_model != .KC85_2) @embedFile("roms/basic_c0.853") else null,
-    }) catch unreachable;
+    }) catch |err| {
+        warn("Failed to allocate KC85 instance with: {}\n", .{ err });
+        std.process.exit(10);
+    };
 
     // insert any modules defined on the command line
     for (state.args.slots) |slot| {
