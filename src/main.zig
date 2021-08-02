@@ -48,6 +48,7 @@ pub fn main() !void {
     if (state.args.help) {
         return;
     }
+
     // start sokol-app "game loop"
     sapp.run(.{
         .init_cb = init,
@@ -112,7 +113,7 @@ export fn init() void {
     if (state.args.file) |path| {
         state.file_data = fs.cwd().readFileAlloc(&state.arena.allocator, path, max_file_size) catch |err| blk:{
             warn("Failed to load snapshot file '{s}' with: {}\n", .{ path, err });
-            break: blk null;
+            break :blk null;
         };
     }
     else {

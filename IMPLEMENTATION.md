@@ -151,6 +151,127 @@ Zig code:
 ```
 
 Next, command line arguments are parsed through a hardwired argument parser 
-in the **host** package. If parsing arguments fails, the program
+in the **host** package. If arg parsing fails, the program will terminate
+with exit code 5, if the program was started with -h or -help, the program
+will regularly exit (the help text had already been printed in the
+argument parser module):
 
-This is the entry point of the KC85 execut
+```zig
+    state.args = Args.parse(&state.arena.allocator) catch |err| {
+        warn("Failed to parse arguments\n", .{});
+        return;
+    };
+    if (state.args.help) {
+        return;
+    }
+```
+
+Finally, the sokol_app.h application loop will take over, this will return
+when the user asks the application to exit (for instance by pressing the
+window close button):
+
+```zig
+    sapp.run(.{
+        .init_cb = init,
+        .frame_cb = frame,
+        .cleanup_cb = cleanup,
+        .event_cb = input,
+        .width = gfx.WindowWidth,
+        .height = gfx.WindowHeight,
+        .icon = .{
+            // FIXME: KC85 logo
+            .sokol_default = true,
+        },
+        .window_title = switch (kc85_model) {
+            .KC85_2 => "KC85/2",
+            .KC85_3 => "KC85/3",
+            .KC85_4 => "KC85/4"
+        }
+    });
+```
+
+After sokol_app.h has created the application window, the [**init()** callback
+function](https://github.com/floooh/kc85.zig/blob/02be0a4d1981c135b0c352048352c8759784eb5b/src/main.zig#L71-L121) will be called, this first initializes the graphics, audio and time measuring host binding modules, and
+then creates a KC85 emulator instance on the heap using the ArenaAllocator which was
+created at the start of the application. The KC85.create() function takes two
+arguments: a pointer to a Zig allocator, and a 'desc struct' with initialization
+parameters:
+
+```zig
+    state.kc = KC85.create(&state.arena.allocator, .{
+        .pixel_buffer = gfx.pixel_buffer[0..],
+        .audio_func  = .{ .func = audio.push },
+        .audio_sample_rate = audio.sampleRate(),
+        .patch_func = .{ .func = patchFunc },
+        .rom_caos22  = if (kc85_model == .KC85_2) @embedFile("roms/caos22.852") else null,
+        .rom_caos31  = if (kc85_model == .KC85_3) @embedFile("roms/caos31.853") else null,
+        .rom_caos42c = if (kc85_model == .KC85_4) @embedFile("roms/caos42c.854") else null,
+        .rom_caos42e = if (kc85_model == .KC85_4) @embedFile("roms/caos42e.854") else null,
+        .rom_kcbasic = if (kc85_model != .KC85_2) @embedFile("roms/basic_c0.853") else null,
+    }) catch |err| {
+        warn("Failed to allocate KC85 instance with: {}\n", .{ err });
+        std.process.exit(10);
+    };
+```
+
+Apart from the operating system ROM images (which are directly embedded from the file system
+at compile time using Zig's ```@embedFile``` builtin), a KC85 instance requires a 'pixel 
+buffer', which is a chunk of memory to render the emulator's display output too, a similar
+buffer for the generated audio sample stream, and the sample rate of the audio backend.
+
+Additionally, an optional 'patch callback' is provided which will be called after a tape
+image file has been loaded, to allow outside code to apply patches to known problems
+in the loaded games.
+
+For the unlikely case that allocation fails, a warning will be shown and the program
+terminates with exit code 10.
+
+After the KC85 instance has been successfully created, the command line arguments
+(which have been parsed at startup) will be checked if any expansion modules need
+be initialized into one of the two expansion slots in the KC85 computers:
+
+```zig
+    for (state.args.slots) |slot| {
+        if (slot.mod_name) |mod_name| {
+            var mod_type = moduleNameToType(mod_name);
+            var rom_image: ?[]const u8 = null;
+            if (slot.mod_path) |path| {
+                rom_image = fs.cwd().readFileAlloc(&state.arena.allocator, path, max_file_size) catch |err| blk:{
+                    warn("Failed to load ROM file '{s}' with: {}\n", .{ path, err });
+                    mod_type = .NONE;
+                    break :blk null;
+                };
+            }
+            state.kc.insertModule(slot.addr, mod_type, rom_image) catch |err| {
+                warn("Failed to insert module '{s}' with: {}\n", .{ mod_name, err });
+            };
+        }
+    }
+```
+
+An expansion module can either be a simple RAM module or a ROM module. In case of a 
+ROM module, a ROM dump must be provided, which will be loaded from the file system.
+
+This loading happens through Zig's standard library, which provides a very handy
+function to load an entire file into an adhoc-allocated memory buffer. If
+loading the ROM dump fails, a warning will be shown, the module and no module
+will be inserted. Note the somewhat awkward way error handling block:
+
+```zig
+rom_image = ... catch |err| blk:{
+    ...
+    break :blk null;
+};
+```
+
+This replaces the result of the erroneous ```readFileAlloc()``` call with ```null```.
+
+IMHO it would be nice if in such a simple situation one could omit the block name
+and write this instead:
+
+```zig
+rom_image = ... catch |err| {
+    ...
+    break null;
+};
+```
