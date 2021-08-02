@@ -77,7 +77,8 @@ pub fn parse(a: *std.mem.Allocator) !Args {
             };
         }
         else {
-            warn("Unknown argument: {s}\n", .{ arg });
+            warn("Unknown argument: {s} (run with '-help' to show valid args)\n", .{ arg });
+            return error.InvalidArgs;
         }
     }
     return res;
