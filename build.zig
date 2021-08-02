@@ -139,8 +139,6 @@ fn buildSokol(b: *Builder, target: CrossTarget, mode: Mode, comptime prefix_path
         "sokol_gfx.c",
         "sokol_time.c",
         "sokol_audio.c",
-        "sokol_gl.c",
-        "sokol_debugtext.c",
     };
     if (lib.target.isDarwin()) {
         b.env_map.put("ZIG_SYSTEM_LINKER_HACK", "1") catch unreachable;

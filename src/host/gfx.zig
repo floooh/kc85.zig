@@ -5,7 +5,6 @@ const sokol = @import("sokol");
 const sg    = sokol.gfx;
 const sapp  = sokol.app;
 const sgapp = sokol.app_gfx_glue;
-const sdtx  = sokol.debugtext;
 const shd   = @import("shaders/shaders.glsl.zig");
 
 const KC85DisplayWidth = 320;
@@ -46,10 +45,6 @@ pub fn setup() void {
         .context_pool_size = 1,
         .context = sgapp.context(),
     });
-
-    var sdtx_desc = sdtx.Desc{};
-    sdtx_desc.fonts[0] = sdtx.fontKc853();
-    sdtx.setup(sdtx_desc);
 
     state.upscale.pass_action.colors[0] = .{ .action = .DONTCARE };
     state.display.pass_action.colors[0] = .{ .action = .CLEAR, .value = .{ .r=0.05, .g=0.05, .b=0.05, .a=1.0 } };
@@ -108,7 +103,6 @@ pub fn setup() void {
 }
 
 pub fn shutdown() void {
-    sdtx.shutdown();
     sg.shutdown();
 }
 
@@ -134,7 +128,6 @@ pub fn draw() void {
     sg.applyBindings(state.display.bind);
     sg.draw(0, 3, 1);
     sg.applyViewportf(0, 0, w, h, true);
-    sdtx.draw();
     sg.endPass();
     sg.commit();
 }
