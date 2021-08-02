@@ -141,4 +141,16 @@ in the executable. This is how Zig handles #ifdef-style conditional compilation.
 
 ## The main.zig file
 
+Execution starts at the Zig [main function](https://github.com/floooh/kc85.zig/blob/02be0a4d1981c135b0c352048352c8759784eb5b/src/main.zig#L39-L69) which first creates an ArenaAllocator sitting
+on top of the C runtime allocator. This will be used for all dynamic memory allocation in 
+Zig code:
+
+```zig
+    state.arena = std.heap.ArenaAllocator.init(std.heap.c_allocator);
+    defer state.arena.deinit();
+```
+
+Next, command line arguments are parsed through a hardwired argument parser 
+in the **host** package. If parsing arguments fails, the program
+
 This is the entry point of the KC85 execut
