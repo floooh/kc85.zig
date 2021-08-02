@@ -275,3 +275,120 @@ rom_image = ... catch |err| {
     break null;
 };
 ```
+
+Finally, the command line args are checked whether a tape file should be pre-loaded.
+This is pretty much the same as the ROM image file loading:
+
+```zig
+    if (state.args.file) |path| {
+        state.file_data = fs.cwd().readFileAlloc(&state.arena.allocator, path, max_file_size) catch |err| blk:{
+            warn("Failed to load snapshot file '{s}' with: {}\n", .{ path, err });
+            break :blk null;
+        };
+    }
+    else {
+        state.file_data = null;
+    }
+```
+
+That's all for the initialization. On to the [per-frame callback function](https://github.com/floooh/kc85.zig/blob/d1d5f5eed96bdc211d41da44c446d5ce4ec91429/src/main.zig#L124-L137), which is 
+called by sokol_app.h at display refresh rate:
+
+The first three lines are the actually important stuff: first, the time measuremnt
+host binding module is asked for the current frame duration in microseconds, 
+than the emulator will be asked to "run" for the equivalent number of 
+emulator clock cycles, and finally the current video output of the emulator
+will be rendered to the host window (we don't care about the screen tearing
+effect which will happen because the emulator's video system runs at
+PAL frequency - 50 Hz - while the host system's display refresh rate will
+most like be 60 Hz, or higher).
+
+The last part of the frame callback function checks if a pre-loaded tape file
+must be loaded into the emulator. This needs to happen after the emulated
+system has finished booting (which is checked with the time.elapsed() helper
+function in our time measurement host binding module):
+
+```zig
+    if ((state.file_data != null) and time.elapsed(load_delay_us)) {
+        state.kc.load(state.file_data.?) catch |err| {
+            warn("Failed to load snapshot file '{s}' with: {}\n", .{ state.args.file.?, err });
+        };
+        // arena allocator takes care of deallocation
+        state.file_data = null;
+    }
+```
+
+The only interesting part here is the **.?** which is used to convert the optional
+(meaning it can be 'null') file_data byte-slice into a non-optional byte-slice
+expected by the KC85.load() function. A Zig **slice** is simply a builtin pointer/size
+pair type. Zig slices replace all use cases in C where a pointer to more than one
+item is used - while Zig 'pointers' only point to a single item, and also
+don't allow pointer arithmetic (so Zig pointers are similar to a slice with 1 item).
+
+The ```cleanup()``` [callback function](https://github.com/floooh/kc85.zig/blob/d1d5f5eed96bdc211d41da44c446d5ce4ec91429/src/main.zig#L139-L143) in **main.zig** is called once when the
+user quits the application regularly:
+
+```zig
+export fn cleanup() void {
+    state.kc.destroy(&state.arena.allocator);
+    audio.shutdown();
+    gfx.shutdown();
+}
+```
+
+First, the KC85 instance which was allocated on the heap is freed. This isn't
+strictly necessary, because all allocated memory will be freed anyway when the
+ArenaAllocator is teared down before the main function exits. Next the
+shutdown functions of the audio and graphics host binding modules will be called.
+Nothing to see here really.
+
+Finally, the sokol_app.h [event callback](https://github.com/floooh/kc85.zig/blob/d1d5f5eed96bdc211d41da44c446d5ce4ec91429/src/main.zig#L145-L200), which converts keyboard input events
+to emulator key presses:
+
+```zig
+export fn input(event: ?*const sapp.Event) void {
+    const ev = event.?;
+    // ...
+}
+```
+
+The optional pointer (indicated by the ```?*```) and the conversion to a non-optional
+pointer looks a bit awkward, this is because the event callback function is directly
+called from C code, and C pointers can be null (while Zig pointers cannot be null,
+unless they're optional pointers). This is a little wart in the sokol-header host bindings
+though, not a Zig problem.
+
+As in many other places, the keyboard input code uses Zig's switch() as expression:
+
+```zig
+    const key: u8 = switch (ev.key_code) {
+        .SPACE      => 0x20,
+        .ENTER      => 0x0D,
+        .RIGHT      => 0x09,
+        .LEFT       => 0x08,
+        //...
+    };
+```
+
+Using **switch** and **if** as expressions is probably the one "better C" feature
+of Zig which I'm using the most. Incredibly handy, especially when initializing
+data structures (like in the call to **sapp.run()** where I'm selecting a different window
+title based on the KC85 model using an expression-switch):
+
+```zig
+    sapp.run(.{
+        // ...
+        .window_title = switch (kc85_model) {
+            .KC85_2 => "KC85/2",
+            .KC85_3 => "KC85/3",
+            .KC85_4 => "KC85/4"
+        }
+    });
+```
+
+That's pretty much all the interesting stuff in **main.zig**, on to the
+host bindings package:
+
+## Host Bindings
+
+[TODO]
