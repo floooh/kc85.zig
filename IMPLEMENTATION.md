@@ -391,4 +391,99 @@ host bindings package:
 
 ## Host Bindings
 
-[TODO]
+The [host bindings](https://github.com/floooh/kc85.zig/tree/main/src/host) package
+takes care of:
+
+- render the emulator's display output to a window via sokol_gfx.h
+- routing the emulator's audio output to the host platforms audio API via sokol_audio.h
+- time measuring for running the emulator in real time via sokol_time.h
+- command line parsing via the Zig standard library
+
+The [args.zig module](https://github.com/floooh/kc85.zig/blob/main/src/host/args.zig)
+contains a simple hardwired argument parser on top of Zig's ```std.process.args```.
+
+The code isn't all that remarkable but is a good example for working with Zig's
+optional values and error unions (because the return value of the argument
+iterator's next() function is both). In such 'non-trivial' situations I found it
+helpful to use expressive variable names to keep track of the 'type wrappers'.
+
+For instance an error union variable might be called ```error_or_value```, and
+once the error and value has been separated, the resulting variables would
+be called ```err``` and ```value```. Same for optional variables, sometimes
+it makes sense to call them ```optional_value```, and once the 'optional' has
+been stripped away, just call the remaining non-optional variable ```value```.
+
+The ArgIterator's ```next()``` function returns a value of type ```?NextError![]u8```,
+which is a bit of a mouthful, but the type declaration can be read from left to right:
+
+The ```?``` means it's an optional value, so the function either returns
+```null```, or the error union type ```NextError![]u8```, which is either an
+error from the NextError error set, or a ```[]u8``` byte slice containing the
+string of the next command line argument.
+
+This complex return value can easily be unwrapped with Zig's syntax sugar for
+optionals and error unions. First we'll iterate over the arguments using 
+Zig's "while with optionals" (the ```a``` parameter is an allocator that has been
+passed into the arg parsing function from the outside), if the next function
+return 'null', the iteration is complete:
+
+```zig
+    while (arg_iter.next(a)) |error_or_arg| {
+        // ...
+    }
+```
+
+The ```error_or_arg``` variable is now guaranteed to be non-null, but it
+can still contain an error. Next the value payload is separated from the error 
+using ```catch```, and if the error union contained an error, a warning
+will be shown and the error will be passed up to the caller.
+
+```zig
+    const arg = error_or_arg catch |err| {
+        warn("Error parsing arguments: {s}", .{ err });
+        return err;
+    }; 
+```
+
+The remaining ```arg``` variable is now finally the actual argument
+string we're interested in as a byte slice ```[]u8```.
+
+A similar unwrapping happens further down when a followup argument (such as a
+module name) is expected, but this time a bit more compact:
+
+```zig
+    mod_name = try arg_iter.next(a) orelse {
+        warn("Expected module name after '-slot8'\n", .{});
+        return error.InvalidArgs;
+    };
+```
+
+First the ```orelse``` removes the optional part from the return value, if the
+return value is ```null```, the ```orelse``` block will be executed, which
+results in the function returning an adhoc error 'InvalidArgs' (lookup for
+"Inferred Error Sets" in the Zig documentation to find out more about this very
+convenient feature:
+https://ziglang.org/documentation/master/#Inferred-Error-Sets).
+
+Otherwise the resulting error union type will be checked by the ```try```.
+If the error union contains an error, the function stops executing and the
+resulting error will be returned to the caller. Otherwise the unwrapped
+argument string is assigned to mod_name.
+
+The code in [gfx.zig](https://github.com/floooh/kc85.zig/blob/main/src/host/gfx.zig),
+[audio.zig](https://github.com/floooh/kc85.zig/blob/main/src/host/audio.zig)
+and [time.zig](https://github.com/floooh/kc85.zig/blob/main/src/host/time.zig)
+is all bog-standard Sokol Header code (using the automatically generated
+[Zig bindings](https://github.com/floooh/sokol-zig). If you're interesting
+in this stuff it's better to look at the [sokol-zig examples](https://github.com/floooh/sokol-zig/tree/master/src/examples)
+directly.
+
+## The Emulator Code
+
+
+
+
+
+
+
+
