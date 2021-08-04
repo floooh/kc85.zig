@@ -694,7 +694,7 @@ reason that memory allocation can fail):
 ```
 
 This last initialization method is the one I'm least sure about, should
-heap-creation really be baked into the class like this? Or would it be
+heap-creation really be baked into the 'class' like this? Or would it be
 better to have generic alloc/free functions which take an object 'blueprint'
 create with the init-method style initialization above?
 
