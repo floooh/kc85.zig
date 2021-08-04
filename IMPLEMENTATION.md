@@ -749,11 +749,12 @@ boring, but in the very good sense that there were no big surprises.
 
 Ok, one positive surprise was that the CPU emulator seems to be quite a bit
 faster than my C emulator, even though it *should* be slower because the Zig
-emulator uses a 'hand crafted' algorithmic decoder while the C emulator uses a
-code-generated switch-case decoder which should be faster. I haven't explored
-the exact reason for this performance difference yet, and for the entire KC85
-emulator the CPU performance doesn't matter much and is lost in the noise, 
-overall performance is pretty much identical with the C emulator.
+emulator uses a 'hand crafted' algorithmic instruction decoder while the C
+emulator uses a code-generated switch-case instruction decoder which should be
+faster. I haven't explored the exact reason for this performance difference
+yet, and for the entire KC85 emulator the CPU performance doesn't matter much
+and is lost in the noise, overall performance is pretty much identical with the
+C emulator.
 
 Another nice experience was that Zig is 'transparent'. If you think that
 something probably works in a specific way, then it's very likely that 
