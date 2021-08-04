@@ -381,7 +381,7 @@ host bindings package:
 The [host bindings](https://github.com/floooh/kc85.zig/tree/main/src/host) package
 takes care of:
 
-- render the emulator's display output to a window via sokol_gfx.h
+- rendering the emulator's display output to a window via sokol_gfx.h
 - routing the emulator's audio output to the host platforms audio API via sokol_audio.h
 - time measuring for running the emulator in real time via sokol_time.h
 - command line parsing via the Zig standard library
