@@ -241,7 +241,7 @@ ROM module, a ROM dump must be provided, which will be loaded from the file syst
 
 This loading happens through Zig's standard library, which provides a very handy
 function to load an entire file into an adhoc-allocated memory buffer. If
-loading the ROM dump fails, a warning will be shown, the module and no module
+loading the ROM dump fails, a warning will be shown, and no module
 will be inserted. Note the somewhat awkward way error handling block:
 
 ```zig
