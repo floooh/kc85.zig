@@ -621,6 +621,8 @@ So API users know that they must at least provide a value for ```freq_hz```:
 var clock = Clock{ .freq_hz = 1_750_000 };
 ```
 
+This "default-initialized vs uninitialized method" is very handy for 'communicating intent' to the user.
+
 The next initialization method is for objects which are more complex or need
 to run code when created, an namespaced init() function which returns a fully
 initialized object by value, and which may also take a description struct with
