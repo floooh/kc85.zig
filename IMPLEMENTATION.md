@@ -772,7 +772,7 @@ concepts (even though I already knew them from my tinkering with Rust), but
 somehow Zig manages that the same concepts feel natural much more quickly than
 in Rust.
 
-I only stumbled over one compiler error, which could easily be worked around:
+I only stumbled over one compiler bug, which could easily be worked around:
 
 [This struct](https://github.com/floooh/kc85.zig/blob/138035b72bd713b5c67b323d65761f235d8e8f2b/src/emu/kc85.zig#L1239-L1251)
 should actually be a packed struct which looks like this:
