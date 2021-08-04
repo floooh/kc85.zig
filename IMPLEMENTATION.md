@@ -760,7 +760,7 @@ C emulator.
 
 Another nice experience was that Zig is 'transparent'. If you think that
 something probably works in a specific way, then it's very likely that 
-it indeed works that way. One example is the ```builtin module``` workaround:
+it indeed works that way. One example is the [builtin module](https://github.com/floooh/kc85.zig/blob/9ddada63db83d8fc4c3bd16df1c333b19ec512ad/build.zig#L36-L45) workaround:
 A little bit of googling and looking around in build system sources made it
 clear pretty quickly that the Zig build system is code-generating a module
 for build-options defined in the build.zig file. And where would Zig most 
