@@ -592,7 +592,7 @@ Another slight case of 'decision paralysis' was how to handle:
 I ended up with three variants:
 
 For simple objects, I'm using a straightforward data-initialization approach
-without any 'logic'. Zig allows default-intiialization of struct items,
+without any 'logic'. Zig allows default-initialization of struct items,
 while not allowing uninitialized items (unless explicitly declared via 'undefined'):
 
 ```zig
