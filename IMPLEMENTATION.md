@@ -480,10 +480,396 @@ directly.
 
 ## The Emulator Code
 
+All the emulator code is in the [emu package](https://github.com/floooh/kc85.zig/tree/main/src/emu).
 
+The package structure has the module [kc85.zig](https://github.com/floooh/kc85.zig/blob/main/src/emu/kc85.zig)
+at the top, with all other modules being dependencies:
 
+- the 3 Z80 family chips in the KC85: [CPU](https://github.com/floooh/kc85.zig/blob/main/src/emu/z80.zig), [CTC](https://github.com/floooh/kc85.zig/blob/main/src/emu/z80ctc.zig) and [PIO](https://github.com/floooh/kc85.zig/blob/main/src/emu/z80pio.zig)
+- a [interrupt daisy chain](https://github.com/floooh/kc85.zig/blob/main/src/emu/z80daisy.zig) helper module which is shared between the PIO and CTC module.
+- a [virtual memory system](https://github.com/floooh/kc85.zig/blob/main/src/emu/memory.zig) to map host memory to a 16-bit address space
+- a [clock helper module](https://github.com/floooh/kc85.zig/blob/main/src/emu/clock.zig) which converts micro-seconds to emulator clock ticks, and keeps track of executed clock ticks
+- a simple [square wave beeper](https://github.com/floooh/kc85.zig/blob/main/src/emu/beeper.zig) to generate audio samples
+- and a [keyboard buffer helper](https://github.com/floooh/kc85.zig/blob/main/src/emu/keybuf.zig) which stores short host system key presses long enough for the emulator's operating system to scan the currently pressed keys
 
+This is a good time to talk about the somewhat unusual code structure of the emulator modules. Each modules exposes
+a class-like struct with namespaced functions (which in Zig allow method-call-syntax). But (and that's the
+unusual part) the implementation code of the namespaced functions isn't in the struct declaration, but
+in a separate, private implementation namespace. Example:
 
+```zig
+pub const Clock = struct {
+    freq_hz:        i64,
+    ticks_to_run:   i64 = 0,
+    overrun_ticks:  i64 = 0,
+    
+    pub fn ticksToRun(clk: *Clock, micro_seconds: u32) u64 {
+        return impl.ticksToRun(clk, micro_seconds);
+    }
 
+    pub fn ticksExecuted(clk: *Clock, ticks_executed: u64) void {
+        impl.ticksExecuted(clk, ticks_executed);
+    }
+};
 
+const impl = struct {
 
+fn ticksToRun(clk: *Clock, micro_seconds: u32) u64 {
+    // implementation code here
+}
+
+} // impl
+```
+
+The only reason for this code structure is that I probably have too much C in the blood ;)
+
+Just like in C headers, I like to look at the top of a file to explore its
+public API. Moving the lengthy (and frankly, unimportant) implementation code out of 
+the public API 'declarations' towards the bottom of the source keeps the 
+important part of the module (the public API) compact at the top of the
+file instead of mixing API declarations and implementation code. This preference
+is clearly a C-ism, and Zig shares this "problem" with pretty much all other
+languages with a module system. At the moment this looks like a good solution
+to me, but of course it's entirely subjective, and maybe I'll change my mind
+as I write more Zig code.
+
+Another interesting topic is that I suffered from much of the same "decision paralysis"
+that I experienced in C++ code, and which is less of a problem in C.
+
+Some examples:
+
+### Class-style APIs or function-style APIs?
+
+TBH I would have preferred C-style function APIs, which functions living 
+outside the structs they work on. Moving functions into structs allows
+method-call-syntax, which sometimes has advantages (mainly being able
+to chain method calls, instead of nesting them), but it also comes with a
+couple of downsides, which are pretty well known from C++ (mainly that 
+types can't be extended with new 'methods' - Zig doesn't have [UFCS](https://en.wikipedia.org/wiki/Uniform_Function_Call_Syntax)).
+
+But in Zig, using namespaced functions has another advantage: you can
+import a single struct from a module, and get all the functions that
+work on this struct too with this single import. IMHO that's a very important
+feature, and maybe explains why Zig doesn't have UFCS (even though I still
+find this a bit disappointing).
+
+For instance, I would have preferred to use method-call-syntax for a lot
+of helper functions in testing code, [like here](https://github.com/floooh/kc85.zig/blob/138035b72bd713b5c67b323d65761f235d8e8f2b/tests/z80test.zig#L84-L101):
+
+```zig
+fn step(cpu: *CPU) usize {
+    var ticks = cpu.exec(0, .{ .func=tick, .userdata=0 });
+    while (!cpu.opdone()) {
+        ticks += cpu.exec(0, .{ .func=tick, .userdata=0 });
+    }
+    return ticks;
+}
+
+fn skip(cpu: *CPU, steps: usize) void {
+    var i: usize = 0;
+    while (i < steps): (i += 1) {
+        _ = step(cpu);
+    }
+}
+
+fn flags(cpu: *CPU, expected: u8) bool {
+    return (cpu.regs[F] & ~(XF|YF)) == expected;
+}
+```
+
+With UFCS I could write the following piece of testing code:
+
+```zig
+    skip(&cpu, 7); 
+    T(4==step(&cpu)); T(0x00 == cpu.regs[A]); T(flags(&cpu, ZF|NF));
+    T(4==step(&cpu)); T(0xFF == cpu.regs[A]); T(flags(&cpu, SF|HF|NF|CF));
+    T(4==step(&cpu)); T(0x06 == cpu.regs[A]); T(flags(&cpu, NF));
+```
+
+...like this, which IMHO is a lot nicer (especially since all of the
+'regular' API for the 'cpu' object uses method call syntax):
+
+```zig
+    cpu.skip(7); 
+    T(4==cpu.step()); T(0x00 == cpu.regs[A]); T(cpu.flags(ZF|NF));
+    T(4==cpu.step()); T(0xFF == cpu.regs[A]); T(cpu.flags(SF|HF|NF|CF));
+    T(4==cpu.step()); T(0x06 == cpu.regs[A]); T(cpu.flags(NF));
+```
+
+Another slight case of 'decision paralysis' was how to handle:
+
+### Struct Initialization
+
+I ended up with three variants:
+
+For simple objects, I'm using a straight-forward data-initialization approach
+without running any code. Zig allows default-intiialization of struct items,
+while not allowing uninitialized items (unless explicitly declared via 'undefined'):
+
+```zig
+pub const Clock = struct {
+    freq_hz:        i64,
+    ticks_to_run:   i64 = 0,
+    overrun_ticks:  i64 = 0,
+    
+    // ...
+};
+```
+
+This sets two struct items to an initial value, but keeps one item for which a
+default value makes no sense, and which *must* be provided by the user,
+uninitialized. Trying to create a variable of this type fails with an error
+that freq_hz is not initialized:
+
+```zig
+var clock = Clock{};
+```
+```sh
+...error: missing field: 'freq_hz'
+```
+
+So API users know that they must at least provide a value for ```freq_hz```:
+
+```zig
+var clock = Clock{ .freq_hz = 1_750_000 };
+```
+
+The next initialization method is for objects which are more complex or need
+to run code when created, an namespaced init() function which returns a fully
+initialized object by value, and which may also take a description struct with
+initialization parameters:
+
+```zig
+pub const Beeper = struct {
+    pub const Desc = struct {
+        tick_hz: u32,
+        sound_hz: u32,
+        volume: f32,
+    };
+
+    state: u1,
+    period: i32,
+    counter: i32,
+    magnitude: f32,
+    sample: f32,
+    dcadjust_sum: f32,
+    dcadjust_pos: u9,
+    dcadjust_buf: [dcadjust_buflen]f32,
+
+    pub fn init(desc: Desc) Beeper {
+        return impl.init(desc);
+    }
+    // ...
+```
+
+Note that none of the struct items have default initialization values. This 
+(hopefully) makes it clear that the struct shouldn't be 'data-initialized'.
+Instead:
+
+```zig
+var beeper = Beeper.init(.{
+    .tick_hz  = 1_750_000,
+    .sound_hz = 44_100,
+    .volume   = 0.5,
+});
+```
+
+..and the last initialization method I'm using (only in the KC85 struct) creates
+a new instance on the heap:
+
+```zig
+pub const KC85 = struct {
+    const Desc = struct {
+        // ...
+    };
+    // ...
+
+    pub fn create(allocator: *std.mem.Allocator, desc: Desc) !*KC85 {
+        // ...
+    }
+    pub fn destroy(sys: *KC85, allocator: *std.mem.Allocator) void {
+        // ...
+    }
+}
+```
+
+Which can be used like this (note that an allocator must be provided in good
+Zig style, and that creation can fail and must be handled - for the simple
+reason that memory allocation can fail):
+
+```zig
+    var kc85 = try KC85.create(my_allocator, .{
+        // initialization parameters...
+    });
+    defer kc85.destroy(my_allocator);
+```
+
+This last initialization method is the one I'm least sure about, should
+heap-creation really be baked into the class like this? Or would it be
+better to have generic alloc/free functions which take an object 'blueprint'
+create with the init-method style initialization above?
+
+But enough with the initialization and 'decision paralysis' topic. In the end
+this isn't a big deal, and will probably become a complete non-topic as I'm
+becoming more familiar with Zig. But it shows that there are a few areas in Zig
+where there's not just one way to do things. It's still much better than in
+many other modern languages, but hopefully this sort of thing will not become
+common.
+
+The next interesting topic in the emulator code is Zig's
+
+### Arbitrary Bit-Width Integers
+
+Home computer emulators are essentially 100% integer operations and bit twiddling
+code, and old computer chips are full of odd-width registers (interestingly, not
+so the Z80 CTC and PIO, which are mostly 8-bit wide counters and IO ports).
+
+Nonetheless, Zig's arbitrary-width integers came in very handy, but not for
+the reason I thought!
+
+The reason I *thought* those integers would come in handy was odd-bitwidth
+counters and wrap-around. For instance if I have a 5-bit counter which 
+can wrap around, I'd do this in C:
+
+```c
+    uint8_t counter = 0;
+    counter = (counter + 1) & 0x1F;
+```
+
+In Zig this is reduced to:
+
+```zig
+    var counter: u5 = 0;
+    counter +%= 1;
+```
+
+The '5-bit-ness' is directly encoded in the type, and anybody reading the code 
+sees immediately that this is a 5-bit counter. The ```+%=``` increments
+with wrap-around (the vanilla ```+=``` would runtime-panic on overflow).
+
+But the reason why arbitrary-width integers were *actually* useful was
+type-checking. By using "just the right" bit-width for integers, Zig's 
+explicit integer conversion rules may help catching a number of errors where
+'incompatible' bit-width integers are assigned. For instance if I'm accidentally 
+trying to stash a 3-bit integer into a 2-bit value, that's an error.
+
+## Conclusions
+
+...and that's about it I guess. In a way, writing the emulator was almost
+boring, but in the very good sense that there were no big surprises.
+
+Ok, one positive surprise was that the CPU emulator seems to be quite a bit
+faster than my C emulator, even though it *should* be slower because the Zig
+emulator uses a 'hand crafted' algorithmic decoder while the C emulator uses a
+code-generated switch-case decoder which should be faster. I haven't explored
+the exact reason for this performance difference yet, and for the entire KC85
+emulator the CPU performance doesn't matter much and is lost in the noise, 
+overall performance is pretty much identical with the C emulator.
+
+Another nice experience was that Zig is 'transparent'. If you think that
+something probably works in a specific way, then it's very likely that 
+it indeed works that way. One example is the ```builtin module``` workaround:
+A little bit of googling and looking around in build system sources made it
+clear pretty quickly that the Zig build system is code-generating a module
+for build-options defined in the build.zig file. And where would Zig most 
+likely store the generated module sources? Probably in the ```zig-out``` directory. 
+And that's exactly where they were.
+
+Similar for the error unions and optional types. Coming from C those are new
+concepts (even though I already knew them from my tinkering with Rust), but
+somehow Zig manages that the same concepts feel natural much more quickly than
+in Rust.
+
+I only stumbled over one compiler error, which could easily be worked around:
+
+[This struct](https://github.com/floooh/kc85.zig/blob/138035b72bd713b5c67b323d65761f235d8e8f2b/src/emu/kc85.zig#L1239-L1251)
+should actually be a packed struct which looks like this:
+
+```zig
+const KCCHeader = packed struct {
+    name:           [16]u8,
+    num_addr:       u8,
+    load_addr_l:    u8,
+    load_addr_h:    u8,
+    end_addr_l:     u8,
+    end_addr_h:     u8,
+    exec_addr_l:    u8,
+    exec_addr_h:    u8,
+    pad:            [105]u8, // pads to 128 byte
+};
+```
+
+...but this resulted in a wrong struct size of 135 bytes, instead of 128 bytes. The
+workaround is to use ```extern``` instead of ```packed```, which is actually
+for C compatibility.
+
+Other then that I have only minor nitpicks, some of them probably subjective:
+
+- I still think UFCS would be handy, to allow method-style calls for functions
+declared outside a struct
+- the 'block expression syntax' to return a value from a code block is awkward (```blk: { break :blk result }```)
+
+I think that's about it. When I started writing Zig code I was a bit miffed about
+the explicit integer conversion rules, but I've come around full circle. It's
+actually a good thing, and doesn't add much friction after getting used to it.
+
+As I wrote above, my single one "better C" feature of Zig is 
+"if and switch are expressions", but that's kinda expected :)
+
+Ok, one final nitpick, which hasn't been much of a problem in the actual emulator
+code, but which has bitten me again in the host-bindings code:
+
+Consider [this struct initialization code](https://github.com/floooh/kc85.zig/blob/138035b72bd713b5c67b323d65761f235d8e8f2b/src/host/gfx.zig#L104-L107) for creating a sokol-gfx render pass object:
+
+```zig
+    var pass_desc = sg.PassDesc{ };
+    pass_desc.color_attachments[0].image = state.display.bind.fs_images[0];
+    state.upscale.pass = sg.makePass(pass_desc);
+```
+
+Note how the pass_desc struct can't be initialized in one go, because it has an embedded 
+default-initialized color_attachments array where the first item needs to be
+initialized and all other items should be default initialized. Normally I'd want to do this:
+
+```zig
+    state.upscale.pass = sg.makePass(.{
+        .color_attachments = .{
+            .{ state.display.bind.fs_images[0] }
+        }
+    });
+```
+
+...or alternatively this:
+
+```zig
+    state.upscale.pass = sg.makePass(.{
+        .color_attachments[0] = .{ state.display.bind.fs_images[0] }
+    });
+```
+
+...but currently this doesn't work, because Zig expects all array items to be present,
+even though the array items can be fully default-initialized.
+
+This is tracked in this ticket: https://github.com/ziglang/zig/issues/6068
+
+Ideally, a fix for this problem would also simplify default-initialization of
+arrays, especially multi-dimensional arrays. For instance consider [this default-initialization](https://github.com/floooh/kc85.zig/blob/138035b72bd713b5c67b323d65761f235d8e8f2b/src/emu/z80ctc.zig#L90) in z80ctc.zig:
+
+```zig
+pub const CTC = struct {
+    channels: [NumChannels]Channel = [_]Channel{.{}} ** NumChannels,
+    // ...
+};
+```
+
+...since the ```Channel``` struct is fully default-initialized, it would be 
+nice if one could write this instead:
+
+```zig
+pub const CTC = struct {
+    channels: [NumChannels]Channel = .{},
+    // ...
+};
+```
+
+Over and out :)
