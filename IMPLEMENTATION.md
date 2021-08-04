@@ -447,7 +447,7 @@ module name) is expected, but this time a bit more compact:
 
 First the ```orelse``` removes the optional part from the return value, if the
 return value is ```null```, the ```orelse``` block will be executed, which
-results in the function returning an adhoc error 'InvalidArgs' (lookup for
+results in the function returning an adhoc error 'InvalidArgs' (lookup
 "Inferred Error Sets" in the Zig documentation to find out more about this very
 convenient feature:
 https://ziglang.org/documentation/master/#Inferred-Error-Sets).
