@@ -281,7 +281,7 @@ This is pretty much the same as the ROM image file loading:
 That's all for the initialization. On to the [per-frame callback function](https://github.com/floooh/kc85.zig/blob/d1d5f5eed96bdc211d41da44c446d5ce4ec91429/src/main.zig#L124-L137), which is 
 called by sokol_app.h at display refresh rate:
 
-The first three lines are the actually important stuff: first, the time measuremnt
+The first three lines are the actually important stuff: first, the time measurement
 host binding module is asked for the current frame duration in microseconds, 
 than the emulator will be asked to "run" for the equivalent number of 
 emulator clock cycles, and finally the current video output of the emulator
