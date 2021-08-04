@@ -696,7 +696,7 @@ reason that memory allocation can fail):
 This last initialization method is the one I'm least sure about, should
 heap-creation really be baked into the 'class' like this? Or would it be
 better to have generic alloc/free functions which take an object 'blueprint'
-create with the init-method style initialization above?
+created with the init-method style initialization above?
 
 But enough with the initialization and 'decision paralysis' topic. In the end
 this isn't a big deal, and will probably become a complete non-topic as I'm
