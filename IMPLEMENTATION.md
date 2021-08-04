@@ -527,7 +527,7 @@ Some examples:
 
 ### Class-style APIs or function-style APIs?
 
-TBH I would have preferred C-style function APIs, which functions living 
+TBH I would have preferred C-style function APIs, with functions living 
 outside the structs they work on. Moving functions into structs allows
 method-call-syntax, which sometimes has advantages (mainly being able
 to chain method calls, instead of nesting them), but it also comes with a
