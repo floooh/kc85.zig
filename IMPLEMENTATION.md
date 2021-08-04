@@ -703,7 +703,7 @@ this isn't a big deal, and will probably become a complete non-topic as I'm
 becoming more familiar with Zig. But it shows that there are a few areas in Zig
 where there's not just one way to do things. It's still much better than in
 many other modern languages, but hopefully this sort of thing will not become
-common.
+too common.
 
 The next interesting topic in the emulator code is Zig's
 
