@@ -33,7 +33,7 @@ The kc85 build targets are split into 3 separate packages:
 
 - **[emu](https://github.com/floooh/kc85.zig/tree/main/src/emu)**: the actual emulator source code, completely platform-agnostic
 - **[host](https://github.com/floooh/kc85.zig/tree/main/src/host)**: the "host bindings", this is the source code which connects the emulator source code to the host platform for rendering the emulator display output into a window, make the emulator's sound output audible and receiving keyboard input from the host's window system.
-- **[sokol](https://github.com/floooh/kc85.zig/tree/main/src/sokol)**: this the mixed C/Zig language bindings package to the sokol headers
+- **[sokol](https://github.com/floooh/kc85.zig/tree/main/src/sokol)**: this is the mixed C/Zig language bindings package to the sokol headers
 
 And finally there's the top-level **[main.zig](https://github.com/floooh/kc85.zig/blob/main/src/main.zig)** source file which ties everything together.
 
