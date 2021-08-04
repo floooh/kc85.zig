@@ -716,7 +716,7 @@ so the Z80 CTC and PIO, which are mostly 8-bit wide counters and IO ports).
 Nonetheless, Zig's arbitrary-width integers came in very handy, but not for
 the reason I thought!
 
-The reason I *thought* those integers would come in handy was odd-bitwidth
+The reason I *thought* those integers would be useful was odd-bitwidth
 counters and wrap-around. For instance if I have a 5-bit counter which 
 can wrap around, I'd do this in C:
 
