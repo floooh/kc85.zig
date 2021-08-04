@@ -6,6 +6,8 @@ Read more about the KC85 computer series here:
 - https://floooh.github.io/virtualkc/p010_kc85.html
 - https://floooh.github.io/2017/01/14/yakc-diamond-scroll.html
 
+Some [implementation notes](https://github.com/floooh/kc85.zig/blob/main/IMPLEMENTATION.md).
+
 ## Build
 
 With Zig version 0.8.0, on Windows, macOS or Linux:
