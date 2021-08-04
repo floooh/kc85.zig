@@ -414,7 +414,7 @@ This complex return value can easily be unwrapped with Zig's syntax sugar for
 optionals and error unions. First we'll iterate over the arguments using 
 Zig's "while with optionals" (the ```a``` parameter is an allocator that has been
 passed into the arg parsing function from the outside), if the next function
-return 'null', the iteration is complete:
+returns 'null', the iteration is complete:
 
 ```zig
     while (arg_iter.next(a)) |error_or_arg| {
