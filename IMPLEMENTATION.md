@@ -283,7 +283,7 @@ called by sokol_app.h at display refresh rate:
 
 The first three lines are the actually important stuff: first, the time measurement
 host binding module is asked for the current frame duration in microseconds, 
-than the emulator will be asked to "run" for the equivalent number of 
+then the emulator will be asked to "run" for the equivalent number of 
 emulator clock cycles, and finally the current video output of the emulator
 will be rendered to the host window (we don't care about the screen tearing
 effect which will happen because the emulator's video system runs at
