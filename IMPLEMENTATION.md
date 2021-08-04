@@ -145,7 +145,7 @@ argument parser module):
 ```zig
     state.args = Args.parse(&state.arena.allocator) catch |err| {
         warn("Failed to parse arguments\n", .{});
-        return;
+        std.os.exit(5);
     };
     if (state.args.help) {
         return;
