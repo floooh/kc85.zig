@@ -29,20 +29,6 @@ in the addKC85() build function, a unique executable build target is generated, 
     exe.addBuildOption(KC85Model, "kc85_model", kc85_model);
 ```
 
-The Zig build system code-generates a module file with all build options, which is 
-implicitely imported into the build target's root package. The generated source
-code is located in the *zig-out* directory and looks like this (for the **kc854**
-build target):
-
-```zig
-pub const KC85Model = enum {
-    KC85_2,
-    KC85_3,
-    KC85_4,
-};
-pub const kc85_model: KC85Model = KC85Model.KC85_4;
-```
-
 The kc85 build targets are split into 3 separate packages:
 
 - **[emu](https://github.com/floooh/kc85.zig/tree/impl-notes/src/emu)**: the actual emulator source code, completely platform-agnostic
