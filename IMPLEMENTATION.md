@@ -461,7 +461,7 @@ The code in [gfx.zig](https://github.com/floooh/kc85.zig/blob/main/src/host/gfx.
 [audio.zig](https://github.com/floooh/kc85.zig/blob/main/src/host/audio.zig)
 and [time.zig](https://github.com/floooh/kc85.zig/blob/main/src/host/time.zig)
 is all bog-standard Sokol Header code (using the automatically generated
-[Zig bindings](https://github.com/floooh/sokol-zig). If you're interesting
+[Zig bindings](https://github.com/floooh/sokol-zig). If you're interested
 in this stuff it's better to look at the [sokol-zig examples](https://github.com/floooh/sokol-zig/tree/master/src/examples)
 directly.
 
