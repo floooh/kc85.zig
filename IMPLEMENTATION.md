@@ -742,7 +742,7 @@ But the reason why arbitrary-width integers were *actually* useful was
 type-checking. By using "just the right" bit-width for integers, Zig's 
 explicit integer conversion rules may help catching a number of errors where
 'incompatible' bit-width integers are assigned. For instance if I'm accidentally 
-trying to stash a 3-bit integer into a 2-bit value, that's an error.
+trying to stash a 3-bit integer into a 2-bit hardware register, that's a compile error.
 
 ## Conclusions
 
