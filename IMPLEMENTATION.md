@@ -803,7 +803,7 @@ I think that's about it. When I started writing Zig code I was a bit miffed abou
 the explicit integer conversion rules, but I've come around full circle. It's
 actually a good thing, and doesn't add much friction after getting used to it.
 
-As I wrote above, my single one "better C" feature of Zig is 
+As I wrote above, my single-most-used "better C" feature of Zig is 
 "if and switch are expressions", but that's kinda expected :)
 
 Ok, one final nitpick, which hasn't been much of a problem in the actual emulator
