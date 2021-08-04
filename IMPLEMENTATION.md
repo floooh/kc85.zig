@@ -479,7 +479,7 @@ at the top, with all other modules being dependencies:
 - a simple [square wave beeper](https://github.com/floooh/kc85.zig/blob/main/src/emu/beeper.zig) to generate audio samples
 - and a [keyboard buffer helper](https://github.com/floooh/kc85.zig/blob/main/src/emu/keybuf.zig) which stores short host system key presses long enough for the emulator's operating system to scan the currently pressed keys
 
-This is a good time to talk about the somewhat unusual code structure of the emulator modules. Each modules exposes
+This is a good time to talk about the somewhat unusual code structure of the emulator modules. Each module exposes
 a class-like struct with namespaced functions (which in Zig allow method-call-syntax). But (and that's the
 unusual part) the implementation code of the namespaced functions isn't in the struct declaration, but
 in a separate, private implementation namespace. Example:
