@@ -1,11 +1,11 @@
 # IMPLEMENTATION NOTES
 
-Some implementation notes from top to bottom.
+Some implementation notes from top (build.zig) to bottom (the actual emulator code).
 
 ## Project structure and build script
 
-The different KC85 versions (KC85/2, /3 and /4) are each compiled into its
-own executable using conditional compilation.
+The different KC85 versions (KC85/2, /3 and /4) are compiled into separate
+executables using conditional compilation.
 
 [Here](https://github.com/floooh/kc85.zig/blob/8c510ad15391358239ea5e095d043c7b7b6acd6b/build.zig#L18)
 the generic function ```addKC85()``` is called once for each build target using a comptime
