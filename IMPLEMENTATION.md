@@ -200,10 +200,11 @@ parameters:
     };
 ```
 
-Apart from the operating system ROM images (which are directly embedded from the file system
-at compile time using Zig's ```@embedFile``` builtin), a KC85 instance requires a 'pixel 
-buffer', which is a chunk of memory to render the emulator's display output too, a similar
-buffer for the generated audio sample stream, and the sample rate of the audio backend.
+Apart from the operating system ROM images (which are directly embedded from
+the file system at compile time using Zig's ```@embedFile``` builtin), a KC85
+instance requires a 'pixel buffer', which is a chunk of memory to render the
+emulator's display output too, a callback to push generated audio samples to
+the host platform's audio backend, and the sample rate of the audio backend.
 
 Additionally, an optional 'patch callback' is provided which will be called after a tape
 image file has been loaded, to allow outside code to apply patches to known problems
