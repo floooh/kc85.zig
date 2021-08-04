@@ -98,7 +98,7 @@ Some examples of how the imported buildoptions module is used:
     });
 ```
 
-[To select the ROM images needed for a specific KC85 version:](https://github.com/floooh/kc85.zig/blob/8c510ad15391358239ea5e095d043c7b7b6acd6b/src/main.zig#L76-L87)
+[To select the ROM images needed for a specific KC85 version:](https://github.com/floooh/kc85.zig/blob/6eef729964cb10a0b5ed6b94fa0c856d25bb7ff7/src/main.zig#L78-L91)
 
 ```zig
     state.kc = KC85.create(&state.arena.allocator, .{
@@ -108,7 +108,9 @@ Some examples of how the imported buildoptions module is used:
         .rom_caos42c = if (kc85_model == .KC85_4) @embedFile("roms/caos42c.854") else null,
         .rom_caos42e = if (kc85_model == .KC85_4) @embedFile("roms/caos42e.854") else null,
         .rom_kcbasic = if (kc85_model != .KC85_2) @embedFile("roms/basic_c0.853") else null,
-    }) catch unreachable;
+    }) catch |err| {
+        // ...
+    };
 ```
 
 Down in the emulator code, [to select KC85-model-specific code paths:](https://github.com/floooh/kc85.zig/blob/8c510ad15391358239ea5e095d043c7b7b6acd6b/src/emu/kc85.zig#L947-L952):
