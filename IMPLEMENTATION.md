@@ -764,7 +764,7 @@ it indeed works that way. One example is the [builtin module](https://github.com
 A little bit of googling and looking around in build system sources made it
 clear pretty quickly that the Zig build system is code-generating a module
 for build-options defined in the build.zig file. And where would Zig most 
-likely store the generated module sources? Probably in the ```zig-out``` directory. 
+likely store the generated module sources? Probably in the ```zig-cache``` directory. 
 And that's exactly where they were.
 
 Similar for the error unions and optional types. Coming from C those are new
