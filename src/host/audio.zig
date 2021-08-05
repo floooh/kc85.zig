@@ -16,5 +16,6 @@ pub fn sampleRate() u32 {
 }
 
 pub fn push(samples: []const f32, userdata: usize) void {
+    _ = userdata;
     _ = saudio.push(&samples[0], @intCast(i32, samples.len));
 }

@@ -392,6 +392,7 @@ var pa_val: u8 = 0;
 var pb_val: u8 = 0;
 
 fn in_func(port: u1, userdata: usize) u8 {
+    _ = userdata;
     return switch (port) {
         PA => 0,
         PB => 1,
@@ -399,6 +400,7 @@ fn in_func(port: u1, userdata: usize) u8 {
 }
 
 fn out_func(port: u1, data: u8, userdata: usize) void {
+    _ = userdata;
     switch (port) {
         PA => { pa_val = data; },
         PB => { pb_val = data; },
