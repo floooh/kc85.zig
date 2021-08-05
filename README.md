@@ -10,7 +10,7 @@ Some [implementation notes](https://github.com/floooh/kc85.zig/blob/main/IMPLEME
 
 ## Build
 
-With Zig version 0.8.0, on Windows, macOS or Linux:
+With Zig version 0.9.0, on Windows, macOS or Linux:
 ```
 zig build
 ```
