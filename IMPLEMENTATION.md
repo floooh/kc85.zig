@@ -826,7 +826,7 @@ initialized and all other items should be default initialized. Normally I'd want
 ```zig
     state.upscale.pass = sg.makePass(.{
         .color_attachments = .{
-            .{ state.display.bind.fs_images[0] }
+            .{ .image = state.display.bind.fs_images[0] }
         }
     });
 ```
@@ -835,7 +835,15 @@ initialized and all other items should be default initialized. Normally I'd want
 
 ```zig
     state.upscale.pass = sg.makePass(.{
-        .color_attachments[0] = .{ state.display.bind.fs_images[0] }
+        .color_attachments[0] = .{ .image = state.display.bind.fs_images[0] }
+    });
+```
+
+...or maybe even like this  (all those variants are allowed in C99's designated init):
+
+```zig
+    state.upscale.pass = sg.makePass(.{
+        .color_attachments[0].image = state.display.bind.fs_images[0],
     });
 ```
 
