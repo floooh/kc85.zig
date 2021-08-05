@@ -1309,7 +1309,6 @@ fn opIM(cpu: *CPU, y: u3) void {
 // JP cc,nn
 fn opJP_cc_nn(cpu: *CPU, y: u3, tick_func: TickFunc) void {
     const val = imm16(cpu, tick_func);
-    const f = cpu.regs[F];
     if (cc(cpu.regs[F], y)) {
         cpu.PC = val;
     }
@@ -1710,6 +1709,8 @@ fn clearIO() void {
 
 // a generic test tick callback
 fn testTick(ticks: u64, i_pins: u64, userdata: usize) u64 {
+    _ = ticks;
+    _ = userdata;
     var pins = i_pins;
     const a = getAddr(pins);
     if ((pins & MREQ) != 0) {
@@ -1786,6 +1787,7 @@ test "set/get wait ticks" {
 test "tick" {
     const inner = struct {
         fn tick_func(ticks: u64, pins: u64, userdata: usize) u64 {
+            _ = userdata;
             if (ticks == 3 and getData(pins) == 0x56 and getAddr(pins) == 0x1234 and (pins & M1|MREQ|RD) == M1|MREQ|RD) {
                 // success
                 return setData(pins, 0x23);
@@ -1804,6 +1806,8 @@ test "tick" {
 test "tickWait" {
     const inner = struct {
         fn tick_func(ticks: u64, pins: u64, userdata: usize) u64 {
+            _ = ticks;
+            _ = userdata;
             return setWait(pins, 5);
         }
     };

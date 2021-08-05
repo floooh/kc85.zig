@@ -41,7 +41,7 @@ pub fn main() !void {
     defer state.arena.deinit();
     
     // parse arguments
-    state.args = Args.parse(&state.arena.allocator) catch |err| {
+    state.args = Args.parse(&state.arena.allocator) catch {
         warn("Failed to parse arguments\n", .{});
         std.process.exit(5);
     };
@@ -144,7 +144,6 @@ export fn cleanup() void {
 
 export fn input(event: ?*const sapp.Event) void {
     const ev = event.?;
-    var shift = 0 != (ev.modifiers & sapp.modifier_shift);
     switch (ev.type) {
         .CHAR => {
             var char = ev.char_code;
@@ -220,6 +219,7 @@ fn moduleNameToType(name: []const u8) kc85.ModuleType {
 
 // this patches some known issues with game images
 fn patchFunc(snapshot_name: []const u8, userdata: usize) void {
+    _ = userdata;
     if (mem.startsWith(u8, snapshot_name, "JUNGLE     ")) {
         // patch start level 1 into memory
         state.kc.mem.w8(0x36B7, 1);

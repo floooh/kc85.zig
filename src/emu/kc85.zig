@@ -403,7 +403,7 @@ pub const KC85 = struct {
     }
     // remove a module from an expansion slot
     pub fn removeModule(sys: *KC85, slot_addr: u8) !void {
-        return impl.removeModule(self, slot_addr);
+        return impl.removeModule(sys, slot_addr);
     }
     // load a KCC or TAP file image
     pub fn load(sys: *KC85, data: []const u8) !void {
@@ -517,6 +517,7 @@ fn destroy(sys: *KC85, allocator: *std.mem.Allocator) void {
 
 fn reset(sys: *KC85) void {
     // FIXME
+    _ = sys;
     unreachable;
 }
 
@@ -780,6 +781,8 @@ fn updateMemoryMapping(sys: *KC85) void {
 
 // PIO port input/output callbacks
 fn pioIn(port: u1, userdata: usize) u8 {
+    _ = port;
+    _ = userdata;
     return 0xFF;
 }
 
@@ -822,14 +825,6 @@ const bg_pal = [8]u32 {
     0xFFA0A000,      // dark-cyan
     0xFF00A0A0,      // dark-yellow
     0xFFA0A0A0,      // gray
-};
-
-// KC85/4 hicolor palette
-const hi_pal = [4]const u32 {
-    0xFF000000,     // black
-    0xFF0000FF,     // red
-    0xFFFFFF00,     // cyan
-    0xFFFFFFFF,     // white
 };
 
 fn decode8Pixels(dst: []u32, pixel_bits: u8, color_bits: u8, force_bg: bool) void {
@@ -932,6 +927,8 @@ fn tickVideoKC854Std(sys: *KC85, num_ticks: u64, in_pins: u64) u64 {
 
 fn tickVideoKC854HiColor(sys: *KC85, num_ticks: u64, pins: u64) u64 {
     // FIXME
+    _ = sys;
+    _ = num_ticks;
     return pins;
 }
 

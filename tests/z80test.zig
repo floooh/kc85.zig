@@ -29,6 +29,8 @@ fn ok() void {
 
 // tick callback which handles memory and IO requests
 fn tick(num_ticks: usize, pins_in: u64, userdata: usize) u64 {
+    _ = num_ticks;
+    _ = userdata;
     var pins = pins_in;
     if ((pins & MREQ) != 0) {
         if ((pins & RD) != 0) {
@@ -2692,7 +2694,9 @@ fn IRQ() void {
     // a special version of the tick callback to test interrupt handling
     const inner = struct {
         var reti_executed = false;
-        fn tick(num_ticks: usize, pins_in: u64, userdata: usize) u64 {
+        fn inner_tick(num_ticks: usize, pins_in: u64, userdata: usize) u64 {
+            _ = num_ticks;
+            _ = userdata;
             var pins = pins_in;
             if ((pins & MREQ) != 0) {
                 if ((pins & RD) != 0) {
@@ -2723,9 +2727,9 @@ fn IRQ() void {
             return pins;
         }
         fn step(cpu: *CPU) usize {
-            var ticks = cpu.exec(0, .{ .func=tick, .userdata=0 });
+            var ticks = cpu.exec(0, .{ .func=inner_tick, .userdata=0 });
             while (!cpu.opdone()) {
-                ticks += cpu.exec(0, .{ .func=tick, .userdata=0 });
+                ticks += cpu.exec(0, .{ .func=inner_tick, .userdata=0 });
             }
             return ticks;
         }

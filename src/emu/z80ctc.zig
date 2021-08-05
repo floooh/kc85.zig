@@ -144,7 +144,6 @@ fn iorq(ctc: *CTC, in_pins: u64) u64 {
         }
         else {
             // an IO write request
-            const data = getData(pins);
             pins = ioWrite(ctc, chn_index, pins);
         }
     }

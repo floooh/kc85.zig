@@ -6,9 +6,9 @@ const CrossTarget = std.zig.CrossTarget;
 const Mode = std.builtin.Mode;
 
 const KC85Model = enum {
-    KC85_2 = 0,
-    KC85_3 = 1,
-    KC85_4 = 2,
+    KC85_2,
+    KC85_3,
+    KC85_4,
 };
 
 pub fn build(b: *Builder) void {
@@ -38,23 +38,23 @@ fn addKC85(b: *Builder, sokol: *LibExeObjStep, target: CrossTarget, mode: Mode, 
     const pkg_buildoptions = Pkg{
         .name = "build_options", 
         .path = switch (kc85_model) {
-            .KC85_2 => "zig-cache/kc852_build_options.zig",
-            .KC85_3 => "zig-cache/kc853_build_options.zig",
-            .KC85_4 => "zig-cache/kc854_build_options.zig"
+            .KC85_2 => .{ .path = "zig-cache/kc852_build_options.zig" },
+            .KC85_3 => .{ .path = "zig-cache/kc853_build_options.zig" },
+            .KC85_4 => .{ .path = "zig-cache/kc854_build_options.zig" },
         },
     };
     const pkg_sokol = Pkg{
         .name = "sokol",
-        .path = "src/sokol/sokol.zig"
+        .path = .{ .path = "src/sokol/sokol.zig" },
     };
     const pkg_emu = Pkg{
         .name = "emu",
-        .path = "src/emu/emu.zig", 
+        .path = .{ .path = "src/emu/emu.zig" },
         .dependencies = &[_]Pkg{ pkg_buildoptions }
     };
     const pkg_host = Pkg{
         .name = "host",
-        .path = "src/host/host.zig",
+        .path = .{ .path = "src/host/host.zig" },
         .dependencies = &[_]Pkg{ pkg_sokol }
     };
     exe.addPackage(pkg_sokol);

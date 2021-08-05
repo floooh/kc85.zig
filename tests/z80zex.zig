@@ -9,6 +9,8 @@ var mem: [0x10000]u8 = undefined;
 
 // tick callback
 fn tick(num_ticks: usize, pins: usize, userdata: usize) u64 {
+    _ = num_ticks;
+    _ = userdata;
     if (0 != (pins & MREQ)) {
         // a memory request
         if (0 != (pins & RD)) {
