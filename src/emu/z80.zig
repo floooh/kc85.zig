@@ -302,10 +302,10 @@ fn exec(cpu: *CPU, num_ticks: u64, tick_func: TickFunc) u64 {
 
         // decode opcode (see http://www.z80.info/decoding.htm)
         // |xx|yyy|zzz|
-        const x = @truncate(u2, (op >> 6) & 3);
-        const y = @truncate(u3, (op >> 3) & 7);
+        const x = @truncate(u2, op >> 6);
+        const y = @truncate(u3, op >> 3);
         const z = @truncate(u3, op & 7);
-        const p = @truncate(u2, (y >> 1));
+        const p = @truncate(u2, y >> 1);
         const q = @truncate(u1, y);
 
         switch (x) {
@@ -483,10 +483,10 @@ fn opED_prefix(cpu: *CPU, tick_func: TickFunc) void {
     cpu.ixiy = 0;
 
     const op = fetch(cpu, tick_func);
-    const x = @truncate(u2, (op >> 6) & 3);
-    const y = @truncate(u3, (op >> 3) & 7);
+    const x = @truncate(u2, op >> 6);
+    const y = @truncate(u3, op >> 3);
     const z = @truncate(u3, op & 7);
-    const p = @truncate(u2, (y >> 1));
+    const p = @truncate(u2, y >> 1);
     const q = @truncate(u1, y);
 
     switch (x) {
@@ -557,8 +557,8 @@ fn opCB_prefix(cpu: *CPU, tick_func: TickFunc) void {
     
     // special opcode fetch without memory refresh and bumpR()
     const op = fetchCB(cpu, tick_func);
-    const x = @truncate(u2, (op >> 6) & 3);
-    const y = @truncate(u3, (op >> 3) & 7);
+    const x = @truncate(u2, op >> 6);
+    const y = @truncate(u3, op >> 3);
     const z = @truncate(u3, op & 7);
     
     // load operand (for indexed ops always from memory)
