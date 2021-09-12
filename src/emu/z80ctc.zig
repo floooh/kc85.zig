@@ -111,11 +111,9 @@ pub const CTC = struct {
 
 const impl = struct {
 
-usingnamespace Ctrl;
-
 fn reset(ctc: *CTC) void {
     for (ctc.channels) |*chn| {
-        chn.control = RESET;
+        chn.control = Ctrl.RESET;
         chn.constant = 0;
         chn.down_counter = 0;
         chn.waiting_for_trigger = false;
@@ -155,7 +153,7 @@ fn tick(ctc: *CTC, in_pins: u64) u64 {
     for (ctc.channels) |*chn, i| {
         const chn_index = @truncate(u2, i);
         // check if externally triggered
-        if (chn.waiting_for_trigger or ((chn.control & MODE) == MODE_COUNTER)) {
+        if (chn.waiting_for_trigger or ((chn.control & Ctrl.MODE) == Ctrl.MODE_COUNTER)) {
             const trg: bool = (0 != (pins & (CLKTRG0 << chn_index)));
             if (trg != chn.ext_trigger) {
                 chn.ext_trigger = trg;
@@ -165,7 +163,7 @@ fn tick(ctc: *CTC, in_pins: u64) u64 {
                 }
             }
         }
-        else if ((chn.control & (MODE|RESET|CONST_FOLLOWS)) == MODE_TIMER) {
+        else if ((chn.control & (Ctrl.MODE|Ctrl.RESET|Ctrl.CONST_FOLLOWS)) == Ctrl.MODE_TIMER) {
             // handle timer mode downcounting
             chn.prescaler -%= 1;
             if (0 == (chn.prescaler & chn.prescaler_mask)) {
@@ -190,12 +188,12 @@ fn ioWrite(ctc: *CTC, chn_index: u2, in_pins: u64) u64 {
     var pins = in_pins;
     const data = getData(pins);
     const chn = &ctc.channels[chn_index];
-    if (0 != (chn.control & CONST_FOLLOWS)) {
+    if (0 != (chn.control & Ctrl.CONST_FOLLOWS)) {
         // timer constant following control word
-        chn.control &= ~(CONST_FOLLOWS|RESET);
+        chn.control &= ~(Ctrl.CONST_FOLLOWS|Ctrl.RESET);
         chn.constant = data;
-        if ((chn.control & MODE) == MODE_TIMER) {
-            if ((chn.control & TRIGGER) == TRIGGER_WAIT) {
+        if ((chn.control & Ctrl.MODE) == Ctrl.MODE_TIMER) {
+            if ((chn.control & Ctrl.TRIGGER) == Ctrl.TRIGGER_WAIT) {
                 chn.waiting_for_trigger = true;
             }
             else {
@@ -206,12 +204,12 @@ fn ioWrite(ctc: *CTC, chn_index: u2, in_pins: u64) u64 {
             chn.down_counter = chn.constant;
         }
     }
-    else if (0 != (data & CONTROL)) {
+    else if (0 != (data & Ctrl.CONTROL)) {
         // a new control word
         const old_ctrl = chn.control;
         chn.control = data;
-        chn.trigger_edge = ((data & EDGE) == EDGE_RISING);
-        if ((chn.control & PRESCALER) == PRESCALER_16) {
+        chn.trigger_edge = ((data & Ctrl.EDGE) == Ctrl.EDGE_RISING);
+        if ((chn.control & Ctrl.PRESCALER) == Ctrl.PRESCALER_16) {
             chn.prescaler_mask = 0x0F;
         }
         else {
@@ -219,7 +217,7 @@ fn ioWrite(ctc: *CTC, chn_index: u2, in_pins: u64) u64 {
         }
 
         // changing the Trigger Slope triggers an 'active edge' */
-        if ((old_ctrl & EDGE) != (chn.control & EDGE)) {
+        if ((old_ctrl & Ctrl.EDGE) != (chn.control & Ctrl.EDGE)) {
             pins = activeEdge(ctc, chn_index, pins);
         }
     }
@@ -248,7 +246,7 @@ fn ioWrite(ctc: *CTC, chn_index: u2, in_pins: u64) u64 {
 fn activeEdge(ctc: *CTC, chn_index: u3, in_pins: u64) u64 {
     var pins = in_pins;
     const chn = &ctc.channels[chn_index];
-    if ((chn.control & MODE) == MODE_COUNTER) {
+    if ((chn.control & Ctrl.MODE) == Ctrl.MODE_COUNTER) {
         // counter mode
         chn.down_counter -%= 1;
         if (0 == chn.down_counter) {
@@ -270,7 +268,7 @@ fn counterZero(ctc: *CTC, chn_index: u3, in_pins: u64) u64 {
     var pins = in_pins;
     const chn = &ctc.channels[chn_index];
     // if down counter has reached zero, trigger interrupt and ZCTO pin
-    if (0 != (chn.control & EI)) {
+    if (0 != (chn.control & Ctrl.EI)) {
         // interrupt enabled, request an interrupt
         chn.intr.irq();
     }
@@ -289,8 +287,6 @@ fn counterZero(ctc: *CTC, chn_index: u3, in_pins: u64) u64 {
 //== TESTS =====================================================================
 const expect = @import("std").testing.expect;
 
-usingnamespace Ctrl;
-
 test "ctc intvector" {
     var ctc = CTC{ };
     var pins = setData(0, 0xE0);
@@ -307,7 +303,7 @@ test "ctc timer" {
     const chn = &ctc.channels[1];
     
     // write control word
-    const ctrl = EI|MODE_TIMER|PRESCALER_16|TRIGGER_AUTO|CONST_FOLLOWS|CONTROL;
+    const ctrl = Ctrl.EI|Ctrl.MODE_TIMER|Ctrl.PRESCALER_16|Ctrl.TRIGGER_AUTO|Ctrl.CONST_FOLLOWS|Ctrl.CONTROL;
     pins = setData(pins, ctrl);
     pins = impl.ioWrite(&ctc, 1, pins);
     try expect(ctrl == ctc.channels[1].control);
@@ -315,7 +311,7 @@ test "ctc timer" {
     // write timer constant
     pins = setData(pins, 10);
     pins = impl.ioWrite(&ctc, 1, pins);
-    try expect(0 == (chn.control & CONST_FOLLOWS));
+    try expect(0 == (chn.control & Ctrl.CONST_FOLLOWS));
     try expect(10 == chn.constant);
     try expect(10 == chn.down_counter);
     var r: usize = 0;
@@ -338,14 +334,14 @@ test "ctc timer wait trigger" {
     const chn = &ctc.channels[1];
 
     // enable interrupt, mode timer, prescaler 16, trigger-wait, trigger-rising-edge, const follows
-    const ctrl = EI|MODE_TIMER|PRESCALER_16|TRIGGER_WAIT|EDGE_RISING|CONST_FOLLOWS|CONTROL;
+    const ctrl = Ctrl.EI|Ctrl.MODE_TIMER|Ctrl.PRESCALER_16|Ctrl.TRIGGER_WAIT|Ctrl.EDGE_RISING|Ctrl.CONST_FOLLOWS|Ctrl.CONTROL;
     pins = setData(pins, ctrl);
     pins = impl.ioWrite(&ctc, 1, pins);
     try expect(chn.control == ctrl);
     // write timer constant 
     pins = setData(pins, 10);
     pins = impl.ioWrite(&ctc, 1, pins);
-    try expect(0 == (chn.control & CONST_FOLLOWS));
+    try expect(0 == (chn.control & Ctrl.CONST_FOLLOWS));
     try expect(10 == chn.constant);
 
     // tick the CTC without starting the timer 
@@ -381,14 +377,14 @@ test "ctc counter" {
     const chn = &ctc.channels[1];
 
     // enable interrupt, mode counter, trigger-rising-edge, const follows
-    const ctrl = EI|MODE_COUNTER|EDGE_RISING|CONST_FOLLOWS|CONTROL;
+    const ctrl = Ctrl.EI|Ctrl.MODE_COUNTER|Ctrl.EDGE_RISING|Ctrl.CONST_FOLLOWS|Ctrl.CONTROL;
     pins = setData(pins, ctrl);
     pins = impl.ioWrite(&ctc, 1, pins);
     try expect(ctc.channels[1].control == ctrl);
     // write counter constant
     pins = setData(pins, 10);
     pins = impl.ioWrite(&ctc, 1, pins);
-    try expect(0 == (chn.control & CONST_FOLLOWS));
+    try expect(0 == (chn.control & Ctrl.CONST_FOLLOWS));
     try expect(10 == chn.constant);
 
     // trigger the CLKTRG1 pin

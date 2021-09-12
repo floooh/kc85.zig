@@ -3,7 +3,7 @@
 ///
 const build_options = @import("build_options");
 const print  = @import("std").debug.print;
-usingnamespace @import("emu").z80;
+const z80 = @import("emu").z80;
 
 var mem: [0x10000]u8 = undefined;
 
@@ -11,15 +11,15 @@ var mem: [0x10000]u8 = undefined;
 fn tick(num_ticks: usize, pins: usize, userdata: usize) u64 {
     _ = num_ticks;
     _ = userdata;
-    if (0 != (pins & MREQ)) {
+    if (0 != (pins & z80.MREQ)) {
         // a memory request
-        if (0 != (pins & RD)) {
+        if (0 != (pins & z80.RD)) {
             // a memory read access
-            return setData(pins, mem[getAddr(pins)]);
+            return z80.setData(pins, mem[z80.getAddr(pins)]);
         }
-        else if (0 != (pins & WR)) {
+        else if (0 != (pins & z80.WR)) {
             // a memory write access
-            mem[getAddr(pins)] = getData(pins);
+            mem[z80.getAddr(pins)] = z80.getData(pins);
         }
     }
     // NOTE: we don't need to handle IO requests for the ZEX tests
@@ -39,22 +39,22 @@ fn copy(start_addr: u16, bytes: []const u8) void {
 }
 
 // emulate required CP/M system calls
-fn cpmBDOS(cpu: *CPU) bool {
+fn cpmBDOS(cpu: *z80.CPU) bool {
     var retval: bool = true;
-    switch (cpu.regs[C]) {
+    switch (cpu.regs[z80.C]) {
         2 => {
             // output character in register E
-            putChar(cpu.regs[E]);
+            putChar(cpu.regs[z80.E]);
         },
         9 => {
             // output $-terminated string pointed to by register DE
-            var addr = cpu.r16(DE);
+            var addr = cpu.r16(z80.DE);
             while (mem[addr] != '$'): (addr +%= 1) {
                 putChar(mem[addr]);
             }
         },
         else => {
-            print("Unhandled CP/M system call: {X}\n", .{ cpu.regs[C] });
+            print("Unhandled CP/M system call: {X}\n", .{ cpu.regs[z80.C] });
             retval = false;
         }
     }
@@ -68,7 +68,7 @@ fn cpmBDOS(cpu: *CPU) bool {
 }
 
 // run the currently configured test
-fn runTest(cpu: *CPU, name: []const u8) void {
+fn runTest(cpu: *z80.CPU, name: []const u8) void {
     print("Running {s}:\n\n", .{ name });
     var ticks: usize = 0;
     while (true) {
@@ -85,14 +85,14 @@ fn runTest(cpu: *CPU, name: []const u8) void {
 // run the ZEXDOC test
 fn zexdoc() void {
     copy(0x0100, @embedFile("roms/zexdoc.com"));
-    var cpu = CPU{ .SP = 0xF000, .PC = 0x0100 };
+    var cpu = z80.CPU{ .SP = 0xF000, .PC = 0x0100 };
     runTest(&cpu, "ZEXDOC");
 }
 
 // run the ZEXALL test
 fn zexall() void {
     copy(0x0100, @embedFile("roms/zexall.com"));
-    var cpu = CPU{ .SP = 0xF000, .PC = 0x0100 };
+    var cpu = z80.CPU{ .SP = 0xF000, .PC = 0x0100 };
     runTest(&cpu, "ZEXALL");
 }
 
