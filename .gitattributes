@@ -1,2 +1,2 @@
-src/sokol/c/* linguist-vendored
-
+*.zig text eol=lf
+src/sokol/* linguist-vendored
