@@ -90,7 +90,6 @@ export fn init() void {
         std.process.exit(10);
     };
 
-
     // insert any modules defined on the command line
     for (state.args.slots) |slot| {
         if (slot.mod_name) |mod_name| {
