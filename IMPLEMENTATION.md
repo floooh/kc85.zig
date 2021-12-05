@@ -101,7 +101,7 @@ Some examples of how the imported buildoptions module is used:
 [To select the ROM images needed for a specific KC85 version:](https://github.com/floooh/kc85.zig/blob/6eef729964cb10a0b5ed6b94fa0c856d25bb7ff7/src/main.zig#L78-L91)
 
 ```zig
-    state.kc = KC85.create(&state.arena.allocator, .{
+    state.kc = KC85.create(state.arena.allocator(), .{
         // ...
         .rom_caos22  = if (kc85_model == .KC85_2) @embedFile("roms/caos22.852") else null,
         .rom_caos31  = if (kc85_model == .KC85_3) @embedFile("roms/caos31.853") else null,
@@ -145,7 +145,7 @@ will regularly exit (the help text had already been printed in the
 argument parser module):
 
 ```zig
-    state.args = Args.parse(&state.arena.allocator) catch |err| {
+    state.args = Args.parse(state.arena.allocator()) catch |err| {
         warn("Failed to parse arguments\n", .{});
         std.process.exit(5);
     };
@@ -186,7 +186,7 @@ arguments: a pointer to a Zig allocator, and a 'desc struct' with initialization
 parameters:
 
 ```zig
-    state.kc = KC85.create(&state.arena.allocator, .{
+    state.kc = KC85.create(state.arena.allocator(), .{
         .pixel_buffer = gfx.pixel_buffer[0..],
         .audio_func  = .{ .func = audio.push },
         .audio_sample_rate = audio.sampleRate(),
@@ -225,7 +225,7 @@ be initialized into one of the two expansion slots in the KC85 computers:
             var mod_type = moduleNameToType(mod_name);
             var rom_image: ?[]const u8 = null;
             if (slot.mod_path) |path| {
-                rom_image = fs.cwd().readFileAlloc(&state.arena.allocator, path, max_file_size) catch |err| blk:{
+                rom_image = fs.cwd().readFileAlloc(state.arena.allocator(), path, max_file_size) catch |err| blk:{
                     warn("Failed to load ROM file '{s}' with: {}\n", .{ path, err });
                     mod_type = .NONE;
                     break :blk null;
@@ -270,7 +270,7 @@ This is pretty much the same as the ROM image file loading:
 
 ```zig
     if (state.args.file) |path| {
-        state.file_data = fs.cwd().readFileAlloc(&state.arena.allocator, path, max_file_size) catch |err| blk:{
+        state.file_data = fs.cwd().readFileAlloc(state.arena.allocator(), path, max_file_size) catch |err| blk:{
             warn("Failed to load snapshot file '{s}' with: {}\n", .{ path, err });
             break :blk null;
         };
@@ -319,7 +319,7 @@ user quits the application regularly:
 
 ```zig
 export fn cleanup() void {
-    state.kc.destroy(&state.arena.allocator);
+    state.kc.destroy(state.arena.allocator());
     audio.shutdown();
     gfx.shutdown();
 }
@@ -675,10 +675,10 @@ pub const KC85 = struct {
     };
     // ...
 
-    pub fn create(allocator: *std.mem.Allocator, desc: Desc) !*KC85 {
+    pub fn create(allocator: std.mem.Allocator, desc: Desc) !*KC85 {
         // ...
     }
-    pub fn destroy(sys: *KC85, allocator: *std.mem.Allocator) void {
+    pub fn destroy(sys: *KC85, allocator: std.mem.Allocator) void {
         // ...
     }
 }

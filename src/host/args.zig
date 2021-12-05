@@ -3,7 +3,7 @@
 //
 const std = @import("std");
 const print = std.debug.print;
-const warn  = std.debug.warn;
+const warn  = std.log.warn;
 const mem = std.mem;
 
 const Slot = struct {
@@ -17,7 +17,7 @@ pub const Args = struct {
     slots: [2]Slot = [_]Slot{ .{ .addr = 0x08 }, .{ .addr = 0x0C } },
     file: ?[]const u8 = null, // path to .kcc or .tap file
     
-    pub fn parse(a: *std.mem.Allocator) !Args {
+    pub fn parse(a: std.mem.Allocator) !Args {
         return impl.parse(a);
     }
 };
@@ -25,7 +25,7 @@ pub const Args = struct {
 //== IMPLEMENTATION ============================================================
 const impl = struct {
 
-pub fn parse(a: *std.mem.Allocator) !Args {
+pub fn parse(a: std.mem.Allocator) !Args {
     var res = Args{};
     var arg_iter = std.process.args();
     _ = arg_iter.skip();

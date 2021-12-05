@@ -374,11 +374,11 @@ pub const KC85 = struct {
     exp_buf:    [expansion_buffer_size]u8,
     
     // create a KC85 instance on the heap
-    pub fn create(allocator: *std.mem.Allocator, desc: Desc) !*KC85 {
+    pub fn create(allocator: std.mem.Allocator, desc: Desc) !*KC85 {
         return impl.create(allocator, desc);
     }
     // destroy heap-allocated KC85 instance
-    pub fn destroy(sys: *KC85, allocator: *std.mem.Allocator) void {
+    pub fn destroy(sys: *KC85, allocator: std.mem.Allocator) void {
         impl.destroy(sys, allocator);
     }
     // reset KC85 instance
@@ -424,7 +424,7 @@ fn xorshift32(r: u32) u32 {
     return x;
 }
     
-fn create( allocator: *std.mem.Allocator, desc: KC85.Desc) !*KC85 {
+fn create( allocator: std.mem.Allocator, desc: KC85.Desc) !*KC85 {
     var sys = try allocator.create(KC85);
     const freq_hz = switch (model) {
         .KC85_2, .KC85_3 => 1_750_000,
@@ -511,7 +511,7 @@ fn create( allocator: *std.mem.Allocator, desc: KC85.Desc) !*KC85 {
     return sys;
 }
 
-fn destroy(sys: *KC85, allocator: *std.mem.Allocator) void {
+fn destroy(sys: *KC85, allocator: std.mem.Allocator) void {
     allocator.destroy(sys);
 }
 
