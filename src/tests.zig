@@ -1,15 +1,15 @@
 test "memory tests" {
-    _ = @import("emu/memory.zig");
+    _ = @import("emu/Memory.zig");
 }
 
 test "cpu" {
-    _ = @import("emu/z80.zig");
+    _ = @import("emu/CPU.zig");
 }
 
 test "ctc" {
-    _ = @import("emu/z80ctc.zig");
+    _ = @import("emu/CTC.zig");
 }
 
 test "pio" {
-    _ = @import("emu/z80pio.zig");
+    _ = @import("emu/PIO.zig");
 }

@@ -1,7 +1,92 @@
 //
 //  Z80 CTC emulator
 //
-const DaisyChain = @import("z80daisy.zig").DaisyChain;
+const DaisyChain = @import("DaisyChain.zig");
+
+const CTC = @This();
+channels: [NumChannels]Channel = [_]Channel{.{}} ** NumChannels,
+    
+// reset the CTC chip
+pub fn reset(self: *CTC) void {
+    for (self.channels) |*chn| {
+        chn.control = Ctrl.RESET;
+        chn.constant = 0;
+        chn.down_counter = 0;
+        chn.waiting_for_trigger = false;
+        chn.trigger_edge = false;
+        chn.prescaler_mask = 0x0F;
+        chn.intr.reset();
+    }
+}
+
+// perform an IO request
+pub fn iorq(self: *CTC, in_pins: u64) u64 {
+    var pins = in_pins;
+    // check for chip-enabled and IO requested
+    if ((pins & (CE|IORQ|M1)) == (CE|IORQ)) {
+        const chn_index: u2 = @truncate(u2, pins >> CS0PinShift);
+        if (0 != (pins & RD)) {
+            // an IO read request
+            pins = self.ioRead(chn_index, pins);
+        }
+        else {
+            // an IO write request
+            pins = self.ioWrite(chn_index, pins);
+        }
+    }
+    return pins;
+}
+
+// execute one clock tick
+pub fn tick(self: *CTC, in_pins: u64) u64 {
+    var pins = in_pins & ~(ZCTO0|ZCTO1|ZCTO2);
+    for (self.channels) |*chn, i| {
+        const chn_index = @truncate(u2, i);
+        // check if externally triggered
+        if (chn.waiting_for_trigger or ((chn.control & Ctrl.MODE) == Ctrl.MODE_COUNTER)) {
+            const trg: bool = (0 != (pins & (CLKTRG0 << chn_index)));
+            if (trg != chn.ext_trigger) {
+                chn.ext_trigger = trg;
+                // rising/falling edge trigger
+                if (chn.trigger_edge == trg) {
+                    pins = self.activeEdge(chn_index, pins);
+                }
+            }
+        }
+        else if ((chn.control & (Ctrl.MODE|Ctrl.RESET|Ctrl.CONST_FOLLOWS)) == Ctrl.MODE_TIMER) {
+            // handle timer mode downcounting
+            chn.prescaler -%= 1;
+            if (0 == (chn.prescaler & chn.prescaler_mask)) {
+                // prescaler has reached zero, tick the down counter
+                chn.down_counter -%= 1;
+                if (0 == chn.down_counter) {
+                    pins = self.counterZero(chn_index, pins);
+                }
+            }
+        }
+    }
+    return pins;
+}
+
+
+// call once per CPU machine cycle to handle interrupts
+pub fn int(self: *CTC, in_pins: u64) u64 {
+    var pins = in_pins;
+    for (self.channels) |*chn| {
+        pins = chn.intr.tick(pins);
+    }
+    return pins;
+}
+
+// set data pins in pin mask
+pub fn setData(pins: u64, data: u8) u64 {
+    return (pins & ~DataPinMask) | (@as(u64, data) << DataPinShift);
+}
+
+// get data pins in pin mask
+pub fn getData(pins: u64) u8 {
+    return @truncate(u8, pins >> DataPinShift);
+}
 
 // data bus pins shared with CPU
 pub const D0: u64 = 1<<16;
@@ -34,16 +119,6 @@ pub const ZCTO2:    u64 = 1<<49;    // zero count / timeout 2
 
 const CS0PinShift = 41;
 
-// set data pins in pin mask
-pub fn setData(pins: u64, data: u8) u64 {
-    return (pins & ~DataPinMask) | (@as(u64, data) << DataPinShift);
-}
-
-// get data pins in pin mask
-pub fn getData(pins: u64) u8 {
-    return @truncate(u8, pins >> DataPinShift);
-}
-
 // control register bits
 pub const Ctrl = struct {
     pub const EI:               u8 = 1<<7;      // 1: interrupt enabled, 0: interrupt disabled
@@ -71,6 +146,7 @@ pub const Ctrl = struct {
 };
 
 // CTC channel state
+pub const NumChannels = 4;
 pub const Channel = struct {
     control: u8 = Ctrl.RESET,
     constant: u8 = 0,
@@ -83,111 +159,17 @@ pub const Channel = struct {
     intr: DaisyChain = .{},
 };
 
-pub const NumChannels = 4;
-
-// CTC state
-pub const CTC = struct {
-    channels: [NumChannels]Channel = [_]Channel{.{}} ** NumChannels,
-    
-    // reset the CTC chip
-    pub fn reset(ctc: *CTC) void {
-        impl.reset(ctc);
-    }
-    // perform an IO request
-    pub fn iorq(ctc: *CTC, pins: u64) u64 {
-        return impl.iorq(ctc, pins);
-    }
-    // execute one clock tick
-    pub fn tick(ctc: *CTC, pins: u64) u64 {
-        return impl.tick(ctc, pins);
-    }
-    // call once per CPU machine cycle to handle interrupts
-    pub fn int(ctc: *CTC, pins: u64) u64 {
-        return impl.int(ctc, pins);
-    }
-};
-
-//=== IMPLEMENTATION ===========================================================
-
-const impl = struct {
-
-fn reset(ctc: *CTC) void {
-    for (ctc.channels) |*chn| {
-        chn.control = Ctrl.RESET;
-        chn.constant = 0;
-        chn.down_counter = 0;
-        chn.waiting_for_trigger = false;
-        chn.trigger_edge = false;
-        chn.prescaler_mask = 0x0F;
-        chn.intr.reset();
-    }
-}
-
-fn int(ctc: *CTC, in_pins: u64) u64 {
-    var pins = in_pins;
-    for (ctc.channels) |*chn| {
-        pins = chn.intr.tick(pins);
-    }
-    return pins;
-}
-
-fn iorq(ctc: *CTC, in_pins: u64) u64 {
-    var pins = in_pins;
-    // check for chip-enabled and IO requested
-    if ((pins & (CE|IORQ|M1)) == (CE|IORQ)) {
-        const chn_index: u2 = @truncate(u2, pins >> CS0PinShift);
-        if (0 != (pins & RD)) {
-            // an IO read request
-            pins = ioRead(ctc, chn_index, pins);
-        }
-        else {
-            // an IO write request
-            pins = ioWrite(ctc, chn_index, pins);
-        }
-    }
-    return pins;
-}
-
-fn tick(ctc: *CTC, in_pins: u64) u64 {
-    var pins = in_pins & ~(ZCTO0|ZCTO1|ZCTO2);
-    for (ctc.channels) |*chn, i| {
-        const chn_index = @truncate(u2, i);
-        // check if externally triggered
-        if (chn.waiting_for_trigger or ((chn.control & Ctrl.MODE) == Ctrl.MODE_COUNTER)) {
-            const trg: bool = (0 != (pins & (CLKTRG0 << chn_index)));
-            if (trg != chn.ext_trigger) {
-                chn.ext_trigger = trg;
-                // rising/falling edge trigger
-                if (chn.trigger_edge == trg) {
-                    pins = activeEdge(ctc, chn_index, pins);
-                }
-            }
-        }
-        else if ((chn.control & (Ctrl.MODE|Ctrl.RESET|Ctrl.CONST_FOLLOWS)) == Ctrl.MODE_TIMER) {
-            // handle timer mode downcounting
-            chn.prescaler -%= 1;
-            if (0 == (chn.prescaler & chn.prescaler_mask)) {
-                // prescaler has reached zero, tick the down counter
-                chn.down_counter -%= 1;
-                if (0 == chn.down_counter) {
-                    pins = counterZero(ctc, chn_index, pins);
-                }
-            }
-        }
-    }
-    return pins;
-}
 
 // read from CTC channel
-fn ioRead(ctc: *CTC, chn_index: u2, pins: u64) u64 {
-    return setData(pins, ctc.channels[chn_index].down_counter);
+fn ioRead(self: *CTC, chn_index: u2, pins: u64) u64 {
+    return setData(pins, self.channels[chn_index].down_counter);
 }
 
 // write to CTC channel
-fn ioWrite(ctc: *CTC, chn_index: u2, in_pins: u64) u64 {
+fn ioWrite(self: *CTC, chn_index: u2, in_pins: u64) u64 {
     var pins = in_pins;
     const data = getData(pins);
-    const chn = &ctc.channels[chn_index];
+    const chn = &self.channels[chn_index];
     if (0 != (chn.control & Ctrl.CONST_FOLLOWS)) {
         // timer constant following control word
         chn.control &= ~(Ctrl.CONST_FOLLOWS|Ctrl.RESET);
@@ -218,7 +200,7 @@ fn ioWrite(ctc: *CTC, chn_index: u2, in_pins: u64) u64 {
 
         // changing the Trigger Slope triggers an 'active edge' */
         if ((old_ctrl & Ctrl.EDGE) != (chn.control & Ctrl.EDGE)) {
-            pins = activeEdge(ctc, chn_index, pins);
+            pins = self.activeEdge(chn_index, pins);
         }
     }
     else {
@@ -227,7 +209,7 @@ fn ioWrite(ctc: *CTC, chn_index: u2, in_pins: u64) u64 {
         // are then computed from the base vector plus 2 bytes per channel
         //
         if (0 == chn_index) {
-            for (ctc.channels) |*c, i| {
+            for (self.channels) |*c, i| {
                 c.intr.vector = (data & 0xF8) +% 2*@truncate(u8,i);
             }
         }
@@ -243,14 +225,14 @@ fn ioWrite(ctc: *CTC, chn_index: u2, in_pins: u64) u64 {
 //   the waiting flag is cleared and timing starts
 // - if the channel is in counter mode, the counter decrements
 //
-fn activeEdge(ctc: *CTC, chn_index: u3, in_pins: u64) u64 {
+fn activeEdge(self: *CTC, chn_index: u3, in_pins: u64) u64 {
     var pins = in_pins;
-    const chn = &ctc.channels[chn_index];
+    const chn = &self.channels[chn_index];
     if ((chn.control & Ctrl.MODE) == Ctrl.MODE_COUNTER) {
         // counter mode
         chn.down_counter -%= 1;
         if (0 == chn.down_counter) {
-            pins = counterZero(ctc, chn_index, pins);
+            pins = self.counterZero(chn_index, pins);
         }
     }
     else if (chn.waiting_for_trigger) {
@@ -264,9 +246,9 @@ fn activeEdge(ctc: *CTC, chn_index: u3, in_pins: u64) u64 {
 // called when the downcounter reaches zero, request interrupt,
 // trigger ZCTO pin and reload downcounter
 //
-fn counterZero(ctc: *CTC, chn_index: u3, in_pins: u64) u64 {
+fn counterZero(self: *CTC, chn_index: u3, in_pins: u64) u64 {
     var pins = in_pins;
-    const chn = &ctc.channels[chn_index];
+    const chn = &self.channels[chn_index];
     // if down counter has reached zero, trigger interrupt and ZCTO pin
     if (0 != (chn.control & Ctrl.EI)) {
         // interrupt enabled, request an interrupt
@@ -282,15 +264,13 @@ fn counterZero(ctc: *CTC, chn_index: u3, in_pins: u64) u64 {
     return pins;
 }
 
-}; // impl
-
 //== TESTS =====================================================================
 const expect = @import("std").testing.expect;
 
 test "ctc intvector" {
     var ctc = CTC{ };
     var pins = setData(0, 0xE0);
-    pins = impl.ioWrite(&ctc, 0, pins);
+    pins = ctc.ioWrite(0, pins);
     try expect(0xE0 == ctc.channels[0].intr.vector);
     try expect(0xE2 == ctc.channels[1].intr.vector);
     try expect(0xE4 == ctc.channels[2].intr.vector);
@@ -305,12 +285,12 @@ test "ctc timer" {
     // write control word
     const ctrl = Ctrl.EI|Ctrl.MODE_TIMER|Ctrl.PRESCALER_16|Ctrl.TRIGGER_AUTO|Ctrl.CONST_FOLLOWS|Ctrl.CONTROL;
     pins = setData(pins, ctrl);
-    pins = impl.ioWrite(&ctc, 1, pins);
+    pins = ctc.ioWrite(1, pins);
     try expect(ctrl == ctc.channels[1].control);
 
     // write timer constant
     pins = setData(pins, 10);
-    pins = impl.ioWrite(&ctc, 1, pins);
+    pins = ctc.ioWrite(1, pins);
     try expect(0 == (chn.control & Ctrl.CONST_FOLLOWS));
     try expect(10 == chn.constant);
     try expect(10 == chn.down_counter);
@@ -318,7 +298,7 @@ test "ctc timer" {
     while (r < 3): (r += 1) {
         var i: usize = 0;
         while (i < 160): (i += 1) {
-            pins = impl.tick(&ctc, pins);
+            pins = ctc.tick(pins);
             if (i != 159) {
                 try expect(0 == (pins & ZCTO1));
             }
@@ -336,11 +316,11 @@ test "ctc timer wait trigger" {
     // enable interrupt, mode timer, prescaler 16, trigger-wait, trigger-rising-edge, const follows
     const ctrl = Ctrl.EI|Ctrl.MODE_TIMER|Ctrl.PRESCALER_16|Ctrl.TRIGGER_WAIT|Ctrl.EDGE_RISING|Ctrl.CONST_FOLLOWS|Ctrl.CONTROL;
     pins = setData(pins, ctrl);
-    pins = impl.ioWrite(&ctc, 1, pins);
+    pins = ctc.ioWrite(1, pins);
     try expect(chn.control == ctrl);
     // write timer constant 
     pins = setData(pins, 10);
-    pins = impl.ioWrite(&ctc, 1, pins);
+    pins = ctc.ioWrite(1, pins);
     try expect(0 == (chn.control & Ctrl.CONST_FOLLOWS));
     try expect(10 == chn.constant);
 
@@ -348,18 +328,18 @@ test "ctc timer wait trigger" {
     {
         var i: usize = 0;
         while (i < 300): (i += 1) {
-            pins = impl.tick(&ctc, pins);
+            pins = ctc.tick(pins);
             try expect(0 == (pins & ZCTO1));
         }
     }
     // now start the timer on next tick
     pins |= CLKTRG1;
-    pins = impl.tick(&ctc, pins);
+    pins = ctc.tick(pins);
     var r: usize = 0;
     while (r < 3): (r += 1) {
         var i: usize = 0;
         while (i < 160): (i += 1) {
-            pins = impl.tick(&ctc, pins);
+            pins = ctc.tick(pins);
             if (i != 159) {
                 try expect(0 == (pins & ZCTO1));
             }
@@ -379,11 +359,11 @@ test "ctc counter" {
     // enable interrupt, mode counter, trigger-rising-edge, const follows
     const ctrl = Ctrl.EI|Ctrl.MODE_COUNTER|Ctrl.EDGE_RISING|Ctrl.CONST_FOLLOWS|Ctrl.CONTROL;
     pins = setData(pins, ctrl);
-    pins = impl.ioWrite(&ctc, 1, pins);
+    pins = ctc.ioWrite(1, pins);
     try expect(ctc.channels[1].control == ctrl);
     // write counter constant
     pins = setData(pins, 10);
-    pins = impl.ioWrite(&ctc, 1, pins);
+    pins = ctc.ioWrite(1, pins);
     try expect(0 == (chn.control & Ctrl.CONST_FOLLOWS));
     try expect(10 == chn.constant);
 
@@ -393,7 +373,7 @@ test "ctc counter" {
         var i: usize = 0;
         while (i < 10): (i += 1) {
             pins |= CLKTRG1;
-            pins = impl.tick(&ctc, pins);
+            pins = ctc.tick(pins);
             if (i != 9) {
                 try expect(0 == (pins & ZCTO1));
             }
@@ -402,7 +382,7 @@ test "ctc counter" {
                 try expect(10 == chn.down_counter);
             }
             pins &= ~CLKTRG1;
-            pins = impl.tick(&ctc, pins);
+            pins = ctc.tick(pins);
         }
     }
 }

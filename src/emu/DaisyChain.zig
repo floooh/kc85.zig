@@ -2,6 +2,11 @@
 //  Shared Z80 interrupt daisychain implementation for CTC and PIO.
 //
 
+const DaisyChain = @This();
+
+state: u8 = 0,
+vector: u8 = 0,
+
 // shared pins relevant for interrupt handling
 pub const M1:   u64 = 1<<24;    // machine cycle 1
 pub const IORQ: u64 = 1<<26;    // IO request
@@ -13,46 +18,17 @@ pub const INT_NEEDED:       u3 = 1<<0;  // interrupt request needed
 pub const INT_REQUESTED:    u3 = 1<<1;  // interrupt request issued, waiting for ACK from CPU
 pub const INT_SERVICING:    u3 = 1<<2;  // interrupt was acknoledged, now serving 
 
-pub const DaisyChain = struct {
-    state:  u8 = 0,         // combo of Flags
-    vector: u8 = 0,         // Z80 interrupt vector
-    
-    /// reset the daisychain state
-    pub fn reset(self: *DaisyChain) void {
-        impl.reset(self);
-    }
-    
-    // request an interrupt
-    pub fn irq(self: *DaisyChain) void {
-        impl.irq(self);
-    }
-
-    /// invoke each tick to handle interrupts
-    pub fn tick(self: *DaisyChain, pins: u64) u64 {
-        return impl.tick(self, pins); 
-    }
-};
-
-//== IMPLEMENTATION ============================================================
-
-const impl = struct {
-
-const DataPinShift = 16;
-const DataPinMask: u64 = 0xFF0000;
-
-fn setData(pins: u64, data: u8) u64 {
-    return (pins & ~DataPinMask) | (@as(u64, data) << DataPinShift);
-}
-
-fn reset(self: *DaisyChain) void {
+// reset the daisychain state
+pub fn reset(self: *DaisyChain) void {
     self.state = 0;
 }
 
-fn irq(self: *DaisyChain) void {
-    self.state |= INT_NEEDED;
+// request an interrupt
+pub fn irq(self: *DaisyChain) void {
+    self.state = INT_NEEDED;
 }
 
-fn tick(self: *DaisyChain, in_pins: u64) u64 {
+pub fn tick(self: *DaisyChain, in_pins: u64) u64 {
     var pins = in_pins;
 
     // - set status of IEO pin depending on IEI pin and current
@@ -115,4 +91,8 @@ fn tick(self: *DaisyChain, in_pins: u64) u64 {
     return pins;
 }
 
-}; // impl
+fn setData(pins: u64, data: u8) u64 {
+    const DataPinShift = 16;
+    const DataPinMask: u64 = 0xFF0000;
+    return (pins & ~DataPinMask) | (@as(u64, data) << DataPinShift);
+}

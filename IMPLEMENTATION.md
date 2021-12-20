@@ -1,3 +1,5 @@
+NOTE: the source code diverged from the implementation notes.
+
 # IMPLEMENTATION NOTES
 
 Some implementation notes from top (build.zig) to bottom (the actual emulator code).
@@ -43,7 +45,7 @@ Module packages need a single top level module which gathers and 're-exports' al
 pub const gfx   = @import("gfx.zig");
 pub const audio = @import("audio.zig");
 pub const time  = @import("time.zig");
-pub const args  = @import("args.zig");
+pub const Args  = @import("Args.zig");
 ```
 
 Packages and their dependencies need to be registered in the [build.zig file](https://github.com/floooh/kc85.zig/blob/a347744ef7071915d2eb6c67a27d389ec6b2fb09/build.zig#L46-L62)

@@ -7,42 +7,40 @@
 
 const print  = @import("std").debug.print;
 const assert = @import("std").debug.assert;
-const z80    = @import("emu").z80;
+const CPU    = @import("emu").CPU;
 
-const CPU = z80.CPU;
+const MREQ = CPU.MREQ;
+const IORQ = CPU.IORQ;
+const RD = CPU.RD;
+const WR = CPU.WR;
+const HALT = CPU.HALT;
+const INT = CPU.INT;
+const M1 = CPU.M1;
+const RETI = CPU.RETI;
 
-const MREQ = z80.MREQ;
-const IORQ = z80.IORQ;
-const RD = z80.RD;
-const WR = z80.WR;
-const HALT = z80.HALT;
-const INT = z80.INT;
-const M1 = z80.M1;
-const RETI = z80.RETI;
+const B = CPU.B;
+const C = CPU.C;
+const D = CPU.D;
+const E = CPU.E; 
+const H = CPU.H; 
+const L = CPU.L; 
+const F = CPU.F; 
+const A = CPU.A; 
 
-const B = z80.B;
-const C = z80.C;
-const D = z80.D;
-const E = z80.E; 
-const H = z80.H; 
-const L = z80.L; 
-const F = z80.F; 
-const A = z80.A; 
+const BC = CPU.BC;
+const DE = CPU.DE;
+const HL = CPU.HL;
+const FA = CPU.FA;
 
-const BC = z80.BC;
-const DE = z80.DE;
-const HL = z80.HL;
-const FA = z80.FA;
-
-const CF = z80.CF;
-const NF = z80.NF;
-const VF = z80.VF;
-const PF = z80.PF; 
-const XF = z80.XF;
-const HF = z80.HF;
-const YF = z80.YF;
-const ZF = z80.ZF;
-const SF = z80.SF;
+const CF = CPU.CF;
+const NF = CPU.NF;
+const VF = CPU.VF;
+const PF = CPU.PF; 
+const XF = CPU.XF;
+const HF = CPU.HF;
+const YF = CPU.YF;
+const ZF = CPU.ZF;
+const SF = CPU.SF;
 
 // 64 KB memory
 var mem = [_]u8{0} ** 0x10000;
@@ -70,22 +68,22 @@ fn tick(num_ticks: usize, pins_in: u64, userdata: usize) u64 {
     if ((pins & MREQ) != 0) {
         if ((pins & RD) != 0) {
             // a memory read access
-            pins = z80.setData(pins, mem[z80.getAddr(pins)]);
+            pins = CPU.setData(pins, mem[CPU.getAddr(pins)]);
         }
         else if ((pins & WR) != 0) {
             // a memory write access
-            mem[z80.getAddr(pins)] = z80.getData(pins);
+            mem[CPU.getAddr(pins)] = CPU.getData(pins);
         }
     }
     else if ((pins & IORQ) != 0) {
         if ((pins & RD) != 0) {
             // an IO input access (just write the port * 2 back)
-            pins = z80.setData(pins, @truncate(u8, z80.getAddr(pins)) *% 2);
+            pins = CPU.setData(pins, @truncate(u8, CPU.getAddr(pins)) *% 2);
         }
         else if ((pins & WR) != 0) {
             // an IO output access
-            out_port = z80.getAddr(pins);
-            out_byte = z80.getData(pins);
+            out_port = CPU.getAddr(pins);
+            out_byte = CPU.getData(pins);
         }
     }
     return pins;
@@ -2735,15 +2733,15 @@ fn IRQ() void {
             var pins = pins_in;
             if ((pins & MREQ) != 0) {
                 if ((pins & RD) != 0) {
-                    pins = z80.setData(pins, mem[z80.getAddr(pins)]);
+                    pins = CPU.setData(pins, mem[CPU.getAddr(pins)]);
                 }
                 else if ((pins & WR) != 0) {
-                    mem[z80.getAddr(pins)] = z80.getData(pins);
+                    mem[CPU.getAddr(pins)] = CPU.getData(pins);
                 }
             }
             else if ((pins & IORQ) != 0) {
                 if ((pins & RD) != 0) {
-                    pins = z80.setData(pins, 0xFF);
+                    pins = CPU.setData(pins, 0xFF);
                 }
                 else if ((pins & WR) != 0) {
                     // request interrupt when a IORQ|WR happens
@@ -2751,7 +2749,7 @@ fn IRQ() void {
                 }
                 else if ((pins & M1) != 0) {
                     // an interrupt ackowledge cycle, need to provide interrupt vector
-                    pins = z80.setData(pins, 0xE0);
+                    pins = CPU.setData(pins, 0xE0);
                 }
             }
             if (0 != (pins & RETI)) {

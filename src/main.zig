@@ -12,11 +12,10 @@ const host  = @import("host");
 const gfx   = host.gfx;
 const audio = host.audio;
 const time  = host.time;
-const Args  = host.args.Args;
-const kc85  = @import("emu").kc85;
-const KC85       = kc85.KC85;
-const Model      = kc85.Model;
-const ModuleType = kc85.ModuleType;
+const Args  = host.Args;
+const KC85  = @import("emu").KC85;
+const Model      = KC85.Model;
+const ModuleType = KC85.ModuleType;
 
 const state = struct {
     var kc: *KC85 = undefined;
@@ -198,7 +197,7 @@ export fn input(event: ?*const sapp.Event) void {
     }
 }
 
-fn moduleNameToType(name: []const u8) kc85.ModuleType {
+fn moduleNameToType(name: []const u8) KC85.ModuleType {
     const modules = .{
         .{ "m006", .M006_BASIC },
         .{ "m011", .M011_64KBYTE },
