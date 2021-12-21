@@ -5,4 +5,4 @@
 pub const gfx   = @import("gfx.zig");
 pub const audio = @import("audio.zig");
 pub const time  = @import("time.zig");
-pub const args  = @import("args.zig");
+pub const Args  = @import("Args.zig");

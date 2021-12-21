@@ -7,7 +7,40 @@
 
 const print  = @import("std").debug.print;
 const assert = @import("std").debug.assert;
-usingnamespace @import("emu").z80;
+const CPU    = @import("emu").CPU;
+
+const MREQ = CPU.MREQ;
+const IORQ = CPU.IORQ;
+const RD = CPU.RD;
+const WR = CPU.WR;
+const HALT = CPU.HALT;
+const INT = CPU.INT;
+const M1 = CPU.M1;
+const RETI = CPU.RETI;
+
+const B = CPU.B;
+const C = CPU.C;
+const D = CPU.D;
+const E = CPU.E; 
+const H = CPU.H; 
+const L = CPU.L; 
+const F = CPU.F; 
+const A = CPU.A; 
+
+const BC = CPU.BC;
+const DE = CPU.DE;
+const HL = CPU.HL;
+const FA = CPU.FA;
+
+const CF = CPU.CF;
+const NF = CPU.NF;
+const VF = CPU.VF;
+const PF = CPU.PF; 
+const XF = CPU.XF;
+const HF = CPU.HF;
+const YF = CPU.YF;
+const ZF = CPU.ZF;
+const SF = CPU.SF;
 
 // 64 KB memory
 var mem = [_]u8{0} ** 0x10000;
@@ -35,22 +68,22 @@ fn tick(num_ticks: usize, pins_in: u64, userdata: usize) u64 {
     if ((pins & MREQ) != 0) {
         if ((pins & RD) != 0) {
             // a memory read access
-            pins = setData(pins, mem[getAddr(pins)]);
+            pins = CPU.setData(pins, mem[CPU.getAddr(pins)]);
         }
         else if ((pins & WR) != 0) {
             // a memory write access
-            mem[getAddr(pins)] = getData(pins);
+            mem[CPU.getAddr(pins)] = CPU.getData(pins);
         }
     }
     else if ((pins & IORQ) != 0) {
         if ((pins & RD) != 0) {
             // an IO input access (just write the port * 2 back)
-            pins = setData(pins, @truncate(u8, getAddr(pins)) *% 2);
+            pins = CPU.setData(pins, @truncate(u8, CPU.getAddr(pins)) *% 2);
         }
         else if ((pins & WR) != 0) {
             // an IO output access
-            out_port = getAddr(pins);
-            out_byte = getData(pins);
+            out_port = CPU.getAddr(pins);
+            out_byte = CPU.getData(pins);
         }
     }
     return pins;
@@ -2700,15 +2733,15 @@ fn IRQ() void {
             var pins = pins_in;
             if ((pins & MREQ) != 0) {
                 if ((pins & RD) != 0) {
-                    pins = setData(pins, mem[getAddr(pins)]);
+                    pins = CPU.setData(pins, mem[CPU.getAddr(pins)]);
                 }
                 else if ((pins & WR) != 0) {
-                    mem[getAddr(pins)] = getData(pins);
+                    mem[CPU.getAddr(pins)] = CPU.getData(pins);
                 }
             }
             else if ((pins & IORQ) != 0) {
                 if ((pins & RD) != 0) {
-                    pins = setData(pins, 0xFF);
+                    pins = CPU.setData(pins, 0xFF);
                 }
                 else if ((pins & WR) != 0) {
                     // request interrupt when a IORQ|WR happens
@@ -2716,7 +2749,7 @@ fn IRQ() void {
                 }
                 else if ((pins & M1) != 0) {
                     // an interrupt ackowledge cycle, need to provide interrupt vector
-                    pins = setData(pins, 0xE0);
+                    pins = CPU.setData(pins, 0xE0);
                 }
             }
             if (0 != (pins & RETI)) {

@@ -13,36 +13,16 @@ const KeyState = struct {
     released: bool = false,
 };
 
-pub const KeyBuffer = struct {
-    // time in microseconds that pressed keys will at least remain pressed
-    sticky_duration: u64,
-    // current time in microsecs, bumped by update()
-    cur_time: u64 = 0,
-    // currently pressed keys
-    keys: [buf_size]KeyState = [_]KeyState{.{}} ** buf_size,
+const KeyBuffer = @This();
+// time in microseconds that pressed keys will at least remain pressed
+sticky_duration: u64,
+// current time in microsecs, bumped by update()
+cur_time: u64 = 0,
+// currently pressed keys
+keys: [buf_size]KeyState = [_]KeyState{.{}} ** buf_size,
 
-    // call once per frame with frame duration (any time unit)
-    pub fn update(self: *KeyBuffer, frame_duration: u32) void {
-        impl.update(self, frame_duration);
-    }
-    // notify keyboard matrix about a pressed key
-    pub fn keyDown(self: *KeyBuffer, key_code: u8) void {
-        impl.keyDown(self, key_code);
-    }
-    // notify keyboard matrix about a released key
-    pub fn keyUp(self: *KeyBuffer, key_code: u8) void {
-        impl.keyUp(self, key_code);
-    }
-    // get the most recently pressed key in the key buffer, zero means none
-    pub fn mostRecentKey(self: *KeyBuffer) u8 {
-        return impl.mostRecentKey(self);
-    }
-};
-
-//=== IMPLEMENTATION ===========================================================
-const impl = struct {
-
-fn update(self: *KeyBuffer, frame_duration: u32) void {
+// call once per frame with frame duration (any time unit)
+pub fn update(self: *KeyBuffer, frame_duration: u32) void {
     // check for sticky keys that should be released
     for (self.keys) |*key| {
         if (key.released) {
@@ -56,7 +36,8 @@ fn update(self: *KeyBuffer, frame_duration: u32) void {
     self.cur_time +%= frame_duration;
 }
 
-fn keyDown(self: *KeyBuffer, key_code: u8) void {
+// notify keyboard matrix about a pressed key
+pub fn keyDown(self: *KeyBuffer, key_code: u8) void {
     assert(0 != key_code);
     // first check if key is already in key buffer, if yes, just update the pressed-time
     for (self.keys) |*key| {
@@ -77,7 +58,8 @@ fn keyDown(self: *KeyBuffer, key_code: u8) void {
     }
 }
 
-fn keyUp(self: *KeyBuffer, key_code: u8) void {
+// notify keyboard matrix about a released key
+pub fn keyUp(self: *KeyBuffer, key_code: u8) void {
     assert(0 != key_code);
     for (self.keys) |*key| {
         if (key.key_code == key_code) {
@@ -87,7 +69,8 @@ fn keyUp(self: *KeyBuffer, key_code: u8) void {
     }
 }
 
-fn mostRecentKey(self: *KeyBuffer) u8 {
+// get the most recently pressed key in the key buffer, zero means none
+pub fn mostRecentKey(self: *KeyBuffer) u8 {
     var t: u64 = 0;
     var key_code: u8 = 0;
     for (self.keys) |*key| {
@@ -98,5 +81,3 @@ fn mostRecentKey(self: *KeyBuffer) u8 {
     }
     return key_code;
 }
-
-}; // impl

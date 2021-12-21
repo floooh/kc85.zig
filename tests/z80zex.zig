@@ -3,7 +3,7 @@
 ///
 const build_options = @import("build_options");
 const print  = @import("std").debug.print;
-usingnamespace @import("emu").z80;
+const CPU = @import("emu").CPU;
 
 var mem: [0x10000]u8 = undefined;
 
@@ -11,15 +11,15 @@ var mem: [0x10000]u8 = undefined;
 fn tick(num_ticks: usize, pins: usize, userdata: usize) u64 {
     _ = num_ticks;
     _ = userdata;
-    if (0 != (pins & MREQ)) {
+    if (0 != (pins & CPU.MREQ)) {
         // a memory request
-        if (0 != (pins & RD)) {
+        if (0 != (pins & CPU.RD)) {
             // a memory read access
-            return setData(pins, mem[getAddr(pins)]);
+            return CPU.setData(pins, mem[CPU.getAddr(pins)]);
         }
-        else if (0 != (pins & WR)) {
+        else if (0 != (pins & CPU.WR)) {
             // a memory write access
-            mem[getAddr(pins)] = getData(pins);
+            mem[CPU.getAddr(pins)] = CPU.getData(pins);
         }
     }
     // NOTE: we don't need to handle IO requests for the ZEX tests
@@ -41,20 +41,20 @@ fn copy(start_addr: u16, bytes: []const u8) void {
 // emulate required CP/M system calls
 fn cpmBDOS(cpu: *CPU) bool {
     var retval: bool = true;
-    switch (cpu.regs[C]) {
+    switch (cpu.regs[CPU.C]) {
         2 => {
             // output character in register E
-            putChar(cpu.regs[E]);
+            putChar(cpu.regs[CPU.E]);
         },
         9 => {
             // output $-terminated string pointed to by register DE
-            var addr = cpu.r16(DE);
+            var addr = cpu.r16(CPU.DE);
             while (mem[addr] != '$'): (addr +%= 1) {
                 putChar(mem[addr]);
             }
         },
         else => {
-            print("Unhandled CP/M system call: {X}\n", .{ cpu.regs[C] });
+            print("Unhandled CP/M system call: {X}\n", .{ cpu.regs[CPU.C] });
             retval = false;
         }
     }

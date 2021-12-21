@@ -10,13 +10,10 @@ Some [implementation notes](https://github.com/floooh/kc85.zig/blob/main/IMPLEME
 
 ## Build
 
-With Zig version 0.8.0, on Windows, macOS or Linux:
-
+With Zig version 0.9.0, on Windows, macOS or Linux:
 ```
 zig build
 ```
-
-For the current Zig dev version, please switch to the ```zig-0.9.0``` branch.
 
 The default debug version will usually be fast enough, to build with optimizations 
 use any of:

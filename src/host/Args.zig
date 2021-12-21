@@ -3,8 +3,10 @@
 //
 const std = @import("std");
 const print = std.debug.print;
-const warn  = std.debug.warn;
+const warn  = std.log.warn;
 const mem = std.mem;
+
+const Args = @This();
 
 const Slot = struct {
     addr:     u8,
@@ -12,20 +14,11 @@ const Slot = struct {
     mod_path: ?[]const u8 = null,
 };
 
-pub const Args = struct {
-    help: bool = false,
-    slots: [2]Slot = [_]Slot{ .{ .addr = 0x08 }, .{ .addr = 0x0C } },
-    file: ?[]const u8 = null, // path to .kcc or .tap file
-    
-    pub fn parse(a: *std.mem.Allocator) !Args {
-        return impl.parse(a);
-    }
-};
-    
-//== IMPLEMENTATION ============================================================
-const impl = struct {
+help: bool = false,
+slots: [2]Slot = [_]Slot{ .{ .addr = 0x08 }, .{ .addr = 0x0C } },
+file: ?[]const u8 = null, // path to .kcc or .tap file
 
-pub fn parse(a: *std.mem.Allocator) !Args {
+pub fn parse(a: std.mem.Allocator) !Args {
     var res = Args{};
     var arg_iter = std.process.args();
     _ = arg_iter.skip();
@@ -118,5 +111,3 @@ fn validateModuleName(name: []const u8) bool {
 fn isRomModule(name: []const u8) bool {
     return !(mem.eql(u8, name, "m011") or mem.eql(u8, name, "m022"));
 }
-
-}; // impl

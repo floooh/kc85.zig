@@ -31,30 +31,25 @@ fn addKC85(b: *Builder, sokol: *LibExeObjStep, target: CrossTarget, mode: Mode, 
         .KC85_4 => "kc854"
     };
     const exe = b.addExecutable(name, "src/main.zig");
-    exe.addBuildOption(KC85Model, "kc85_model", kc85_model);
+    const exe_options = b.addOptions();
+    exe.addOptions("build_options", exe_options);
+    exe_options.addOption(KC85Model, "kc85_model", kc85_model);
     
     // FIXME: HACK to make buildoptions available to other packages than root
     // see: https://github.com/ziglang/zig/issues/5375
-    const pkg_buildoptions = Pkg{
-        .name = "build_options", 
-        .path = switch (kc85_model) {
-            .KC85_2 => "zig-cache/kc852_build_options.zig",
-            .KC85_3 => "zig-cache/kc853_build_options.zig",
-            .KC85_4 => "zig-cache/kc854_build_options.zig",
-        },
-    };
+    const pkg_buildoptions = exe_options.getPackage("build_options");
     const pkg_sokol = Pkg{
         .name = "sokol",
-        .path = "src/sokol/sokol.zig",
+        .path = .{ .path = "src/sokol/sokol.zig" },
     };
     const pkg_emu = Pkg{
         .name = "emu",
-        .path = "src/emu/emu.zig",
+        .path = .{ .path = "src/emu/emu.zig" },
         .dependencies = &[_]Pkg{ pkg_buildoptions }
     };
     const pkg_host = Pkg{
         .name = "host",
-        .path = "src/host/host.zig",
+        .path = .{ .path = "src/host/host.zig" },
         .dependencies = &[_]Pkg{ pkg_sokol }
     };
     exe.addPackage(pkg_sokol);
@@ -98,8 +93,10 @@ fn addZ80ZEXDOC(b: *Builder, target: CrossTarget, mode: Mode) void {
     const exe = b.addExecutable("z80zexdoc", "tests/z80zex.zig");
     exe.setTarget(target);
     exe.setBuildMode(mode);
-    exe.addBuildOption(bool, "zexdoc", true);
-    exe.addBuildOption(bool, "zexall", false);
+    const exe_options = b.addOptions();
+    exe.addOptions("build_options", exe_options);
+    exe_options.addOption(bool, "zexdoc", true);
+    exe_options.addOption(bool, "zexall", false);
     exe.addPackagePath("emu", "src/emu/emu.zig");
     exe.install();
     const run_cmd = exe.run();
@@ -115,8 +112,10 @@ fn addZ80ZEXALL(b: *Builder, target: CrossTarget, mode: Mode) void {
     const exe = b.addExecutable("z80zexall", "tests/z80zex.zig");
     exe.setTarget(target);
     exe.setBuildMode(mode);
-    exe.addBuildOption(bool, "zexdoc", false);
-    exe.addBuildOption(bool, "zexall", true);
+    const exe_options = b.addOptions();
+    exe.addOptions("build_options", exe_options);
+    exe_options.addOption(bool, "zexdoc", true);
+    exe_options.addOption(bool, "zexall", false);
     exe.addPackagePath("emu", "src/emu/emu.zig");
     exe.install();
     const run_cmd = exe.run();
@@ -141,7 +140,6 @@ fn buildSokol(b: *Builder, target: CrossTarget, mode: Mode, comptime prefix_path
         "sokol_audio.c",
     };
     if (lib.target.isDarwin()) {
-        b.env_map.put("ZIG_SYSTEM_LINKER_HACK", "1") catch unreachable;
         inline for (csources) |csrc| {
             lib.addCSourceFile(sokol_path ++ csrc, &[_][]const u8{"-ObjC", "-DIMPL"});
         }

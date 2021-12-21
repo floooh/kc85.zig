@@ -3,51 +3,78 @@
 //
 const assert = @import("std").debug.assert;
 
-pub const Memory = struct {
-    // the CPU visible memory pages resolved from the optionally mapped memory banks
-    pages: [num_pages]Page = [_]Page{.{}} ** num_pages,
-    // optionally mapped memory bank mapping to host memory
-    banks: [num_banks][num_pages]BankPage = [_][num_pages]BankPage{[_]BankPage{.{}} ** num_pages} ** num_banks,
+const Memory = @This();
+/// the CPU visible memory pages resolved from the optionally mapped memory banks
+pages: [num_pages]Page = [_]Page{.{}} ** num_pages,
+/// optionally mapped memory bank mapping to host memory
+banks: [num_banks][num_pages]BankPage = [_][num_pages]BankPage{[_]BankPage{.{}} ** num_pages} ** num_banks,
 
-    /// map a range of host memory to a 16-bit address as RAM
-    pub fn mapRAM(self: *Memory, bank_index: usize, addr: u16, ram: []u8) void {
-        impl.mapRAM(self, bank_index, addr, ram);
-    }
-    /// map a range of host memory to a 16-bit address as ROM
-    pub fn mapROM(self: *Memory, bank_index: usize, addr: u16, rom: []const u8) void {
-        impl.mapROM(self, bank_index, addr, rom);
-    }
-    /// read an 8-bit value from mapped memory
-    pub fn r8(self: *Memory, addr: u16) u8 { 
-        return impl.r8(self, addr);
-    }
-    /// write an 8-bit value to mapped memory
-    pub fn w8(self: *Memory, addr: u16, val: u8) void {
-        impl.w8(self, addr, val);
-    }
-    /// read a 16-bit value from mapped memory
-    pub fn r16(self: *Memory, addr: u16) u16 {
-        return impl.r16(self, addr);
-    }
-    /// write a 16-bit value to mapped memory
-    pub fn w16(self: *Memory, addr: u16, val: u16) void {
-        impl.w16(self, addr, val);
-    }
-    /// write a whole range of bytes to mapped memory
-    pub fn writeBytes(self: *Memory, addr: u16, bytes: []const u8) void {
-        impl.writeBytes(self, addr, bytes);
-    }
-    /// unmap one memory bank
-    pub fn unmapBank(self: *Memory, bank_index: usize) void {
-        impl.unmapBank(self, bank_index);
-    }
-    /// unmap all memory banks
-    pub fn unmapAll(self: *Memory) void {
-        impl.unmapAll(self);
-    }
-};
+/// map a range of host memory to a 16-bit address as RAM
+pub fn mapRAM(self: *Memory, bank_index: usize, addr: u16, ram: []u8) void {
+    // map both the read- and write-slice to host memory
+    assert(ram.len <= addr_range);
+    self.map(bank_index, addr, ram.len, ram, ram);
+}
 
-//=== IMPLEMENTATION =========================================================*/
+/// map a range of host memory to a 16-bit address as ROM
+pub fn mapROM(self: *Memory, bank_index: usize, addr: u16, rom: []const u8) void {
+    assert(rom.len <= addr_range);
+    self.map(bank_index, addr, rom.len, rom, null);
+}
+
+/// read an 8-bit value from mapped memory
+pub fn r8(self: *Memory, addr: u16) u8 {
+    return self.pages[addr >> page_shift].read[addr & page_mask];
+}
+
+/// write an 8-bit value to mapped memory
+pub fn w8(self: *Memory, addr: u16, val: u8) void {
+    self.pages[addr >> page_shift].write[addr & page_mask] = val;
+}
+
+/// read a 16-bit value from mapped memory
+pub fn r16(self: *Memory, addr: u16) u16 {
+    const l: u16 = self.r8(addr);
+    const h: u16 = self.r8(addr +% 1);
+    return (h << 8) | l;
+}
+
+/// write a 16-bit value to mapped memory
+pub fn w16(self: *Memory, addr: u16, val: u16) void {
+    self.w8(addr, @truncate(u8, val));
+    self.w8(addr +% 1, @truncate(u8, val >> 8));
+}
+
+/// write a whole range of bytes to mapped memory
+pub fn writeBytes(self: *Memory, addr: u16, bytes: []const u8) void {
+    var a = addr;
+    for (bytes) |byte| {
+        self.w8(a, byte);
+        a +%= 1;
+    }
+}
+
+/// unmap one memory bank
+pub fn unmapBank(self: *Memory, bank_index: usize) void {
+    for (self.banks[bank_index]) |*page, page_index| {
+        page.read = null;
+        page.write = null;
+        self.updatePage(page_index);
+    }
+}
+
+/// unmap all memory banks
+pub fn unmapAll(self: *Memory) void {
+    for (self.banks) |*bank| {
+        for (bank) |*page| {
+            page.read = null;
+            page.write = null;
+        }
+    }
+    for (self.pages) |_, page_index| {
+        self.updatePage(page_index);
+    }
+}
 
 // a memory bank page with optional mappings to host memory
 const BankPage = struct {
@@ -73,66 +100,6 @@ const num_banks = 4;        // max number of memory bank layers
 const unmapped_page: [page_size]u8 = [_]u8{0xFF} ** page_size;
 var junk_page: [page_size]u8 = [_]u8{0} ** page_size;
 
-const impl = struct {
-
-pub fn mapRAM(self: *Memory, bank_index: usize, addr: u16, ram: []u8) void {
-    // map both the read- and write-slice to host memory
-    assert(ram.len <= addr_range);
-    map(self, bank_index, addr, ram.len, ram, ram);
-}
-
-pub fn mapROM(self: *Memory, bank_index: usize, addr: u16, rom: []const u8) void {
-    assert(rom.len <= addr_range);
-    map(self, bank_index, addr, rom.len, rom, null);
-}
-
-pub fn r8(self: *Memory, addr: u16) u8 {
-    return self.pages[addr >> page_shift].read[addr & page_mask];
-}
-
-pub fn w8(self: *Memory, addr: u16, val: u8) void {
-    self.pages[addr >> page_shift].write[addr & page_mask] = val;
-}
-
-pub fn r16(self: *Memory, addr: u16) u16 {
-    const l: u16 = self.r8(addr);
-    const h: u16 = self.r8(addr +% 1);
-    return (h << 8) | l;
-}
-
-pub fn w16(self: *Memory, addr: u16, val: u16) void {
-    self.w8(addr, @truncate(u8, val));
-    self.w8(addr +% 1, @truncate(u8, val >> 8));
-}
-
-pub fn writeBytes(self: *Memory, addr: u16, bytes: []const u8) void {
-    var a = addr;
-    for (bytes) |byte| {
-        self.w8(a, byte);
-        a +%= 1;
-    }
-}
-
-pub fn unmapBank(self: *Memory, bank_index: usize) void {
-    for (self.banks[bank_index]) |*page, page_index| {
-        page.read = null;
-        page.write = null;
-        updatePage(self, page_index);
-    }
-}
-
-pub fn unmapAll(self: *Memory) void {
-    for (self.banks) |*bank| {
-        for (bank) |*page| {
-            page.read = null;
-            page.write = null;
-        }
-    }
-    for (self.pages) |_, page_index| {
-        updatePage(self, page_index);
-    }
-}
-
 // internal memory mapping function for RAM, ROM and separate RW areas
 fn map(self: *Memory, bank_index: usize, addr: u16, size: usize, read: ?[]const u8, write: ?[]u8) void {
     assert((addr & page_mask) == 0);    // start address must be at page boundary
@@ -155,7 +122,7 @@ fn map(self: *Memory, bank_index: usize, addr: u16, size: usize, read: ?[]const 
         else {
             bank.write = null;
         }
-        updatePage(self, page_index);
+        self.updatePage(page_index);
     }
 }
 
@@ -180,8 +147,6 @@ fn updatePage(self: *Memory, page_index: usize) void {
         };
     }
 }
-
-}; // impl
 
 //=== TESTS ====================================================================
 const expect = @import("std").testing.expect;
