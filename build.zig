@@ -35,22 +35,19 @@ fn addKC85(b: *Builder, sokol: *LibExeObjStep, target: CrossTarget, mode: Mode, 
     exe.addOptions("build_options", exe_options);
     exe_options.addOption(KC85Model, "kc85_model", kc85_model);
     
-    // FIXME: HACK to make buildoptions available to other packages than root
-    // see: https://github.com/ziglang/zig/issues/5375
-    const pkg_buildoptions = exe_options.getPackage("build_options");
     const pkg_sokol = Pkg{
         .name = "sokol",
         .path = .{ .path = "src/sokol/sokol.zig" },
-    };
-    const pkg_emu = Pkg{
-        .name = "emu",
-        .path = .{ .path = "src/emu/emu.zig" },
-        .dependencies = &[_]Pkg{ pkg_buildoptions }
     };
     const pkg_host = Pkg{
         .name = "host",
         .path = .{ .path = "src/host/host.zig" },
         .dependencies = &[_]Pkg{ pkg_sokol }
+    };
+    const pkg_emu = Pkg{
+        .name = "emu",
+        .path = .{ .path = "src/emu/emu.zig" },
+        .dependencies = &[_]Pkg{ exe_options.getPackage("build_options") }
     };
     exe.addPackage(pkg_sokol);
     exe.addPackage(pkg_emu);
