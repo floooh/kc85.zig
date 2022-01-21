@@ -19,7 +19,7 @@ pub fn setup() void {
 
 // return frame time in microseconds
 pub fn frameTime() u32 {
-    state.cur_frame_time = stm.us(stm.roundToCommonRefreshRate(stm.laptime(&state.last_time_stamp)));
+    state.cur_frame_time = stm.us(stm.laptime(&state.last_time_stamp));
     // prevent death spiral on host systems that are too slow to
     // run the emulator in realtime, or during long frame (e.g. debugging)
     if (state.cur_frame_time < 1000) {
