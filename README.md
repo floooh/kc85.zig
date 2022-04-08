@@ -10,10 +10,12 @@ Some [implementation notes](https://github.com/floooh/kc85.zig/blob/main/IMPLEME
 
 ## Build
 
-With Zig version 0.9.0, on Windows, macOS or Linux:
+With Zig version 0.9.x, on Windows, macOS or Linux:
 ```
 zig build
 ```
+NOTE: For the zig dev version, try the branch ```zig-0.10.0```, this will be merged to ```main```
+when Zig 0.10.0 releases.
 
 The default debug version will usually be fast enough, to build with optimizations 
 use any of:
@@ -23,7 +25,7 @@ zig build -Drelease-safe=true
 zig build -Drelease-fast=true
 zig build -Drelease-small=true
 ```
-(NOTE: on Linux you also need to install the ALSA, X11 and GL development packages)
+NOTE: On Linux you also need to install the ALSA, X11 and GL development packages.
 
 ## Build and start into KC85/2, /3 and /4
 
