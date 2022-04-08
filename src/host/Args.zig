@@ -20,19 +20,16 @@ file: ?[]const u8 = null, // path to .kcc or .tap file
 
 pub fn parse(a: std.mem.Allocator) !Args {
     var res = Args{};
-    var arg_iter = std.process.args();
+    var arg_iter = try std.process.argsWithAllocator(a);
+    defer arg_iter.deinit();
     _ = arg_iter.skip();
-    while (arg_iter.next(a)) |error_or_arg| {
-        const arg = error_or_arg catch |err| {
-            warn("Error parsing arguments: {s}", .{ err });
-            return err;
-        };
+    while (arg_iter.next()) |arg| {
         if (mem.eql(u8, arg, "-h") or mem.eql(u8, arg, "-help") or mem.eql(u8, arg, "--help")) {
             printHelp();
             res.help = true;
         }
         else if (mem.eql(u8, arg, "-slot8")) {
-            res.slots[0].mod_name = try arg_iter.next(a) orelse {
+            res.slots[0].mod_name = arg_iter.next() orelse {
                 warn("Expected module name after '-slot8'\n", .{});
                 return error.InvalidArgs;
             };
@@ -41,14 +38,14 @@ pub fn parse(a: std.mem.Allocator) !Args {
                 return error.InvalidArgs;
             }
             if (isRomModule(res.slots[0].mod_name.?)) {
-                res.slots[0].mod_path = try arg_iter.next(a) orelse {
+                res.slots[0].mod_path = arg_iter.next() orelse {
                     warn("Expected module file after '-slot8 {s}'\n", .{ res.slots[0].mod_name });
                     return error.InvalidArgs;
                 };
             }
         }
         else if (mem.eql(u8, arg, "-slotc")) {
-            res.slots[1].mod_name = try arg_iter.next(a) orelse {
+            res.slots[1].mod_name = arg_iter.next() orelse {
                 warn("Expected module name after '-slotC'\n", .{});
                 return error.InvalidArgs;
             };
@@ -57,14 +54,14 @@ pub fn parse(a: std.mem.Allocator) !Args {
                 return error.InvalidArgs;
             }
             if (isRomModule(res.slots[1].mod_name.?)) {
-                res.slots[1].mod_path = try arg_iter.next(a) orelse {
+                res.slots[1].mod_path = arg_iter.next() orelse {
                     warn("Expected module file after '-slotc {s}'\n", .{ res.slots[1].mod_name });
                     return error.InvalidArgs;
                 };
             }
         }
         else if (mem.eql(u8, arg, "-file")) {
-            res.file = try arg_iter.next(a) orelse {
+            res.file = arg_iter.next() orelse {
                 warn("Expected path to .kcc or .tap file after '-load'\n", .{});
                 return error.InvalidArgs;
             };
