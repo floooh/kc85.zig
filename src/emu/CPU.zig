@@ -197,8 +197,7 @@ pub const TickFunc = struct {
 /// run the emulator for at least 'num_ticks', return number of executed ticks
 pub fn exec(self: *CPU, num_ticks: u64, tick_func: TickFunc) u64 {
     self.ticks = 0;
-    var running = true;
-    while (running): (running = self.ticks < num_ticks) {
+    while (self.ticks < num_ticks) {
 
         // store current pin state for edge-triggered NMI detection
         const pre_pins = self.pins;
