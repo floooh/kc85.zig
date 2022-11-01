@@ -57,7 +57,7 @@ Packages and their dependencies need to be registered in the [build.zig file](ht
     };
     const pkg_emu = Pkg{
         .name = "emu",
-        .path = "src/emu/emu.zig", 
+        .path = "src/emu/emu.zig",
         .dependencies = &[_]Pkg{ pkg_buildoptions }
     };
     const pkg_host = Pkg{
@@ -76,7 +76,7 @@ Note the ['buildoptions package hack'](https://github.com/floooh/kc85.zig/blob/a
     // FIXME: HACK to make buildoptions available to other packages than root
     // see: https://github.com/ziglang/zig/issues/5375
     const pkg_buildoptions = Pkg{
-        .name = "build_options", 
+        .name = "build_options",
         .path = switch (kc85_model) {
             .KC85_2 => "zig-cache/kc852_build_options.zig",
             .KC85_3 => "zig-cache/kc853_build_options.zig",
@@ -132,7 +132,7 @@ in the executable. This is how Zig handles #ifdef-style conditional compilation.
 ## The main.zig file
 
 Execution starts at the Zig [main function](https://github.com/floooh/kc85.zig/blob/02be0a4d1981c135b0c352048352c8759784eb5b/src/main.zig#L39-L69) which first creates an ArenaAllocator sitting
-on top of the C runtime allocator. This will be used for all dynamic memory allocation in 
+on top of the C runtime allocator. This will be used for all dynamic memory allocation in
 Zig code:
 
 ```zig
@@ -140,7 +140,7 @@ Zig code:
     defer state.arena.deinit();
 ```
 
-Next, command line arguments are parsed through a hardwired argument parser 
+Next, command line arguments are parsed through a hardwired argument parser
 in the **host** package. If arg parsing fails, the program will terminate
 with exit code 5, if the program was started with -h or -help, the program
 will regularly exit (the help text had already been printed in the
@@ -240,7 +240,7 @@ be initialized into one of the two expansion slots in the KC85 computers:
     }
 ```
 
-An expansion module can either be a simple RAM module or a ROM module. In case of a 
+An expansion module can either be a simple RAM module or a ROM module. In case of a
 ROM module, a ROM dump must be provided, which will be loaded from the file system.
 
 This loading happens through Zig's standard library, which provides a very handy
@@ -282,12 +282,12 @@ This is pretty much the same as the ROM image file loading:
     }
 ```
 
-That's all for the initialization. On to the [per-frame callback function](https://github.com/floooh/kc85.zig/blob/d1d5f5eed96bdc211d41da44c446d5ce4ec91429/src/main.zig#L124-L137), which is 
+That's all for the initialization. On to the [per-frame callback function](https://github.com/floooh/kc85.zig/blob/d1d5f5eed96bdc211d41da44c446d5ce4ec91429/src/main.zig#L124-L137), which is
 called by sokol_app.h at display refresh rate:
 
 The first three lines are the actually important stuff: first, the time measurement
-host binding module is asked for the current frame duration in microseconds, 
-then the emulator will be asked to "run" for the equivalent number of 
+host binding module is asked for the current frame duration in microseconds,
+then the emulator will be asked to "run" for the equivalent number of
 emulator clock cycles, and finally the current video output of the emulator
 will be rendered to the host window (we don't care about the screen tearing
 effect which will happen because the emulator's video system runs at
@@ -413,7 +413,7 @@ error from the NextError error set, or a ```[]u8``` byte slice containing the
 string of the next command line argument.
 
 This complex return value can easily be unwrapped with Zig's syntax sugar for
-optionals and error unions. First we'll iterate over the arguments using 
+optionals and error unions. First we'll iterate over the arguments using
 Zig's "while with optionals" (the ```a``` parameter is an allocator that has been
 passed into the arg parsing function from the outside), if the next function
 returns 'null', the iteration is complete:
@@ -425,7 +425,7 @@ returns 'null', the iteration is complete:
 ```
 
 The ```error_or_arg``` variable is now guaranteed to be non-null, but it
-can still contain an error. Next the value payload is separated from the error 
+can still contain an error. Next the value payload is separated from the error
 using ```catch```, and if the error union contained an error, a warning
 will be shown and the error will be passed up to the caller.
 
@@ -433,7 +433,7 @@ will be shown and the error will be passed up to the caller.
     const arg = error_or_arg catch |err| {
         warn("Error parsing arguments: {s}", .{ err });
         return err;
-    }; 
+    };
 ```
 
 The remaining ```arg``` variable is now finally the actual argument
@@ -493,7 +493,7 @@ pub const Clock = struct {
     freq_hz:        i64,
     ticks_to_run:   i64 = 0,
     overrun_ticks:  i64 = 0,
-    
+
     pub fn ticksToRun(clk: *Clock, micro_seconds: u32) u64 {
         return impl.ticksToRun(clk, micro_seconds);
     }
@@ -515,8 +515,8 @@ fn ticksToRun(clk: *Clock, micro_seconds: u32) u64 {
 The only reason for this code structure is that I probably have too much C in the blood ;)
 
 Just like in C headers, I like to look at the top of a file to explore its
-public API. Moving the lengthy (and frankly, unimportant) implementation code out of 
-the public API 'declarations' towards the bottom of the source keeps the 
+public API. Moving the lengthy (and frankly, unimportant) implementation code out of
+the public API 'declarations' towards the bottom of the source keeps the
 important part of the module (the public API) compact at the top of the
 file instead of mixing API declarations and implementation code. This preference
 is clearly a C-ism, and Zig shares this "problem" with pretty much all other
@@ -531,11 +531,11 @@ Some examples:
 
 ### Class-style APIs or function-style APIs?
 
-TBH I would have preferred C-style function APIs, with functions living 
+TBH I would have preferred C-style function APIs, with functions living
 outside the structs they work on. Moving functions into structs allows
 method-call-syntax, which sometimes has advantages (mainly being able
 to chain method calls, instead of nesting them), but it also comes with a
-couple of downsides, which are pretty well known from C++ (mainly that 
+couple of downsides, which are pretty well known from C++ (mainly that
 types can't be extended with new 'methods' - Zig doesn't have [UFCS](https://en.wikipedia.org/wiki/Uniform_Function_Call_Syntax)).
 
 But in Zig, using namespaced functions has another advantage: you can
@@ -571,7 +571,7 @@ fn flags(cpu: *CPU, expected: u8) bool {
 With UFCS I could write the following piece of testing code:
 
 ```zig
-    skip(&cpu, 7); 
+    skip(&cpu, 7);
     T(4==step(&cpu)); T(0x00 == cpu.regs[A]); T(flags(&cpu, ZF|NF));
     T(4==step(&cpu)); T(0xFF == cpu.regs[A]); T(flags(&cpu, SF|HF|NF|CF));
     T(4==step(&cpu)); T(0x06 == cpu.regs[A]); T(flags(&cpu, NF));
@@ -581,7 +581,7 @@ With UFCS I could write the following piece of testing code:
 'regular' API for the 'cpu' object uses method call syntax):
 
 ```zig
-    cpu.skip(7); 
+    cpu.skip(7);
     T(4==cpu.step()); T(0x00 == cpu.regs[A]); T(cpu.flags(ZF|NF));
     T(4==cpu.step()); T(0xFF == cpu.regs[A]); T(cpu.flags(SF|HF|NF|CF));
     T(4==cpu.step()); T(0x06 == cpu.regs[A]); T(cpu.flags(NF));
@@ -602,7 +602,7 @@ pub const Clock = struct {
     freq_hz:        i64,
     ticks_to_run:   i64 = 0,
     overrun_ticks:  i64 = 0,
-    
+
     // ...
 };
 ```
@@ -655,7 +655,7 @@ pub const Beeper = struct {
     // ...
 ```
 
-Note that none of the struct items have default initialization values. This 
+Note that none of the struct items have default initialization values. This
 (hopefully) makes it clear that the struct shouldn't be 'data-initialized'.
 Instead:
 
@@ -721,7 +721,7 @@ Nonetheless, Zig's arbitrary-width integers came in very handy, but not for
 the reason I thought!
 
 The reason I *thought* those integers would be useful was odd-bitwidth
-counters and wrap-around. For instance if I have a 5-bit counter which 
+counters and wrap-around. For instance if I have a 5-bit counter which
 can wrap around, I'd do this in C:
 
 ```c
@@ -736,14 +736,14 @@ In Zig this is reduced to:
     counter +%= 1;
 ```
 
-The '5-bit-ness' is directly encoded in the type, and anybody reading the code 
+The '5-bit-ness' is directly encoded in the type, and anybody reading the code
 sees immediately that this is a 5-bit counter. The ```+%=``` increments
 with wrap-around (the vanilla ```+=``` would runtime-panic on overflow).
 
 But the reason why arbitrary-width integers were *actually* useful was
-type-checking. By using "just the right" bit-width for integers, Zig's 
+type-checking. By using "just the right" bit-width for integers, Zig's
 explicit integer conversion rules may help catching a number of errors where
-'incompatible' bit-width integers are assigned. For instance if I'm accidentally 
+'incompatible' bit-width integers are assigned. For instance if I'm accidentally
 trying to stash a 3-bit integer into a 2-bit hardware register, that's a compile error.
 
 ## Conclusions
@@ -761,12 +761,12 @@ and is lost in the noise, overall performance is pretty much identical with the
 C emulator.
 
 Another nice experience was that Zig is 'transparent'. If you think that
-something probably works in a specific way, then it's very likely that 
+something probably works in a specific way, then it's very likely that
 it indeed works that way. One example is the [builtin module](https://github.com/floooh/kc85.zig/blob/9ddada63db83d8fc4c3bd16df1c333b19ec512ad/build.zig#L36-L45) workaround:
 A little bit of googling and looking around in build system sources made it
 clear pretty quickly that the Zig build system is code-generating a module
-for build-options defined in the build.zig file. And where would Zig most 
-likely store the generated module sources? Probably in the ```zig-cache``` directory. 
+for build-options defined in the build.zig file. And where would Zig most
+likely store the generated module sources? Probably in the ```zig-cache``` directory.
 And that's exactly where they were.
 
 Similar for the error unions and optional types. Coming from C those are new
@@ -807,7 +807,7 @@ I think that's about it. When I started writing Zig code I was a bit miffed abou
 the explicit integer conversion rules, but I've come around full circle. It's
 actually a good thing, and doesn't add much friction after getting used to it.
 
-As I wrote above, my single-most-used "better C" feature of Zig is 
+As I wrote above, my single-most-used "better C" feature of Zig is
 "if and switch are expressions", but that's kinda expected :)
 
 Ok, one final nitpick, which hasn't been much of a problem in the actual emulator
@@ -821,7 +821,7 @@ Consider [this struct initialization code](https://github.com/floooh/kc85.zig/bl
     state.upscale.pass = sg.makePass(pass_desc);
 ```
 
-Note how the pass_desc struct can't be initialized in one go, because it has an embedded 
+Note how the pass_desc struct can't be initialized in one go, because it has an embedded
 default-initialized color_attachments array where the first item needs to be
 initialized and all other items should be default initialized. Normally I'd want to do this:
 
@@ -864,7 +864,7 @@ pub const CTC = struct {
 };
 ```
 
-...since the ```Channel``` struct is fully default-initialized, it would be 
+...since the ```Channel``` struct is fully default-initialized, it would be
 nice if one could write this instead:
 
 ```zig

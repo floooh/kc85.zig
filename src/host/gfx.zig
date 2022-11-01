@@ -26,7 +26,7 @@ const state = struct {
         var pass:        sg.Pass = .{ };
         var pass_action: sg.PassAction = .{ };
     };
-    
+
     const display = struct {
         var pip:         sg.Pipeline = .{ };
         var bind:        sg.Bindings = .{ };
@@ -35,7 +35,7 @@ const state = struct {
 };
 
 pub fn setup() void {
-    
+
     // setup sokol-gfx and sokol-text
     sg.setup(.{
         .buffer_pool_size = 8,
@@ -48,7 +48,7 @@ pub fn setup() void {
 
     state.upscale.pass_action.colors[0] = .{ .action = .DONTCARE };
     state.display.pass_action.colors[0] = .{ .action = .CLEAR, .value = .{ .r=0.05, .g=0.05, .b=0.05, .a=1.0 } };
-    
+
     // fullscreen triangle vertices
     const verts = [_]f32{
         0.0, 0.0,
@@ -56,19 +56,19 @@ pub fn setup() void {
         0.0, 2.0,
     };
     state.upscale.bind.vertex_buffers[0] = sg.makeBuffer(.{
-        .data = sg.asRange(verts)
+        .data = sg.asRange(&verts)
     });
     state.display.bind.vertex_buffers[0] = sg.makeBuffer(.{
-        .data = sg.asRange(verts)
+        .data = sg.asRange(&verts)
     });
-    
+
     // 2 pipeline state objects for rendering to display and upscaling
     var pip_desc = sg.PipelineDesc{
         .shader = sg.makeShader(shd.displayShaderDesc(sg.queryBackend())),
     };
     pip_desc.layout.attrs[0].format = .FLOAT2;
     state.display.pip = sg.makePipeline(pip_desc);
-    
+
     pip_desc.shader = sg.makeShader(shd.upscaleShaderDesc(sg.queryBackend()));
     pip_desc.depth.pixel_format = .NONE;
     state.upscale.pip = sg.makePipeline(pip_desc);
@@ -95,7 +95,7 @@ pub fn setup() void {
         .wrap_u = .CLAMP_TO_EDGE,
         .wrap_v = .CLAMP_TO_EDGE
     });
-    
+
     // a render pass for 2x upscaling
     var pass_desc = sg.PassDesc{ };
     pass_desc.color_attachments[0].image = state.display.bind.fs_images[0];
@@ -109,7 +109,7 @@ pub fn shutdown() void {
 pub fn draw() void {
     // copy emulator pixel data into upscaling source texture
     var image_data = sg.ImageData{ };
-    image_data.subimage[0][0] = sg.asRange(pixel_buffer);
+    image_data.subimage[0][0] = sg.asRange(&pixel_buffer);
     sg.updateImage(state.upscale.bind.fs_images[0], image_data);
 
     // upscale the source texture 2x with nearest filtering

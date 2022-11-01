@@ -34,12 +34,12 @@ pub fn parse(a: std.mem.Allocator) !Args {
                 return error.InvalidArgs;
             };
             if (!validateModuleName(res.slots[0].mod_name.?)) {
-                warn("Didn't recognize module name: {s}\n", .{ res.slots[0].mod_name });
+                warn("Didn't recognize module name: {s}\n", .{ res.slots[0].mod_name.? });
                 return error.InvalidArgs;
             }
             if (isRomModule(res.slots[0].mod_name.?)) {
                 res.slots[0].mod_path = arg_iter.next() orelse {
-                    warn("Expected module file after '-slot8 {s}'\n", .{ res.slots[0].mod_name });
+                    warn("Expected module file after '-slot8 {s}'\n", .{ res.slots[0].mod_name.? });
                     return error.InvalidArgs;
                 };
             }
@@ -50,12 +50,12 @@ pub fn parse(a: std.mem.Allocator) !Args {
                 return error.InvalidArgs;
             };
             if (!validateModuleName(res.slots[1].mod_name.?)) {
-                warn("Didn't recognize module name: {s}\n", .{ res.slots[1].mod_name });
+                warn("Didn't recognize module name: {s}\n", .{ res.slots[1].mod_name.? });
                 return error.InvalidArgs;
             }
             if (isRomModule(res.slots[1].mod_name.?)) {
                 res.slots[1].mod_path = arg_iter.next() orelse {
-                    warn("Expected module file after '-slotc {s}'\n", .{ res.slots[1].mod_name });
+                    warn("Expected module file after '-slotc {s}'\n", .{ res.slots[1].mod_name.? });
                     return error.InvalidArgs;
                 };
             }

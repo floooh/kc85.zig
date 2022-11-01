@@ -10,7 +10,7 @@
 /// the flag bits YF and XF which are visible side effects of the internal
 /// WZ / MEMPTR register.
 ///
-/// The CPU emulation should enable cycle-perfect system emulations, but it 
+/// The CPU emulation should enable cycle-perfect system emulations, but it
 /// is not "cycle steppable", instead the "exec function" will only return
 /// after a full instruction has been completed (which may cause the tick
 /// callback to be called multiple times though - this is how cycle-perfect
@@ -19,14 +19,14 @@
 /// The 'system tick callback' function is called once for every machine cycle with
 /// the number of clock cycles as argument. The separation between clock cycles
 /// (T cycles) and machine cycles (M cycles) is a bit confusing when coming
-/// from other CPUs: The clock cycle is ticked with the regular hardware 
-/// CPU frequency (up to 4 MHz on legacy Z80s, while a machine cycle is a 
-/// "logical group" of clock cycles (for instance a memory read or write 
-/// (3 clock cycles), a IO read or write (4 clock cycles) or instruction fetch 
-/// machine cycles (4 clock cycles)). 
+/// from other CPUs: The clock cycle is ticked with the regular hardware
+/// CPU frequency (up to 4 MHz on legacy Z80s, while a machine cycle is a
+/// "logical group" of clock cycles (for instance a memory read or write
+/// (3 clock cycles), a IO read or write (4 clock cycles) or instruction fetch
+/// machine cycles (4 clock cycles)).
 ///
-/// There are no fixed rules for machine cycle length. While the above listed 
-/// clock cycle counts are most common, some instructions have stretched machine 
+/// There are no fixed rules for machine cycle length. While the above listed
+/// clock cycle counts are most common, some instructions have stretched machine
 /// cycles (which are called 'filler ticks' in this CPU emulation). In addition,
 /// memory and IO machine cycles can be stretched by feeding WAIT cycles back
 /// into the CPU (on real hardware usually used to deal with slow memory or IO
@@ -45,11 +45,11 @@
 ///        "HOW INSTRUCTION DECODING WORKS"
 ///     3. A nested cascade of switch-statements on x, y and z is used to find
 ///        the right instruction handler function
-///     4. The instruction is 'handled', this may involve memory read/write 
+///     4. The instruction is 'handled', this may involve memory read/write
 ///        and IO read/write machine cycles.
 ///     5. Interrupt requests are handled.
 ///     6. Loop back to (1) until the requested number of clock cycles is reached.
-/// 
+///
 /// In a code-generated emulator, all those special cases which are handled
 /// dynamically in this emulator would be "baked" into specialized code.
 ///
@@ -66,8 +66,8 @@
 ///
 /// The topmost 2 bits (xx) split the 'instruction space' into 4 quadrants:
 ///
-///     * Q1: all the LD instructions with 8-bit registers as source or 
-///       destination, the bit group zzz encodes the source, and the 
+///     * Q1: all the LD instructions with 8-bit registers as source or
+///       destination, the bit group zzz encodes the source, and the
 ///       bit group yyy encodes the destination (all 7 8-bit registers, and (HL))
 ///     * Q2: all the 8-bit ALU ops with registers or (HL) as source, the
 ///       bit group yyy defines one of 8 ALU operations (ADD, ADC, SUB, SBC, AND, XOR
@@ -77,7 +77,7 @@
 ///       and prefixes are stuffed.
 ///
 /// The prefixes DD and FD behave like regular instructions, except that
-/// interrupt handling is disabled between the prefix instruction and the 
+/// interrupt handling is disabled between the prefix instruction and the
 /// following instruction that's prefixed. The action of the prefix instructions
 /// DD and FD is to map the index registers IX or IY to HL. This means that
 /// in the following instruction, all uses of HL are replaced with IX or IY, and
@@ -87,15 +87,15 @@
 ///     * in the register loading instructions "LD r,(IX/IY+d)"" and
 ///       "LD (IX/IY+d),r" the source and target registers H and L are never replaced
 ///       with IXH/IYH and IYH/IYL
-///     * in the "EX DE,HL" and "EXX" instructions, HL is never replaced with IX 
-///       or IY (however there *are* prefixed versions of "EX (SP),HL" which 
+///     * in the "EX DE,HL" and "EXX" instructions, HL is never replaced with IX
+///       or IY (however there *are* prefixed versions of "EX (SP),HL" which
 ///       replace HL with IX or IY
 ///     * all ED prefixed instructions disable any active HL <=> IX/IY mapping
 ///
 /// This behaviour of the DD and FD prefixes is why the CPU will happily execute
 /// sequences of DD and FD prefix bytes, with the only side effect that no
 /// interrupt requests are processed during the sequence.
-/// 
+///
 
 const CPU = @This();
 
@@ -190,10 +190,10 @@ pub const SF: u8 = (1<<7);
 
 // system tick callback with associated userdata
 pub const TickFunc = struct {
-    func: fn(num_ticks: u64, pins: u64, userdata: usize) u64,
+    func: *const fn(num_ticks: u64, pins: u64, userdata: usize) u64,
     userdata: usize = 0,
 };
-    
+
 /// run the emulator for at least 'num_ticks', return number of executed ticks
 pub fn exec(self: *CPU, num_ticks: u64, tick_func: TickFunc) u64 {
     self.ticks = 0;
@@ -319,7 +319,7 @@ pub fn exec(self: *CPU, num_ticks: u64, tick_func: TickFunc) u64 {
 pub fn opdone(self: *CPU) bool {
     return 0 == self.ixiy;
 }
-    
+
 // set/get 8-bit register value
 pub const B = 0;
 pub const C = 1;
@@ -356,7 +356,7 @@ pub fn r16(self: *CPU, reg: u2) u16 {
     const l = self.regs[@as(u3,reg)*2 + 1];
     return @as(u16,h)<<8 | l;
 }
-    
+
 // set/get wait ticks on pin mask
 pub fn setWait(pins: u64, wait_ticks: u3) u64 {
     return (pins & ~WaitPinMask) | @as(u64, wait_ticks) << WaitPinShift;
@@ -423,7 +423,7 @@ fn handleInterrupt(self: *CPU, nmi: bool, int: bool, tick_func: TickFunc) void {
     else {
         // maskable interrupt
 
-        // interrupt acknowledge machine cycle, interrupt 
+        // interrupt acknowledge machine cycle, interrupt
         // controller is expected to put interrupt vector low byte
         // on address bus
         self.tickWait(4, M1|IORQ, tick_func);
@@ -503,7 +503,7 @@ fn opED_prefix(self: *CPU, tick_func: TickFunc) void {
                 4...7 => self.opLDI_LDD_LDIR_LDDR(y, tick_func),
                 else => { } // NONI + NOP
             },
-            1 => switch (y) { 
+            1 => switch (y) {
                 4...7 => self.opCPI_CPD_CPIR_CPDR(y, tick_func),
                 else => { } // NONI + NOP
             },
@@ -538,13 +538,13 @@ fn opCB_prefix(self: *CPU, tick_func: TickFunc) void {
     // "register" instructions
     // see: http://www.baltazarstudios.com/files/ddcb.html
     const d: u16 = if (self.ixiy != 0) self.dimm8(tick_func) else 0;
-    
+
     // special opcode fetch without memory refresh and bumpR()
     const op = self.fetchCB(tick_func);
     const x = @truncate(u2, op >> 6);
     const y = @truncate(u3, op >> 3);
     const z = @truncate(u3, op & 7);
-    
+
     // load operand (for indexed ops always from memory)
     const d8: u8 = if ((z == 6) or (self.ixiy != 0)) blk: {
         self.tick(1, 0, tick_func); // filler tick
@@ -556,7 +556,7 @@ fn opCB_prefix(self: *CPU, tick_func: TickFunc) void {
         break: blk self.memRead(self.WZ, tick_func);
     }
     else self.load8(z, tick_func);
-    
+
     var f: u8 = self.regs[F];
     var r: u8 = undefined;
     switch (x) {
@@ -688,7 +688,7 @@ fn addrWZ(self: *CPU, extra_ticks: u64, tick_func: TickFunc) void {
     }
 }
 
-// perform an opcode fetch machine cycle 
+// perform an opcode fetch machine cycle
 fn fetch(self: *CPU, tick_func: TickFunc) u8 {
     self.pins = setAddr(self.pins, self.PC);
     self.tickWait(4, M1|MREQ|RD, tick_func);
@@ -784,7 +784,7 @@ fn storeHLIXIY(self: *CPU, val: u16) void {
         0     => self.setR16(HL, val),
         UseIX => self.IX = val,
         UseIY => self.IY = val,
-        else  => unreachable 
+        else  => unreachable
     }
 }
 
@@ -1351,7 +1351,7 @@ fn opRET(self: *CPU, tick_func: TickFunc) void {
 
 // RETN/RETI
 fn opRETNI(self: *CPU, tick_func: TickFunc) void {
-    // NOTE: according to Undocumented Z80 Documented, IFF2 is also 
+    // NOTE: according to Undocumented Z80 Documented, IFF2 is also
     // copied into IFF1 in RETI, not just RETN, and RETI and RETN
     // are in fact identical
     self.pins |= RETI;
@@ -1518,13 +1518,13 @@ fn opOUTI_OUTD_OTIR_OTDR(self: *CPU, y: u3, tick_func: TickFunc) void {
         self.PC -%= 2;
         self.tick(5, 0, tick_func); // filler ticks
     }
-}  
+}
 
 // RST y*8
 fn opRSTy(self: *CPU, y: u3, tick_func: TickFunc) void {
     self.tick(1, 0, tick_func);    // filler tick
     self.push16(self.PC, tick_func);
-    self.PC = @as(u16, y) * 8; 
+    self.PC = @as(u16, y) * 8;
     self.WZ = self.WZ;
 }
 
@@ -1555,7 +1555,7 @@ fn cpFlags(acc: u9, val: u8, res: u9) u8 {
 }
 
 fn szpFlags(val: u8) u8 {
-    return szFlags(val) | (((@popCount(u8, val)<<2) & PF) ^ PF) | (val & (YF|XF));
+    return szFlags(val) | (((@popCount(val)<<2) & PF) ^ PF) | (val & (YF|XF));
 }
 
 // test cc flag
@@ -1589,23 +1589,23 @@ fn adc8(r: *Regs, val: u8) void {
 
 fn sub8(r: *Regs, val: u8) void {
     const acc: u9 = r[A];
-    const res: u9 = acc -% val; 
+    const res: u9 = acc -% val;
     r[F] = subFlags(acc, val, res);
     r[A] = @truncate(u8, res);
 }
-    
+
 fn sbc8(r: *Regs, val: u8) void {
     const acc: u9 = r[A];
     const res: u9 = acc -% val -% (r[F] & CF);
     r[F] = subFlags(acc, val, res);
     r[A] = @truncate(u8, res);
 }
-    
+
 fn and8(r: *Regs, val: u8) void {
     r[A] &= val;
     r[F] = szpFlags(r[A]) | HF;
 }
-    
+
 fn xor8(r: *Regs, val: u8) void {
     r[A] ^= val;
     r[F] = szpFlags(r[A]);
@@ -1660,7 +1660,7 @@ fn dec8(r: *Regs, val: u8) u8 {
 //=== TESTS ====================================================================
 const expect = @import("std").testing.expect;
 
-// FIXME: is this check needed to make sure that a regular exe won't have 
+// FIXME: is this check needed to make sure that a regular exe won't have
 // a 64 KByte blob in the data section?
 const is_test = @import("builtin").is_test;
 var mem = if (is_test) [_]u8{0} ** 0x10000 else null;
@@ -1851,7 +1851,7 @@ test "add8" {
     r[A] = 0xF;
     add8(&r, r[A]); try expect(testAF(&r, 0x1E, HF));
     add8(&r, 0xE0); try expect(testAF(&r, 0xFE, SF));
-    r[A] = 0x81; 
+    r[A] = 0x81;
     add8(&r, 0x80); try expect(testAF(&r, 0x01, VF|CF));
     add8(&r, 0xFF); try expect(testAF(&r, 0x00, ZF|HF|CF));
     add8(&r, 0x40); try expect(testAF(&r, 0x40, 0));
@@ -1981,7 +1981,7 @@ test "inc8 dec8" {
     r[D] = inc8(&r, r[D]); try expect(testRF(&r, D, 0x0F, 0));
     r[D] = dec8(&r, r[D]); try expect(testRF(&r, D, 0x0E, NF));
     r[F] |= CF;
-    r[E] = inc8(&r, r[E]); try expect(testRF(&r, E, 0x80, SF|HF|VF|CF)); 
+    r[E] = inc8(&r, r[E]); try expect(testRF(&r, E, 0x80, SF|HF|VF|CF));
     r[E] = dec8(&r, r[E]); try expect(testRF(&r, E, 0x7F, HF|VF|NF|CF));
     r[H] = inc8(&r, r[H]); try expect(testRF(&r, H, 0x3F, CF));
     r[H] = dec8(&r, r[H]); try expect(testRF(&r, H, 0x3E, NF|CF));

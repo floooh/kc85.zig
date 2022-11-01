@@ -50,7 +50,7 @@
 //      accesses to this RAM block are visible as 'display needling' artefacts.
 //
 //      (NOTE: the slow video memory access is not emulation, display needling
-//      is emulated, but I haven't verified against real hardware 
+//      is emulated, but I haven't verified against real hardware
 //      whether it actually looks correct)
 //
 //  ### Special Operating System Conditions
@@ -58,7 +58,7 @@
 //      - the index register IX is reserved for operating system use
 //        and must not be changed while interrupts are enabled
 //      - only interrupt mode IM2 is supported
-//  
+//
 //  ### Interrupt Vectors:
 //      - 01E4:     PIO-A (cassette tape input)
 //      - 01E6:     PIO-B (keyboard input)
@@ -66,10 +66,10 @@
 //      - 01EA:     CTC-1 (cassette tape output)
 //      - 01EC:     CTC-2 (timer interrupt used for sound length)
 //
-//  ## IO Port Map: 
+//  ## IO Port Map:
 //      - 80:   Expansion module control (OUT: write module control byte,
-//              IN: read module id in slot). The upper 8 bits on the 
-//              address bus identify the module slot (in the base 
+//              IN: read module id in slot). The upper 8 bits on the
+//              address bus identify the module slot (in the base
 //              unit the two slot addresses are 08 and 0C).
 //      - 88:   PIO port A, data
 //      - 89:   PIO port B, data
@@ -79,7 +79,7 @@
 //      - 8D:   CTC channel 1
 //      - 8E:   CTC channel 2
 //      - 8F:   CTC channel 3
-//      
+//
 //      The PIO port A and B bits are used to control bank switching and
 //      other hardware features:
 //
@@ -103,11 +103,11 @@
 //      - CTC-1:    sound output (right?)
 //      - CTC-2:    foreground color blink frequency, timer for cassette input
 //      - CTC-3:    timer for keyboard input
-//          
+//
 //  ## The Module System:
 //
 //  The emulator supports the most common RAM- and ROM-modules,
-//  but doesn't emulate special-hardware modules like the V24 or 
+//  but doesn't emulate special-hardware modules like the V24 or
 //  A/D converter module.
 //
 //  The module system works with 4 byte values:
@@ -116,7 +116,7 @@
 //  - The **module id**, this is a fixed value that identifies a module type.
 //    All 16 KByte ROM application modules had the same id.
 //    The module id can be queried by reading from port 80, with the
-//    slot address in the upper 8 bit of the 16-bit port address (so 
+//    slot address in the upper 8 bit of the 16-bit port address (so
 //    to query what module is in slot C, you would do an IN A,(C),
 //    with the value 0C80 in BC). If no module is in the slot, the value
 //    FF would be written to A, otherwise the module's id byte.
@@ -125,7 +125,7 @@
 //    this essentially clamps a module's address to a 'round' 8- or
 //    16 KByte value (these are the 2 values I've seen in the wild)
 //  - The module control byte, this controls whether a module is currently
-//    active (bit 0), write-protected (bit 1), and at what address the 
+//    active (bit 0), write-protected (bit 1), and at what address the
 //    module is mapped into the 16-bit address space (upper 3 bits)
 //
 //  The module system is controlled with the SWITCH command, for instance
@@ -145,7 +145,7 @@
 //  ## The KC85/3
 //
 //  The KC85/3 had the same hardware as the KC85/2 but came with a builtin
-//  8 KByte BASIC ROM at address C000..DFFF, and the OS was bumped to 
+//  8 KByte BASIC ROM at address C000..DFFF, and the OS was bumped to
 //  CAOS 3.1, now taking up a full 8 KBytes. Despite being just a minor
 //  update to the KC85/2, the KC85/3 was (most likely) the most popular
 //  model of the KC85/2 family.
@@ -160,14 +160,14 @@
 //  - Improved color attribute resolution (8x1 pixels instead of 8x4)
 //  - An additional per-pixel color mode which allowed to assign each
 //    individual pixel one of 4 hardwired colors at full 320x256
-//    resolution, this was realized by using 1 bit from the 
+//    resolution, this was realized by using 1 bit from the
 //    pixel-bank and the other bit from the color-bank, so setting
 //    one pixel required 2 memory accesses and a bank switch. Maybe
 //    this was the reason why this mode was hardly used.
 //  - Improved '90-degree-rotated' video memory layout, the 320x256
 //    pixel video memory was organized as 40 vertical stacks of 256 bytes,
 //    and the entire video memory was linear, this was perfectly suited
-//    to the Z80's 8+8 bit register pairs. The upper 8-bit register 
+//    to the Z80's 8+8 bit register pairs. The upper 8-bit register
 //    (for instance H) would hold the 'x coordinate' (columns 0 to 39),
 //    and the lower 8-bit register (L) the y coordinate (lines 0 to 255).
 //  - 64 KByte video memory was organized into 4 16-KByte banks, 2 banks
@@ -182,7 +182,7 @@
 //
 //  New bits in PIO port B:
 //      - bit 5:    enable the 2 stacked RAM banks at address 8000
-//      - bit 6:    write protect RAM bank at address 8000 
+//      - bit 6:    write protect RAM bank at address 8000
 //
 //  Output port 84:
 //      - bit 0:    select  the pixel/color bank pair 0 or 1 for display
@@ -297,7 +297,7 @@ pub fn create(allocator: std.mem.Allocator, desc: KC85.Desc) !*KC85 {
             // execution on powerup starts at address 0xF000
             .PC = 0xF000,
         },
-        .ctc = .{}, 
+        .ctc = .{},
         .pio = .{
             .in_func = .{ .func = pioIn, .userdata = @ptrToInt(self) },
             .out_func = .{ .func = pioOut, .userdata = @ptrToInt(self) },
@@ -353,7 +353,7 @@ pub fn create(allocator: std.mem.Allocator, desc: KC85.Desc) !*KC85 {
         },
         .exp_buf = [_]u8{0} ** expansion_buffer_size,
     };
-    
+
     // on KC85/2 and KC85/3, memory is initially filled with random noise
     if (model != .KC85_4) {
         var r: u32 = 0x6D98302B;
@@ -366,10 +366,10 @@ pub fn create(allocator: std.mem.Allocator, desc: KC85.Desc) !*KC85 {
             ptr.* = @truncate(u8, r);
         }
     }
-    
+
     // setup initial memory map
     self.updateMemoryMapping();
-    
+
     return self;
 }
 
@@ -447,7 +447,7 @@ pub fn insertModule(self: *KC85, slot_addr: u8, mod_type: ModuleType, optional_r
             },
             else => .{ }
         };
-        
+
         // allocate space in expansion buffer
         self.slotAlloc(slot) catch |err| {
             // not enough space left in buffer
@@ -580,13 +580,13 @@ const ExpansionSystem = struct {
 
 // audio output callback, called to push samples into host audio backend
 const AudioFunc = struct {
-    func: fn(samples: []const f32, userdata: usize) void,
+    func: *const fn(samples: []const f32, userdata: usize) void,
     userdata: usize = 0,
 };
 
 // callback to apply patches after a snapshot is loaded
 const PatchFunc = struct {
-    func: fn(snapshot_name: []const u8, userdata: usize) void,
+    func: *const fn(snapshot_name: []const u8, userdata: usize) void,
     userdata: usize = 0,
 };
 
@@ -598,12 +598,12 @@ fn xorshift32(r: u32) u32 {
     x ^= x<<5;
     return x;
 }
-    
+
 // the system tick function is called from within the CPU emulation
 fn tickFunc(num_ticks: u64, pins_in: u64, userdata: usize) u64 {
     var self = @intToPtr(*KC85, userdata);
     var pins = pins_in;
-    
+
     // memory and IO requests
     if (0 != (pins & CPU.MREQ)) {
         // a memory request machine cycle
@@ -617,7 +617,7 @@ fn tickFunc(num_ticks: u64, pins_in: u64, userdata: usize) u64 {
     }
     else if (0 != (pins & CPU.IORQ)) {
         // IO request machine cycle
-        // 
+        //
         // on the KC85/3, the chips-select signals for the CTC and PIO
         // are generated through logic gates, on KC85/4 this is implemented
         // with a PROM chip (details are in the KC85/3 and KC85/4 service manuals)
@@ -637,7 +637,7 @@ fn tickFunc(num_ticks: u64, pins_in: u64, userdata: usize) u64 {
         //              8-bits of the port number address the module slot
         //      0x84:   (KC85/4 only) control the video memory bank switching
         //      0x86:   (KC85/4 only) control RAM block at 0x4000 and ROM switching
-        
+
         // check if any of the valid port number if addressed (0x80..0x8F)
         if (CPU.A7 == (pins & (CPU.A7|CPU.A6|CPU.A5|CPU.A4))) {
             // check if the PIO or CTC is addressed (0x88..0x8F)
@@ -678,7 +678,7 @@ fn tickFunc(num_ticks: u64, pins_in: u64, userdata: usize) u64 {
                         }
                     },
                     0x04 => if (model == .KC85_4) {
-                        // KC85/4 specific port 0x84 
+                        // KC85/4 specific port 0x84
                         if (0 != (pins & CPU.WR)) {
                             self.io84 = data;
                             self.updateMemoryMapping();
@@ -696,7 +696,7 @@ fn tickFunc(num_ticks: u64, pins_in: u64, userdata: usize) u64 {
             }
         }
     }
-        
+
     pins = self.tickVideo(num_ticks, pins);
 
     var tick: u64 = 0;
@@ -759,7 +759,7 @@ fn updateMemoryMapping(self: *KC85) void {
     if (0 != (self.pio_a & PIOABits.CAOS_ROM)) {
         self.mem.mapROM(0, 0xE000, &self.rom_caos_e);
     }
-    
+
     // KC85/3 and /4: builtin 8 KB BASIC ROM at 0xC000
     if (model != .KC85_2) {
         if (0 != (self.pio_a & PIOABits.BASIC_ROM)) {
@@ -775,7 +775,7 @@ fn updateMemoryMapping(self: *KC85) void {
     }
     else {
         // KC85/4 has a much more complex memory map
-        
+
         // 16 KB RAM at 0x4000, may be write-protected
         if (0 != (self.io86 & IO86Bits.RAM4)) {
             const ram4 = self.ram[0x4000..0x8000];
@@ -799,7 +799,7 @@ fn updateMemoryMapping(self: *KC85) void {
                 self.mem.mapROM(0, 0x8000, ram8);
             }
         }
-        
+
         // KC85/4 video ram is 4 16KB banks, 2 for pixels, 2 for colors,
         // the area 0xA800 to 0xBFFF is always mapped to IRM0!
         if (0 != (self.pio_a & PIOABits.IRM)) {
@@ -808,26 +808,26 @@ fn updateMemoryMapping(self: *KC85) void {
             self.mem.mapRAM(0, 0x8000, self.irm[irm_start..irm_end]);
             self.mem.mapRAM(0, 0xA800, self.irm[0x2800..0x4000]);
         }
-        
+
         // 4 KB CAOS-C ROM at 0xC000 (on top of BASIC)
         if (0 != (self.io86 & IO86Bits.CAOS_ROM_C)) {
             self.mem.mapROM(0, 0xC000, &self.rom_caos_c);
         }
     }
-    
+
     // expansion system memory mapping
     for (self.exp.slots) |*slot, slot_index| {
-        
+
         // nothing to do if no module in slot
         if (slot.module.type == .NONE) {
             continue;
         }
 
-        // each slot gets its own memory bank, bank 0 is used by the 
+        // each slot gets its own memory bank, bank 0 is used by the
         // computer base unit
         const bank_index = slot_index + 1;
         self.mem.unmapBank(bank_index);
-        
+
         // module is only active if bit 0 in control byte is set
         if (0 != (slot.ctrl & 1)) {
             // compute CPU and host address
@@ -914,7 +914,7 @@ fn decode8Pixels(dst: []u32, pixel_bits: u8, color_bits: u8, force_bg: bool) voi
     dst[4] = if (0 != (pixel_bits & 0x08)) fg else bg;
     dst[5] = if (0 != (pixel_bits & 0x04)) fg else bg;
     dst[6] = if (0 != (pixel_bits & 0x02)) fg else bg;
-    dst[7] = if (0 != (pixel_bits & 0x01)) fg else bg;   
+    dst[7] = if (0 != (pixel_bits & 0x01)) fg else bg;
 }
 
 fn tickVideoCounters(self: *KC85, in_pins: u64) u64 {
@@ -1048,10 +1048,10 @@ fn handleKeyboard(self: *KC85) void {
     if (!self.cpu.iff1) {
         return;
     }
-    
+
     // get the most recently pressed key
     const key_code = self.kbd.mostRecentKey();
-    
+
     // system base address, where CAOS stores important system variables
     // (like the currently pressed key)
     const ix = self.cpu.IX;
