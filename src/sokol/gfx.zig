@@ -1,5 +1,12 @@
 // machine generated, do not edit
 
+const builtin = @import("builtin");
+const meta = @import("std").meta;
+
+// helper function to convert a C string to a Zig string slice
+fn cStrToZig(c_str: [*c]const u8) [:0]const u8 {
+  return @import("std").mem.span(c_str);
+}
 // helper function to convert "anything" to a Range struct
 pub fn asRange(val: anytype) Range {
     const type_info = @typeInfo(@TypeOf(val));
@@ -12,7 +19,10 @@ pub fn asRange(val: anytype) Range {
             }
         },
         .Struct, .Array => {
-            return .{ .ptr = &val, .size = @sizeOf(@TypeOf(val)) };
+            switch (builtin.zig_backend) {
+                .stage1 => return .{ .ptr = &val, .size = @sizeOf(@TypeOf(val)) },
+                else => @compileError("Structs and arrays must be passed as pointers to asRange"),
+            }
         },
         else => {
             @compileError("Cannot convert to range!");
@@ -133,6 +143,7 @@ pub const PixelFormat = enum(i32) {
     ETC2_RGBA8,
     ETC2_RG11,
     ETC2_RG11SN,
+    RGB9E5,
     NUM,
 };
 pub const PixelformatInfo = extern struct {
@@ -615,29 +626,29 @@ pub const GlContextDesc = extern struct {
 };
 pub const MetalContextDesc = extern struct {
     device: ?*const anyopaque = null,
-    renderpass_descriptor_cb: ?fn() callconv(.C) ?*const anyopaque = null,
-    renderpass_descriptor_userdata_cb: ?fn(?*anyopaque) callconv(.C) ?*const anyopaque = null,
-    drawable_cb: ?fn() callconv(.C) ?*const anyopaque = null,
-    drawable_userdata_cb: ?fn(?*anyopaque) callconv(.C) ?*const anyopaque = null,
+    renderpass_descriptor_cb: ?meta.FnPtr(fn() callconv(.C) ?*const anyopaque) = null,
+    renderpass_descriptor_userdata_cb: ?meta.FnPtr(fn(?*anyopaque) callconv(.C) ?*const anyopaque) = null,
+    drawable_cb: ?meta.FnPtr(fn() callconv(.C) ?*const anyopaque) = null,
+    drawable_userdata_cb: ?meta.FnPtr(fn(?*anyopaque) callconv(.C) ?*const anyopaque) = null,
     user_data: ?*anyopaque = null,
 };
 pub const D3d11ContextDesc = extern struct {
     device: ?*const anyopaque = null,
     device_context: ?*const anyopaque = null,
-    render_target_view_cb: ?fn() callconv(.C) ?*const anyopaque = null,
-    render_target_view_userdata_cb: ?fn(?*anyopaque) callconv(.C) ?*const anyopaque = null,
-    depth_stencil_view_cb: ?fn() callconv(.C) ?*const anyopaque = null,
-    depth_stencil_view_userdata_cb: ?fn(?*anyopaque) callconv(.C) ?*const anyopaque = null,
+    render_target_view_cb: ?meta.FnPtr(fn() callconv(.C) ?*const anyopaque) = null,
+    render_target_view_userdata_cb: ?meta.FnPtr(fn(?*anyopaque) callconv(.C) ?*const anyopaque) = null,
+    depth_stencil_view_cb: ?meta.FnPtr(fn() callconv(.C) ?*const anyopaque) = null,
+    depth_stencil_view_userdata_cb: ?meta.FnPtr(fn(?*anyopaque) callconv(.C) ?*const anyopaque) = null,
     user_data: ?*anyopaque = null,
 };
 pub const WgpuContextDesc = extern struct {
     device: ?*const anyopaque = null,
-    render_view_cb: ?fn() callconv(.C) ?*const anyopaque = null,
-    render_view_userdata_cb: ?fn(?*anyopaque) callconv(.C) ?*const anyopaque = null,
-    resolve_view_cb: ?fn() callconv(.C) ?*const anyopaque = null,
-    resolve_view_userdata_cb: ?fn(?*anyopaque) callconv(.C) ?*const anyopaque = null,
-    depth_stencil_view_cb: ?fn() callconv(.C) ?*const anyopaque = null,
-    depth_stencil_view_userdata_cb: ?fn(?*anyopaque) callconv(.C) ?*const anyopaque = null,
+    render_view_cb: ?meta.FnPtr(fn() callconv(.C) ?*const anyopaque) = null,
+    render_view_userdata_cb: ?meta.FnPtr(fn(?*anyopaque) callconv(.C) ?*const anyopaque) = null,
+    resolve_view_cb: ?meta.FnPtr(fn() callconv(.C) ?*const anyopaque) = null,
+    resolve_view_userdata_cb: ?meta.FnPtr(fn(?*anyopaque) callconv(.C) ?*const anyopaque) = null,
+    depth_stencil_view_cb: ?meta.FnPtr(fn() callconv(.C) ?*const anyopaque) = null,
+    depth_stencil_view_userdata_cb: ?meta.FnPtr(fn(?*anyopaque) callconv(.C) ?*const anyopaque) = null,
     user_data: ?*anyopaque = null,
 };
 pub const ContextDesc = extern struct {
@@ -648,6 +659,15 @@ pub const ContextDesc = extern struct {
     metal: MetalContextDesc = .{ },
     d3d11: D3d11ContextDesc = .{ },
     wgpu: WgpuContextDesc = .{ },
+};
+pub const Allocator = extern struct {
+    alloc: ?meta.FnPtr(fn(usize, ?*anyopaque) callconv(.C) ?*anyopaque) = null,
+    free: ?meta.FnPtr(fn(?*anyopaque, ?*anyopaque) callconv(.C) void) = null,
+    user_data: ?*anyopaque = null,
+};
+pub const Logger = extern struct {
+    log_cb: ?meta.FnPtr(fn([*c]const u8, ?*anyopaque) callconv(.C) void) = null,
+    user_data: ?*anyopaque = null,
 };
 pub const Desc = extern struct {
     _start_canary: u32 = 0,
@@ -660,6 +680,8 @@ pub const Desc = extern struct {
     uniform_buffer_size: i32 = 0,
     staging_buffer_size: i32 = 0,
     sampler_cache_size: i32 = 0,
+    allocator: Allocator = .{ },
+    logger: Logger = .{ },
     context: ContextDesc = .{ },
     _end_canary: u32 = 0,
 };
@@ -742,6 +764,10 @@ pub fn appendBuffer(buf: Buffer, data: Range) i32 {
 pub extern fn sg_query_buffer_overflow(Buffer) bool;
 pub fn queryBufferOverflow(buf: Buffer) bool {
     return sg_query_buffer_overflow(buf);
+}
+pub extern fn sg_query_buffer_will_overflow(Buffer, usize) bool;
+pub fn queryBufferWillOverflow(buf: Buffer, size: usize) bool {
+    return sg_query_buffer_will_overflow(buf, size);
 }
 pub extern fn sg_begin_default_pass([*c]const PassAction, i32, i32) void;
 pub fn beginDefaultPass(pass_action: PassAction, width: i32, height: i32) void {

@@ -10,14 +10,14 @@ Some [implementation notes](https://github.com/floooh/kc85.zig/blob/main/IMPLEME
 
 ## Build
 
-With Zig version 0.9.x, on Windows, macOS or Linux:
+With Zig version 0.10.0, on Windows, macOS or Linux:
 ```
 zig build
 ```
 NOTE: For the zig dev version, try the branch ```zig-0.10.0```, this will be merged to ```main```
 when Zig 0.10.0 releases.
 
-The default debug version will usually be fast enough, to build with optimizations 
+The default debug version will usually be fast enough, to build with optimizations
 use any of:
 
 ```
@@ -98,4 +98,3 @@ Make sure your audio volume isn't silent, but **don't** turn it up *too* much!
 save f000 f800[Enter]
 ```
 ...type anything for the name, and hit Enter again :D
-

@@ -37,16 +37,16 @@ fn addKC85(b: *Builder, sokol: *LibExeObjStep, target: CrossTarget, mode: Mode, 
     
     const pkg_sokol = Pkg{
         .name = "sokol",
-        .path = .{ .path = "src/sokol/sokol.zig" },
+        .source = .{ .path = "src/sokol/sokol.zig" }
     };
     const pkg_host = Pkg{
         .name = "host",
-        .path = .{ .path = "src/host/host.zig" },
+        .source = .{ .path = "src/host/host.zig" },
         .dependencies = &[_]Pkg{ pkg_sokol }
     };
     const pkg_emu = Pkg{
         .name = "emu",
-        .path = .{ .path = "src/emu/emu.zig" },
+        .source = .{ .path = "src/emu/emu.zig" },
         .dependencies = &[_]Pkg{ exe_options.getPackage("build_options") }
     };
     exe.addPackage(pkg_sokol);

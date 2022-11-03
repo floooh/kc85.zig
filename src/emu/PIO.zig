@@ -8,7 +8,7 @@ ports: [NumPorts]Port = [_]Port{.{}} ** NumPorts,
 reset_active: bool = true,  // reset state sticks until first control word received
 in_func: PortInput,         // port-input callback
 out_func: PortOutput,       // port-output callback
-    
+
 // reset the PIO chip
 pub fn reset(self: *PIO) void {
     for (self.ports) |*p| {
@@ -62,7 +62,7 @@ pub fn writePort(self: *PIO, port_index: u1, data: u8) void {
         var match = false;
         val &= mask;
 
-        const ictrl = p.int_control & 0x60;    
+        const ictrl = p.int_control & 0x60;
         if ((ictrl == 0) and (val != mask)) { match = true; }
         else if ((ictrl == 0x20) and (val != 0)) { match = true; }
         else if ((ictrl == 0x40) and (val == 0)) { match = true; }
@@ -120,7 +120,7 @@ pub const D6: u64 = 1<<22;
 pub const D7: u64 = 1<<23;
 pub const DataPinShift = 16;
 pub const DataPinMask: u64 = 0xFF0000;
-    
+
 // control pins shared with CPU
 pub const M1:       u64 = 1<<24;    // machine cycle 1
 pub const IORQ:     u64 = 1<<26;    // IO request
@@ -194,7 +194,7 @@ pub const Mode = struct {
 //  D5 (HIGH/LOW)       port data polarity during port monitoring (only Mode 3)
 //  D4 (MASK FOLLOWS)   if set, the next control word are the port monitoring mask (only Mode 3)
 //
-//  (*) if an interrupt is pending when the enable flag is set, it will then be 
+//  (*) if an interrupt is pending when the enable flag is set, it will then be
 //      enabled on the onto the CPU interrupt request line
 //  (*) setting bit D4 during any mode of operation will cause any pending
 //      interrupt to be reset
@@ -233,11 +233,11 @@ pub const Port = struct {
 
 // Port IO callbacks and userdata
 const PortInput = struct {
-    func: fn(port: u1, userdata: usize) u8,
+    func: *const fn(port: u1, userdata: usize) u8,
     userdata: usize = 0,
 };
 const PortOutput = struct {
-    func: fn(port: u1, data: u8, userdata: usize) void,
+    func: *const fn(port: u1, data: u8, userdata: usize) void,
     userdata: usize = 0,
 };
 
@@ -392,13 +392,13 @@ test "read_write_control" {
         .out_func = .{ .func = out_func },
     };
 
-    // write interrupt vector 0xEE to port A    
+    // write interrupt vector 0xEE to port A
     try expect(pio.reset_active);
     pio.writeCtrl(PA, 0xEE);
     try expect(!pio.reset_active);
     try expect(pio.ports[PA].intr.vector == 0xEE);
     try expect(0 != (pio.ports[PA].int_control & IntCtrl.EI));
-    
+
     // write interrupt vector 0xCC for port B
     pio.writeCtrl(PB, 0xCC);
     try expect(pio.ports[PB].intr.vector == 0xCC);
@@ -416,7 +416,7 @@ test "read_write_control" {
     pio.writeCtrl(PA, (@as(u8, Mode.BIDIRECTIONAL)<<6)|0x0F);
     try expect(pio.ports[PA].mode == Mode.BIDIRECTIONAL);
 
-    // set port A to mode control (plus followup io_select mask) 
+    // set port A to mode control (plus followup io_select mask)
     pio.writeCtrl(PA, (@as(u8, Mode.BITCONTROL)<<6)|0x0F);
     try expect(!pio.ports[PA].int_enabled);
     try expect(pio.ports[PA].mode == Mode.BITCONTROL);
@@ -431,13 +431,13 @@ test "read_write_control" {
     pio.writeCtrl(PB, 0x23);
     try expect(!pio.ports[PB].int_enabled);
     try expect(pio.ports[PB].int_mask == 0x23);
-    
+
     // enable interrupts on port B
     pio.writeCtrl(PB, IntCtrl.EI|0x03);
     try expect(pio.ports[PB].int_enabled);
     try expect(pio.ports[PB].int_control == (IntCtrl.EI|IntCtrl.ANDOR|IntCtrl.HILO|IntCtrl.MASK_FOLLOWS));
 
-    // write interrupt control word to A and B, 
+    // write interrupt control word to A and B,
     // and read the control word back, this does not
     // seem to be documented anywhere, so we're doing
     // the same thing that MAME does.

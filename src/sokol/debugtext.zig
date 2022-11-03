@@ -1,7 +1,13 @@
 // machine generated, do not edit
 
+const builtin = @import("builtin");
+const meta = @import("std").meta;
 const sg = @import("gfx.zig");
 
+// helper function to convert a C string to a Zig string slice
+fn cStrToZig(c_str: [*c]const u8) [:0]const u8 {
+  return @import("std").mem.span(c_str);
+}
 // helper function to convert "anything" to a Range struct
 pub fn asRange(val: anytype) Range {
     const type_info = @typeInfo(@TypeOf(val));
@@ -14,7 +20,10 @@ pub fn asRange(val: anytype) Range {
             }
         },
         .Struct, .Array => {
-            return .{ .ptr = &val, .size = @sizeOf(@TypeOf(val)) };
+            switch (builtin.zig_backend) {
+                .stage1 => return .{ .ptr = &val, .size = @sizeOf(@TypeOf(val)) },
+                else => @compileError("Structs and arrays must be passed as pointers to asRange"),
+            }
         },
         else => {
             @compileError("Cannot convert to range!");
@@ -66,11 +75,22 @@ pub const ContextDesc = extern struct {
     depth_format: sg.PixelFormat = .DEFAULT,
     sample_count: i32 = 0,
 };
+pub const Allocator = extern struct {
+    alloc: ?meta.FnPtr(fn(usize, ?*anyopaque) callconv(.C) ?*anyopaque) = null,
+    free: ?meta.FnPtr(fn(?*anyopaque, ?*anyopaque) callconv(.C) void) = null,
+    user_data: ?*anyopaque = null,
+};
+pub const Logger = extern struct {
+    log_cb: ?meta.FnPtr(fn([*c]const u8, ?*anyopaque) callconv(.C) void) = null,
+    user_data: ?*anyopaque = null,
+};
 pub const Desc = extern struct {
     context_pool_size: i32 = 0,
     printf_buf_size: i32 = 0,
     fonts: [8]FontDesc = [_]FontDesc{.{}} ** 8,
     context: ContextDesc = .{ },
+    allocator: Allocator = .{ },
+    logger: Logger = .{ },
 };
 pub extern fn sdtx_setup([*c]const Desc) void;
 pub fn setup(desc: Desc) void {
