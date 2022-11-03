@@ -96,6 +96,7 @@
 /// sequences of DD and FD prefix bytes, with the only side effect that no
 /// interrupt requests are processed during the sequence.
 ///
+const meta = @import("std").meta;
 
 const CPU = @This();
 
@@ -190,7 +191,7 @@ pub const SF: u8 = (1<<7);
 
 // system tick callback with associated userdata
 pub const TickFunc = struct {
-    func: *const fn(num_ticks: u64, pins: u64, userdata: usize) u64,
+    func: meta.FnPtr(fn(num_ticks: u64, pins: u64, userdata: usize) u64),
     userdata: usize = 0,
 };
 
