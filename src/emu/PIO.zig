@@ -1,8 +1,6 @@
 //
 //  Z80 PIO emulator
 //
-const meta = @import("std").meta;
-
 const DaisyChain = @import("DaisyChain.zig");
 const PIO = @This();
 
@@ -235,11 +233,11 @@ pub const Port = struct {
 
 // Port IO callbacks and userdata
 const PortInput = struct {
-    func: meta.FnPtr(fn(port: u1, userdata: usize) u8),
+    func: *const fn(port: u1, userdata: usize) u8,
     userdata: usize = 0,
 };
 const PortOutput = struct {
-    func: meta.FnPtr(fn(port: u1, data: u8, userdata: usize) void),
+    func: *const fn(port: u1, data: u8, userdata: usize) void,
     userdata: usize = 0,
 };
 

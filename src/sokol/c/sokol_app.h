@@ -262,9 +262,9 @@
             where sg_pixel_format is expected). Possible values are:
 
                 23 == SG_PIXELFORMAT_RGBA8
-                27 == SG_PIXELFORMAT_BGRA8
-                41 == SG_PIXELFORMAT_DEPTH
-                42 == SG_PIXELFORMAT_DEPTH_STENCIL
+                28 == SG_PIXELFORMAT_BGRA8
+                42 == SG_PIXELFORMAT_DEPTH
+                43 == SG_PIXELFORMAT_DEPTH_STENCIL
 
         int sapp_sample_count(void)
             Return the MSAA sample count of the default framebuffer.
@@ -633,8 +633,10 @@
         sapp_html5_fetch_dropped_file(&(sapp_html5_fetch_request){
             .dropped_file_index = 0,
             .callback = fetch_cb
-            .buffer_ptr = buf,
-            .buffer_size = buf_size,
+            .buffer = {
+                .ptr = buf,
+                .size = sizeof(buf)
+            },
             .user_data = ...
         });
 
@@ -648,9 +650,9 @@
             // IMPORTANT: check if the loading operation actually succeeded:
             if (response->succeeded) {
                 // the size of the loaded file:
-                const uint32_t num_bytes = response->fetched_size;
+                const size_t num_bytes = response->data.size;
                 // and the pointer to the data (same as 'buf' in the fetch-call):
-                const void* ptr = response->buffer_ptr;
+                const void* ptr = response->data.ptr;
             }
             else {
                 // on error check the error code:
@@ -1531,21 +1533,19 @@ typedef enum sapp_html5_fetch_error {
 } sapp_html5_fetch_error;
 
 typedef struct sapp_html5_fetch_response {
-    bool succeeded;         /* true if the loading operation has succeeded */
+    bool succeeded;         // true if the loading operation has succeeded
     sapp_html5_fetch_error error_code;
-    int file_index;         /* index of the dropped file (0..sapp_get_num_dropped_filed()-1) */
-    uint32_t fetched_size;  /* size in bytes of loaded data */
-    void* buffer_ptr;       /* pointer to user-provided buffer which contains the loaded data */
-    uint32_t buffer_size;   /* size of user-provided buffer (buffer_size >= fetched_size) */
-    void* user_data;        /* user-provided user data pointer */
+    int file_index;         // index of the dropped file (0..sapp_get_num_dropped_filed()-1)
+    sapp_range data;        // pointer and size of the fetched data (data.ptr == buffer.ptr, data.size <= buffer.size)
+    sapp_range buffer;      // the user-provided buffer ptr/size pair (buffer.ptr == data.ptr, buffer.size >= data.size)
+    void* user_data;        // user-provided user data pointer
 } sapp_html5_fetch_response;
 
 typedef struct sapp_html5_fetch_request {
-    int dropped_file_index;                 /* 0..sapp_get_num_dropped_files()-1 */
-    void (*callback)(const sapp_html5_fetch_response*);     /* response callback function pointer (required) */
-    void* buffer_ptr;                       /* pointer to buffer to load data into */
-    uint32_t buffer_size;                   /* size in bytes of buffer */
-    void* user_data;                        /* optional userdata pointer */
+    int dropped_file_index; // 0..sapp_get_num_dropped_files()-1
+    void (*callback)(const sapp_html5_fetch_response*);     // response callback function pointer (required)
+    sapp_range buffer;      // ptr/size of a memory buffer to load the data into
+    void* user_data;        // optional userdata pointer
 } sapp_html5_fetch_request;
 
 /*
@@ -2638,9 +2638,9 @@ typedef struct {
 #define _SAPP_FALLBACK_DEFAULT_WINDOW_HEIGHT (480)
 /* NOTE: the pixel format values *must* be compatible with sg_pixel_format */
 #define _SAPP_PIXELFORMAT_RGBA8 (23)
-#define _SAPP_PIXELFORMAT_BGRA8 (27)
-#define _SAPP_PIXELFORMAT_DEPTH (41)
-#define _SAPP_PIXELFORMAT_DEPTH_STENCIL (42)
+#define _SAPP_PIXELFORMAT_BGRA8 (28)
+#define _SAPP_PIXELFORMAT_DEPTH (42)
+#define _SAPP_PIXELFORMAT_DEPTH_STENCIL (43)
 
 #if defined(_SAPP_MACOS) || defined(_SAPP_IOS)
     // this is ARC compatible
@@ -3505,13 +3505,13 @@ _SOKOL_PRIVATE void _sapp_macos_update_window_title(void) {
     [_sapp.macos.window setTitle: [NSString stringWithUTF8String:_sapp.window_title]];
 }
 
-_SOKOL_PRIVATE void _sapp_macos_update_mouse(NSEvent* event) {
+_SOKOL_PRIVATE void _sapp_macos_mouse_update(NSEvent* event) {
     if (!_sapp.mouse.locked) {
         const NSPoint mouse_pos = event.locationInWindow;
         float new_x = mouse_pos.x * _sapp.dpi_scale;
         float new_y = _sapp.framebuffer_height - (mouse_pos.y * _sapp.dpi_scale) - 1;
-        /* don't update dx/dy in the very first update */
         if (_sapp.mouse.pos_valid) {
+            // don't update dx/dy in the very first update
             _sapp.mouse.dx = new_x - _sapp.mouse.x;
             _sapp.mouse.dy = new_y - _sapp.mouse.y;
         }
@@ -3839,7 +3839,7 @@ _SOKOL_PRIVATE void _sapp_macos_frame(void) {
     NSPasteboard *pboard = [sender draggingPasteboard];
     if ([pboard.types containsObject:NSPasteboardTypeFileURL]) {
         _sapp_clear_drop_buffer();
-        _sapp.drop.num_files = ((int)pboard.pasteboardItems.count > _sapp.drop.max_files) ? _sapp.drop.max_files : pboard.pasteboardItems.count;
+        _sapp.drop.num_files = ((int)pboard.pasteboardItems.count > _sapp.drop.max_files) ? _sapp.drop.max_files : (int)pboard.pasteboardItems.count;
         bool drop_failed = false;
         for (int i = 0; i < _sapp.drop.num_files; i++) {
             NSURL *fileUrl = [NSURL fileURLWithPath:[pboard.pasteboardItems[(NSUInteger)i] stringForType:NSPasteboardTypeFileURL]];
@@ -3975,7 +3975,7 @@ _SOKOL_PRIVATE void _sapp_macos_poll_input_events() {
     [super updateTrackingAreas];
 }
 - (void)mouseEntered:(NSEvent*)event {
-    _sapp_macos_update_mouse(event);
+    _sapp_macos_mouse_update(event);
     /* don't send mouse enter/leave while dragging (so that it behaves the same as
        on Windows while SetCapture is active
     */
@@ -3984,47 +3984,47 @@ _SOKOL_PRIVATE void _sapp_macos_poll_input_events() {
     }
 }
 - (void)mouseExited:(NSEvent*)event {
-    _sapp_macos_update_mouse(event);
+    _sapp_macos_mouse_update(event);
     if (0 == _sapp.macos.mouse_buttons) {
         _sapp_macos_mouse_event(SAPP_EVENTTYPE_MOUSE_LEAVE, SAPP_MOUSEBUTTON_INVALID, _sapp_macos_mods(event));
     }
 }
 - (void)mouseDown:(NSEvent*)event {
-    _sapp_macos_update_mouse(event);
+    _sapp_macos_mouse_update(event);
     _sapp_macos_mouse_event(SAPP_EVENTTYPE_MOUSE_DOWN, SAPP_MOUSEBUTTON_LEFT, _sapp_macos_mods(event));
     _sapp.macos.mouse_buttons |= (1<<SAPP_MOUSEBUTTON_LEFT);
 }
 - (void)mouseUp:(NSEvent*)event {
-    _sapp_macos_update_mouse(event);
+    _sapp_macos_mouse_update(event);
     _sapp_macos_mouse_event(SAPP_EVENTTYPE_MOUSE_UP, SAPP_MOUSEBUTTON_LEFT, _sapp_macos_mods(event));
     _sapp.macos.mouse_buttons &= ~(1<<SAPP_MOUSEBUTTON_LEFT);
 }
 - (void)rightMouseDown:(NSEvent*)event {
-    _sapp_macos_update_mouse(event);
+    _sapp_macos_mouse_update(event);
     _sapp_macos_mouse_event(SAPP_EVENTTYPE_MOUSE_DOWN, SAPP_MOUSEBUTTON_RIGHT, _sapp_macos_mods(event));
     _sapp.macos.mouse_buttons |= (1<<SAPP_MOUSEBUTTON_RIGHT);
 }
 - (void)rightMouseUp:(NSEvent*)event {
-    _sapp_macos_update_mouse(event);
+    _sapp_macos_mouse_update(event);
     _sapp_macos_mouse_event(SAPP_EVENTTYPE_MOUSE_UP, SAPP_MOUSEBUTTON_RIGHT, _sapp_macos_mods(event));
     _sapp.macos.mouse_buttons &= ~(1<<SAPP_MOUSEBUTTON_RIGHT);
 }
 - (void)otherMouseDown:(NSEvent*)event {
-    _sapp_macos_update_mouse(event);
+    _sapp_macos_mouse_update(event);
     if (2 == event.buttonNumber) {
         _sapp_macos_mouse_event(SAPP_EVENTTYPE_MOUSE_DOWN, SAPP_MOUSEBUTTON_MIDDLE, _sapp_macos_mods(event));
         _sapp.macos.mouse_buttons |= (1<<SAPP_MOUSEBUTTON_MIDDLE);
     }
 }
 - (void)otherMouseUp:(NSEvent*)event {
-    _sapp_macos_update_mouse(event);
+    _sapp_macos_mouse_update(event);
     if (2 == event.buttonNumber) {
         _sapp_macos_mouse_event(SAPP_EVENTTYPE_MOUSE_UP, SAPP_MOUSEBUTTON_MIDDLE, _sapp_macos_mods(event));
         _sapp.macos.mouse_buttons &= (1<<SAPP_MOUSEBUTTON_MIDDLE);
     }
 }
 - (void)otherMouseDragged:(NSEvent*)event {
-    _sapp_macos_update_mouse(event);
+    _sapp_macos_mouse_update(event);
     if (2 == event.buttonNumber) {
         if (_sapp.mouse.locked) {
             _sapp.mouse.dx = [event deltaX];
@@ -4034,7 +4034,7 @@ _SOKOL_PRIVATE void _sapp_macos_poll_input_events() {
     }
 }
 - (void)mouseMoved:(NSEvent*)event {
-    _sapp_macos_update_mouse(event);
+    _sapp_macos_mouse_update(event);
     if (_sapp.mouse.locked) {
         _sapp.mouse.dx = [event deltaX];
         _sapp.mouse.dy = [event deltaY];
@@ -4042,7 +4042,7 @@ _SOKOL_PRIVATE void _sapp_macos_poll_input_events() {
     _sapp_macos_mouse_event(SAPP_EVENTTYPE_MOUSE_MOVE, SAPP_MOUSEBUTTON_INVALID , _sapp_macos_mods(event));
 }
 - (void)mouseDragged:(NSEvent*)event {
-    _sapp_macos_update_mouse(event);
+    _sapp_macos_mouse_update(event);
     if (_sapp.mouse.locked) {
         _sapp.mouse.dx = [event deltaX];
         _sapp.mouse.dy = [event deltaY];
@@ -4050,7 +4050,7 @@ _SOKOL_PRIVATE void _sapp_macos_poll_input_events() {
     _sapp_macos_mouse_event(SAPP_EVENTTYPE_MOUSE_MOVE, SAPP_MOUSEBUTTON_INVALID , _sapp_macos_mods(event));
 }
 - (void)rightMouseDragged:(NSEvent*)event {
-    _sapp_macos_update_mouse(event);
+    _sapp_macos_mouse_update(event);
     if (_sapp.mouse.locked) {
         _sapp.mouse.dx = [event deltaX];
         _sapp.mouse.dy = [event deltaY];
@@ -4058,7 +4058,7 @@ _SOKOL_PRIVATE void _sapp_macos_poll_input_events() {
     _sapp_macos_mouse_event(SAPP_EVENTTYPE_MOUSE_MOVE, SAPP_MOUSEBUTTON_INVALID, _sapp_macos_mods(event));
 }
 - (void)scrollWheel:(NSEvent*)event {
-    _sapp_macos_update_mouse(event);
+    _sapp_macos_mouse_update(event);
     if (_sapp_events_enabled()) {
         float dx = (float) event.scrollingDeltaX;
         float dy = (float) event.scrollingDeltaY;
@@ -4117,7 +4117,7 @@ _SOKOL_PRIVATE void _sapp_macos_poll_input_events() {
 }
 - (void)flagsChanged:(NSEvent*)event {
     const uint32_t old_f = _sapp.macos.flags_changed_store;
-    const uint32_t new_f = event.modifierFlags;
+    const uint32_t new_f = (uint32_t)event.modifierFlags;
     _sapp.macos.flags_changed_store = new_f;
     sapp_keycode key_code = SAPP_KEYCODE_INVALID;
     bool down = false;
@@ -4574,9 +4574,10 @@ EMSCRIPTEN_KEEPALIVE void _sapp_emsc_invoke_fetch_cb(int index, int success, int
     response.succeeded = (0 != success);
     response.error_code = (sapp_html5_fetch_error) error_code;
     response.file_index = index;
-    response.fetched_size = fetched_size;
-    response.buffer_ptr = buf_ptr;
-    response.buffer_size = buf_size;
+    response.data.ptr = buf_ptr;
+    response.data.size = fetched_size;
+    response.buffer.ptr = buf_ptr;
+    response.buffer.size = buf_size;
     response.user_data = user_data;
     callback(&response);
 }
@@ -6806,6 +6807,21 @@ _SOKOL_PRIVATE uint32_t _sapp_win32_mods(void) {
     return mods;
 }
 
+_SOKOL_PRIVATE void _sapp_win32_mouse_update(LPARAM lParam) {
+    if (!_sapp.mouse.locked) {
+        const float new_x  = (float)GET_X_LPARAM(lParam) * _sapp.win32.dpi.mouse_scale;
+        const float new_y = (float)GET_Y_LPARAM(lParam) * _sapp.win32.dpi.mouse_scale;
+        if (_sapp.mouse.pos_valid) {
+            // don't update dx/dy in the very first event
+            _sapp.mouse.dx = new_x - _sapp.mouse.x;
+            _sapp.mouse.dy = new_y - _sapp.mouse.y;
+        }
+        _sapp.mouse.x = new_x;
+        _sapp.mouse.y = new_y;
+        _sapp.mouse.pos_valid = true;
+    }
+}
+
 _SOKOL_PRIVATE void _sapp_win32_mouse_event(sapp_event_type type, sapp_mousebutton btn) {
     if (_sapp_events_enabled()) {
         _sapp_init_event(type);
@@ -7016,41 +7032,38 @@ _SOKOL_PRIVATE LRESULT CALLBACK _sapp_win32_wndproc(HWND hWnd, UINT uMsg, WPARAM
                 break;
             }
             case WM_LBUTTONDOWN:
+                _sapp_win32_mouse_update(lParam);
                 _sapp_win32_mouse_event(SAPP_EVENTTYPE_MOUSE_DOWN, SAPP_MOUSEBUTTON_LEFT);
                 _sapp_win32_capture_mouse(1<<SAPP_MOUSEBUTTON_LEFT);
                 break;
             case WM_RBUTTONDOWN:
+                _sapp_win32_mouse_update(lParam);
                 _sapp_win32_mouse_event(SAPP_EVENTTYPE_MOUSE_DOWN, SAPP_MOUSEBUTTON_RIGHT);
                 _sapp_win32_capture_mouse(1<<SAPP_MOUSEBUTTON_RIGHT);
                 break;
             case WM_MBUTTONDOWN:
+                _sapp_win32_mouse_update(lParam);
                 _sapp_win32_mouse_event(SAPP_EVENTTYPE_MOUSE_DOWN, SAPP_MOUSEBUTTON_MIDDLE);
                 _sapp_win32_capture_mouse(1<<SAPP_MOUSEBUTTON_MIDDLE);
                 break;
             case WM_LBUTTONUP:
+                _sapp_win32_mouse_update(lParam);
                 _sapp_win32_mouse_event(SAPP_EVENTTYPE_MOUSE_UP, SAPP_MOUSEBUTTON_LEFT);
                 _sapp_win32_release_mouse(1<<SAPP_MOUSEBUTTON_LEFT);
                 break;
             case WM_RBUTTONUP:
+                _sapp_win32_mouse_update(lParam);
                 _sapp_win32_mouse_event(SAPP_EVENTTYPE_MOUSE_UP, SAPP_MOUSEBUTTON_RIGHT);
                 _sapp_win32_release_mouse(1<<SAPP_MOUSEBUTTON_RIGHT);
                 break;
             case WM_MBUTTONUP:
+                _sapp_win32_mouse_update(lParam);
                 _sapp_win32_mouse_event(SAPP_EVENTTYPE_MOUSE_UP, SAPP_MOUSEBUTTON_MIDDLE);
                 _sapp_win32_release_mouse(1<<SAPP_MOUSEBUTTON_MIDDLE);
                 break;
             case WM_MOUSEMOVE:
                 if (!_sapp.mouse.locked) {
-                    const float new_x  = (float)GET_X_LPARAM(lParam) * _sapp.win32.dpi.mouse_scale;
-                    const float new_y = (float)GET_Y_LPARAM(lParam) * _sapp.win32.dpi.mouse_scale;
-                    /* don't update dx/dy in the very first event */
-                    if (_sapp.mouse.pos_valid) {
-                        _sapp.mouse.dx = new_x - _sapp.mouse.x;
-                        _sapp.mouse.dy = new_y - _sapp.mouse.y;
-                    }
-                    _sapp.mouse.x = new_x;
-                    _sapp.mouse.y = new_y;
-                    _sapp.mouse.pos_valid = true;
+                    _sapp_win32_mouse_update(lParam);
                     if (!_sapp.win32.mouse_tracked) {
                         _sapp.win32.mouse_tracked = true;
                         TRACKMOUSEEVENT tme;
@@ -7107,9 +7120,11 @@ _SOKOL_PRIVATE LRESULT CALLBACK _sapp_win32_wndproc(HWND hWnd, UINT uMsg, WPARAM
                 }
                 break;
             case WM_MOUSEWHEEL:
+                _sapp_win32_mouse_update(lParam);
                 _sapp_win32_scroll_event(0.0f, (float)((SHORT)HIWORD(wParam)));
                 break;
             case WM_MOUSEHWHEEL:
+                _sapp_win32_mouse_update(lParam);
                 _sapp_win32_scroll_event((float)((SHORT)HIWORD(wParam)), 0.0f);
                 break;
             case WM_CHAR:
@@ -7560,7 +7575,7 @@ _SOKOL_PRIVATE void _sapp_win32_run(const sapp_desc* desc) {
             }
             else {
                 TranslateMessage(&msg);
-                DispatchMessage(&msg);
+                DispatchMessageW(&msg);
             }
         }
         _sapp_frame();
@@ -10275,6 +10290,7 @@ _SOKOL_PRIVATE void _sapp_x11_query_system_dpi(void) {
              consistent user experience (matches Qt, Gtk, etc), although not
              always the most accurate one
     */
+    bool dpi_ok = false;
     char* rms = XResourceManagerString(_sapp.x11.display);
     if (rms) {
         XrmDatabase db = XrmGetStringDatabase(rms);
@@ -10284,10 +10300,16 @@ _SOKOL_PRIVATE void _sapp_x11_query_system_dpi(void) {
             if (XrmGetResource(db, "Xft.dpi", "Xft.Dpi", &type, &value)) {
                 if (type && strcmp(type, "String") == 0) {
                     _sapp.x11.dpi = atof(value.addr);
+                    dpi_ok = true;
                 }
             }
             XrmDestroyDatabase(db);
         }
+    }
+    // fallback if querying DPI had failed: assume the standard DPI 96.0f
+    if (!dpi_ok) {
+        _sapp.x11.dpi = 96.0f;
+        SAPP_LOG("sokol_app.h: failed to query system dpi value, assuming default 96.0");
     }
 }
 
@@ -10987,6 +11009,20 @@ _SOKOL_PRIVATE sapp_mousebutton _sapp_x11_translate_button(const XEvent* event) 
     }
 }
 
+_SOKOL_PRIVATE void _sapp_x11_mouse_update(int x, int y) {
+    if (!_sapp.mouse.locked) {
+        const float new_x = (float) x;
+        const float new_y = (float) y;
+        if (_sapp.mouse.pos_valid) {
+            _sapp.mouse.dx = new_x - _sapp.mouse.x;
+            _sapp.mouse.dy = new_y - _sapp.mouse.y;
+        }
+        _sapp.mouse.x = new_x;
+        _sapp.mouse.y = new_y;
+        _sapp.mouse.pos_valid = true;
+    }
+}
+
 _SOKOL_PRIVATE void _sapp_x11_mouse_event(sapp_event_type type, sapp_mousebutton btn, uint32_t mods) {
     if (_sapp_events_enabled()) {
         _sapp_init_event(type);
@@ -11366,6 +11402,7 @@ _SOKOL_PRIVATE void _sapp_x11_process_event(XEvent* event) {
             break;
         case ButtonPress:
             {
+                _sapp_x11_mouse_update(event->xbutton.x, event->xbutton.y);
                 const sapp_mousebutton btn = _sapp_x11_translate_button(event);
                 uint32_t mods = _sapp_x11_mods(event->xbutton.state);
                 // X11 doesn't set modifier bit on button down, so emulate that
@@ -11387,6 +11424,7 @@ _SOKOL_PRIVATE void _sapp_x11_process_event(XEvent* event) {
             break;
         case ButtonRelease:
             {
+                _sapp_x11_mouse_update(event->xbutton.x, event->xbutton.y);
                 const sapp_mousebutton btn = _sapp_x11_translate_button(event);
                 if (btn != SAPP_MOUSEBUTTON_INVALID) {
                     uint32_t mods = _sapp_x11_mods(event->xbutton.state);
@@ -11400,25 +11438,19 @@ _SOKOL_PRIVATE void _sapp_x11_process_event(XEvent* event) {
         case EnterNotify:
             /* don't send enter/leave events while mouse button held down */
             if (0 == _sapp.x11.mouse_buttons) {
+                _sapp_x11_mouse_update(event->xcrossing.x, event->xcrossing.y);
                 _sapp_x11_mouse_event(SAPP_EVENTTYPE_MOUSE_ENTER, SAPP_MOUSEBUTTON_INVALID, _sapp_x11_mods(event->xcrossing.state));
             }
             break;
         case LeaveNotify:
             if (0 == _sapp.x11.mouse_buttons) {
+                _sapp_x11_mouse_update(event->xcrossing.x, event->xcrossing.y);
                 _sapp_x11_mouse_event(SAPP_EVENTTYPE_MOUSE_LEAVE, SAPP_MOUSEBUTTON_INVALID, _sapp_x11_mods(event->xcrossing.state));
             }
             break;
         case MotionNotify:
             if (!_sapp.mouse.locked) {
-                const float new_x = (float) event->xmotion.x;
-                const float new_y = (float) event->xmotion.y;
-                if (_sapp.mouse.pos_valid) {
-                    _sapp.mouse.dx = new_x - _sapp.mouse.x;
-                    _sapp.mouse.dy = new_y - _sapp.mouse.y;
-                }
-                _sapp.mouse.x = new_x;
-                _sapp.mouse.y = new_y;
-                _sapp.mouse.pos_valid = true;
+                _sapp_x11_mouse_update(event->xmotion.x, event->xmotion.y);
                 _sapp_x11_mouse_event(SAPP_EVENTTYPE_MOUSE_MOVE, SAPP_MOUSEBUTTON_INVALID, _sapp_x11_mods(event->xmotion.state));
             }
             break;
@@ -11504,7 +11536,7 @@ _SOKOL_PRIVATE void _sapp_x11_process_event(XEvent* event) {
                     XEvent reply;
                     _sapp_clear(&reply, sizeof(reply));
                     reply.type = ClientMessage;
-                    reply.xclient.window = _sapp.x11.window;
+                    reply.xclient.window = _sapp.x11.xdnd.source;
                     reply.xclient.message_type = _sapp.x11.xdnd.XdndFinished;
                     reply.xclient.format = 32;
                     reply.xclient.data.l[0] = (long)_sapp.x11.window;
@@ -11559,7 +11591,7 @@ _SOKOL_PRIVATE void _sapp_x11_process_event(XEvent* event) {
                     XEvent reply;
                     _sapp_clear(&reply, sizeof(reply));
                     reply.type = ClientMessage;
-                    reply.xclient.window = _sapp.x11.window;
+                    reply.xclient.window = _sapp.x11.xdnd.source;
                     reply.xclient.message_type = _sapp.x11.xdnd.XdndFinished;
                     reply.xclient.format = 32;
                     reply.xclient.data.l[0] = (long)_sapp.x11.window;
@@ -12159,15 +12191,15 @@ SOKOL_API_IMPL void sapp_html5_fetch_dropped_file(const sapp_html5_fetch_request
     SOKOL_ASSERT(_sapp.drop.enabled);
     SOKOL_ASSERT(request);
     SOKOL_ASSERT(request->callback);
-    SOKOL_ASSERT(request->buffer_ptr);
-    SOKOL_ASSERT(request->buffer_size > 0);
+    SOKOL_ASSERT(request->buffer.ptr);
+    SOKOL_ASSERT(request->buffer.size > 0);
     #if defined(_SAPP_EMSCRIPTEN)
         const int index = request->dropped_file_index;
         sapp_html5_fetch_error error_code = SAPP_HTML5_FETCH_ERROR_NO_ERROR;
         if ((index < 0) || (index >= _sapp.drop.num_files)) {
             error_code = SAPP_HTML5_FETCH_ERROR_OTHER;
         }
-        if (sapp_html5_get_dropped_file_size(index) > request->buffer_size) {
+        if (sapp_html5_get_dropped_file_size(index) > request->buffer.size) {
             error_code = SAPP_HTML5_FETCH_ERROR_BUFFER_TOO_SMALL;
         }
         if (SAPP_HTML5_FETCH_ERROR_NO_ERROR != error_code) {
@@ -12176,15 +12208,15 @@ SOKOL_API_IMPL void sapp_html5_fetch_dropped_file(const sapp_html5_fetch_request
                 (int)error_code,
                 request->callback,
                 0, // fetched_size
-                request->buffer_ptr,
-                request->buffer_size,
+                (void*)request->buffer.ptr,
+                request->buffer.size,
                 request->user_data);
         }
         else {
             sapp_js_fetch_dropped_file(index,
                 request->callback,
-                request->buffer_ptr,
-                request->buffer_size,
+                (void*)request->buffer.ptr,
+                request->buffer.size,
                 request->user_data);
         }
     #else

@@ -214,7 +214,6 @@ const Memory = @import("Memory.zig");
 const Clock  = @import("Clock.zig");
 const Beeper = @import("Beeper.zig");
 const KeyBuffer = @import("KeyBuffer.zig");
-const meta = @import("std").meta;
 
 const KC85 = @This();
 
@@ -581,13 +580,13 @@ const ExpansionSystem = struct {
 
 // audio output callback, called to push samples into host audio backend
 const AudioFunc = struct {
-    func: meta.FnPtr(fn(samples: []const f32, userdata: usize) void),
+    func: *const fn(samples: []const f32, userdata: usize) void,
     userdata: usize = 0,
 };
 
 // callback to apply patches after a snapshot is loaded
 const PatchFunc = struct {
-    func: meta.FnPtr(fn(snapshot_name: []const u8, userdata: usize) void),
+    func: *const fn(snapshot_name: []const u8, userdata: usize) void,
     userdata: usize = 0,
 };
 
