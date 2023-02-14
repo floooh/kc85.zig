@@ -1,7 +1,6 @@
 // machine generated, do not edit
 
 const builtin = @import("builtin");
-const meta = @import("std").meta;
 const sg = @import("gfx.zig");
 
 // helper function to convert a C string to a Zig string slice
@@ -20,10 +19,7 @@ pub fn asRange(val: anytype) Range {
             }
         },
         .Struct, .Array => {
-            switch (builtin.zig_backend) {
-                .stage1 => return .{ .ptr = &val, .size = @sizeOf(@TypeOf(val)) },
-                else => @compileError("Structs and arrays must be passed as pointers to asRange"),
-            }
+            @compileError("Structs and arrays must be passed as pointers to asRange");
         },
         else => {
             @compileError("Cannot convert to range!");

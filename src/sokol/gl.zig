@@ -1,13 +1,25 @@
 // machine generated, do not edit
 
 const builtin = @import("builtin");
-const meta = @import("std").meta;
 const sg = @import("gfx.zig");
 
 // helper function to convert a C string to a Zig string slice
 fn cStrToZig(c_str: [*c]const u8) [:0]const u8 {
   return @import("std").mem.span(c_str);
 }
+pub const LogItem = enum(i32) {
+    OK,
+    MALLOC_FAILED,
+    MAKE_PIPELINE_FAILED,
+    PIPELINE_POOL_EXHAUSTED,
+    ADD_COMMIT_LISTENER_FAILED,
+    CONTEXT_POOL_EXHAUSTED,
+    CANNOT_DESTROY_DEFAULT_CONTEXT,
+};
+pub const Logger = extern struct {
+    func: ?*const fn([*c]const u8, u32, u32, [*c]const u8, u32, [*c]const u8, ?*anyopaque) callconv(.C) void = null,
+    user_data: ?*anyopaque = null,
+};
 pub const Pipeline = extern struct {
     id: u32 = 0,
 };
@@ -31,12 +43,8 @@ pub const ContextDesc = extern struct {
     sample_count: i32 = 0,
 };
 pub const Allocator = extern struct {
-    alloc: ?meta.FnPtr(fn(usize, ?*anyopaque) callconv(.C) ?*anyopaque) = null,
-    free: ?meta.FnPtr(fn(?*anyopaque, ?*anyopaque) callconv(.C) void) = null,
-    user_data: ?*anyopaque = null,
-};
-pub const Logger = extern struct {
-    log_cb: ?meta.FnPtr(fn([*c]const u8, ?*anyopaque) callconv(.C) void) = null,
+    alloc: ?*const fn(usize, ?*anyopaque) callconv(.C) ?*anyopaque = null,
+    free: ?*const fn(?*anyopaque, ?*anyopaque) callconv(.C) void = null,
     user_data: ?*anyopaque = null,
 };
 pub const Desc = extern struct {
@@ -95,6 +103,22 @@ pub extern fn sgl_default_context() Context;
 pub fn defaultContext() Context {
     return sgl_default_context();
 }
+pub extern fn sgl_draw() void;
+pub fn draw() void {
+    sgl_draw();
+}
+pub extern fn sgl_context_draw(Context) void;
+pub fn contextDraw(ctx: Context) void {
+    sgl_context_draw(ctx);
+}
+pub extern fn sgl_draw_layer(i32) void;
+pub fn drawLayer(layer_id: i32) void {
+    sgl_draw_layer(layer_id);
+}
+pub extern fn sgl_context_draw_layer(Context, i32) void;
+pub fn contextDrawLayer(ctx: Context, layer_id: i32) void {
+    sgl_context_draw_layer(ctx, layer_id);
+}
 pub extern fn sgl_make_pipeline([*c]const sg.PipelineDesc) Pipeline;
 pub fn makePipeline(desc: sg.PipelineDesc) Pipeline {
     return sgl_make_pipeline(&desc);
@@ -138,6 +162,10 @@ pub fn disableTexture() void {
 pub extern fn sgl_texture(sg.Image) void;
 pub fn texture(img: sg.Image) void {
     sgl_texture(img);
+}
+pub extern fn sgl_layer(i32) void;
+pub fn layer(layer_id: i32) void {
+    sgl_layer(layer_id);
 }
 pub extern fn sgl_load_default_pipeline() void;
 pub fn loadDefaultPipeline() void {
@@ -374,12 +402,4 @@ pub fn v3fT2fC1i(x: f32, y: f32, z: f32, u: f32, v: f32, rgba: u32) void {
 pub extern fn sgl_end() void;
 pub fn end() void {
     sgl_end();
-}
-pub extern fn sgl_draw() void;
-pub fn draw() void {
-    sgl_draw();
-}
-pub extern fn sgl_context_draw(Context) void;
-pub fn contextDraw(ctx: Context) void {
-    sgl_context_draw(ctx);
 }

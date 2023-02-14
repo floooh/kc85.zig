@@ -34,7 +34,7 @@ fn addKC85(b: *Builder, sokol: *LibExeObjStep, target: CrossTarget, mode: Mode, 
     const exe_options = b.addOptions();
     exe.addOptions("build_options", exe_options);
     exe_options.addOption(KC85Model, "kc85_model", kc85_model);
-    
+
     const pkg_sokol = Pkg{
         .name = "sokol",
         .source = .{ .path = "src/sokol/sokol.zig" }
@@ -135,6 +135,7 @@ fn buildSokol(b: *Builder, target: CrossTarget, mode: Mode, comptime prefix_path
         "sokol_gfx.c",
         "sokol_time.c",
         "sokol_audio.c",
+        "sokol_log.c",
     };
     if (lib.target.isDarwin()) {
         inline for (csources) |csrc| {

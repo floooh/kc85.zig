@@ -2,9 +2,12 @@
 //  Audio host bindings via sokol_audio.h
 //
 const saudio = @import("sokol").audio;
+const slog = @import("sokol").log;
 
 pub fn setup() void {
-    saudio.setup(.{});
+    saudio.setup(.{
+        .logger = .{ .func = slog.func },
+    });
 }
 
 pub fn shutdown() void {

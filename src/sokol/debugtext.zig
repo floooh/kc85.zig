@@ -1,7 +1,6 @@
 // machine generated, do not edit
 
 const builtin = @import("builtin");
-const meta = @import("std").meta;
 const sg = @import("gfx.zig");
 
 // helper function to convert a C string to a Zig string slice
@@ -20,10 +19,7 @@ pub fn asRange(val: anytype) Range {
             }
         },
         .Struct, .Array => {
-            switch (builtin.zig_backend) {
-                .stage1 => return .{ .ptr = &val, .size = @sizeOf(@TypeOf(val)) },
-                else => @compileError("Structs and arrays must be passed as pointers to asRange"),
-            }
+            @compileError("Structs and arrays must be passed as pointers to asRange");
         },
         else => {
             @compileError("Cannot convert to range!");
@@ -54,6 +50,18 @@ pub fn print(comptime fmt: anytype, args: anytype) void {
     @import("std").fmt.format(writer, fmt, args) catch {};
 }
 
+pub const LogItem = enum(i32) {
+    OK,
+    MALLOC_FAILED,
+    ADD_COMMIT_LISTENER_FAILED,
+    COMMAND_BUFFER_FULL,
+    CONTEXT_POOL_EXHAUSTED,
+    CANNOT_DESTROY_DEFAULT_CONTEXT,
+};
+pub const Logger = extern struct {
+    func: ?*const fn([*c]const u8, u32, u32, [*c]const u8, u32, [*c]const u8, ?*anyopaque) callconv(.C) void = null,
+    user_data: ?*anyopaque = null,
+};
 pub const Context = extern struct {
     id: u32 = 0,
 };
@@ -67,6 +75,7 @@ pub const FontDesc = extern struct {
     last_char: u8 = 0,
 };
 pub const ContextDesc = extern struct {
+    max_commands: i32 = 0,
     char_buf_size: i32 = 0,
     canvas_width: f32 = 0.0,
     canvas_height: f32 = 0.0,
@@ -76,12 +85,8 @@ pub const ContextDesc = extern struct {
     sample_count: i32 = 0,
 };
 pub const Allocator = extern struct {
-    alloc: ?meta.FnPtr(fn(usize, ?*anyopaque) callconv(.C) ?*anyopaque) = null,
-    free: ?meta.FnPtr(fn(?*anyopaque, ?*anyopaque) callconv(.C) void) = null,
-    user_data: ?*anyopaque = null,
-};
-pub const Logger = extern struct {
-    log_cb: ?meta.FnPtr(fn([*c]const u8, ?*anyopaque) callconv(.C) void) = null,
+    alloc: ?*const fn(usize, ?*anyopaque) callconv(.C) ?*anyopaque = null,
+    free: ?*const fn(?*anyopaque, ?*anyopaque) callconv(.C) void = null,
     user_data: ?*anyopaque = null,
 };
 pub const Desc = extern struct {
@@ -147,6 +152,22 @@ pub fn defaultContext() Context {
 pub extern fn sdtx_draw() void;
 pub fn draw() void {
     sdtx_draw();
+}
+pub extern fn sdtx_context_draw(Context) void;
+pub fn contextDraw(ctx: Context) void {
+    sdtx_context_draw(ctx);
+}
+pub extern fn sdtx_draw_layer(i32) void;
+pub fn drawLayer(layer_id: i32) void {
+    sdtx_draw_layer(layer_id);
+}
+pub extern fn sdtx_context_draw_layer(Context, i32) void;
+pub fn contextDrawLayer(ctx: Context, layer_id: i32) void {
+    sdtx_context_draw_layer(ctx, layer_id);
+}
+pub extern fn sdtx_layer(i32) void;
+pub fn layer(layer_id: i32) void {
+    sdtx_layer(layer_id);
 }
 pub extern fn sdtx_font(u32) void;
 pub fn font(font_index: u32) void {

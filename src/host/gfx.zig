@@ -2,6 +2,7 @@
 //  Graphics host bindings (via sokol-gfx)
 //
 const sokol = @import("sokol");
+const slog  = sokol.log;
 const sg    = sokol.gfx;
 const sapp  = sokol.app;
 const sgapp = sokol.app_gfx_glue;
@@ -44,6 +45,7 @@ pub fn setup() void {
         .pipeline_pool_size = 8,
         .context_pool_size = 1,
         .context = sgapp.context(),
+        .logger = .{ .func = slog.func },
     });
 
     state.upscale.pass_action.colors[0] = .{ .action = .DONTCARE };

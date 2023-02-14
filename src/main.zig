@@ -1,6 +1,6 @@
 //
 //  KC85 emulator main loop and host bindings
-//  
+//
 
 const build_options = @import("build_options");
 const std   = @import("std");
@@ -8,6 +8,7 @@ const warn  = std.log.warn;
 const mem   = std.mem;
 const fs    = std.fs;
 const sapp  = @import("sokol").app;
+const slog  = @import("sokol").log;
 const host  = @import("host");
 const gfx   = host.gfx;
 const audio = host.audio;
@@ -38,7 +39,7 @@ const max_file_size = 64 * 1024;
 pub fn main() !void {
     state.arena = std.heap.ArenaAllocator.init(std.heap.c_allocator);
     defer state.arena.deinit();
-    
+
     // parse arguments
     state.args = Args.parse(state.arena.allocator()) catch {
         warn("Failed to parse arguments\n", .{});
@@ -64,6 +65,9 @@ pub fn main() !void {
             .KC85_2 => "KC85/2",
             .KC85_3 => "KC85/3",
             .KC85_4 => "KC85/4"
+        },
+        .logger = .{
+            .func = slog.func,
         }
     });
 }
@@ -72,7 +76,7 @@ export fn init() void {
     gfx.setup();
     audio.setup();
     time.setup();
-    
+
     // setup KC85 emulator instance
     state.kc = KC85.create(state.arena.allocator(), .{
         .pixel_buffer = gfx.pixel_buffer[0..],
@@ -106,7 +110,7 @@ export fn init() void {
             };
         }
     }
-    
+
     // preload the KCC or TAP file image, this will be loaded later when the
     // system has finished booting
     if (state.args.file) |path| {
