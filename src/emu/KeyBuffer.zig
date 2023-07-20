@@ -1,5 +1,5 @@
 //
-//  A simple keyboard buffer which keeps keys pressed for a minimal 
+//  A simple keyboard buffer which keeps keys pressed for a minimal
 //  amount of time so that the emulated computer system has enough
 //  time to for scanning the keyboard state.
 //

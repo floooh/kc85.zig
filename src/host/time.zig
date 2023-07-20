@@ -28,10 +28,10 @@ pub fn frameTime() u32 {
     if (state.cur_frame_time > 24000) {
         state.cur_frame_time = 24000;
     }
-    return @floatToInt(u32, state.cur_frame_time);
+    return @as(u32, @intFromFloat(state.cur_frame_time));
 }
 
 pub fn elapsed(micro_seconds: u64) bool {
-    const elapsed_us = @floatToInt(u64, stm.us(stm.since(state.start_time)));
+    const elapsed_us = @as(u64, @intFromFloat(stm.us(stm.since(state.start_time))));
     return elapsed_us > micro_seconds;
 }

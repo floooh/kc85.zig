@@ -8,15 +8,15 @@ state: u8 = 0,
 vector: u8 = 0,
 
 // shared pins relevant for interrupt handling
-pub const M1:   u64 = 1<<24;    // machine cycle 1
-pub const IORQ: u64 = 1<<26;    // IO request
-pub const INT:  u64 = 1<<31;    // maskable interrupt requested
-pub const IEIO: u64 = 1<<37;    // interrupt daisy chain: interrupt-enable-I/O
-pub const RETI: u64 = 1<<38;    // interrupt daisy chain: RETI decoded
+pub const M1: u64 = 1 << 24; // machine cycle 1
+pub const IORQ: u64 = 1 << 26; // IO request
+pub const INT: u64 = 1 << 31; // maskable interrupt requested
+pub const IEIO: u64 = 1 << 37; // interrupt daisy chain: interrupt-enable-I/O
+pub const RETI: u64 = 1 << 38; // interrupt daisy chain: RETI decoded
 
-pub const INT_NEEDED:       u3 = 1<<0;  // interrupt request needed
-pub const INT_REQUESTED:    u3 = 1<<1;  // interrupt request issued, waiting for ACK from CPU
-pub const INT_SERVICING:    u3 = 1<<2;  // interrupt was acknoledged, now serving 
+pub const INT_NEEDED: u3 = 1 << 0; // interrupt request needed
+pub const INT_REQUESTED: u3 = 1 << 1; // interrupt request issued, waiting for ACK from CPU
+pub const INT_SERVICING: u3 = 1 << 2; // interrupt was acknoledged, now serving
 
 // reset the daisychain state
 pub fn reset(self: *DaisyChain) void {
@@ -42,12 +42,12 @@ pub fn tick(self: *DaisyChain, in_pins: u64) u64 {
     //
     // - if an interrupt has been requested but not ackowledged by
     //   the CPU because interrupts are disabled, the RETI state
-    //   must be passed to downstream devices. If a RETI is 
+    //   must be passed to downstream devices. If a RETI is
     //   received in the interrupt-requested state, the IEIO
     //   pin will be set to active, so that downstream devices
     //   get a chance to decode the RETI
     //
-    
+
     // if any higher priority device in the daisy chain has cleared
     // the IEIO pin, skip interrupt handling
     //
@@ -73,7 +73,7 @@ pub fn tick(self: *DaisyChain, in_pins: u64) u64 {
             self.state |= INT_REQUESTED;
         }
         // need to place interrupt vector on data bus?
-        if ((pins & (IORQ|M1)) == (IORQ|M1)) {
+        if ((pins & (IORQ | M1)) == (IORQ | M1)) {
             // CPU has acknowledged the interrupt, place interrupt vector on data bus
             pins = setData(pins, self.vector);
             self.state &= ~INT_REQUESTED;

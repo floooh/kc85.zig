@@ -2,10 +2,10 @@
 //  Graphics host bindings (via sokol-gfx)
 //
 const sokol = @import("sokol");
-const sg    = sokol.gfx;
-const sapp  = sokol.app;
+const sg = sokol.gfx;
+const sapp = sokol.app;
 const sgapp = sokol.app_gfx_glue;
-const shd   = @import("shaders/shaders.glsl.zig");
+const shd = @import("shaders/shaders.glsl.zig");
 
 const KC85DisplayWidth = 320;
 const KC85DisplayHeight = 256;
@@ -21,16 +21,16 @@ pub var pixel_buffer: [KC85NumPixels]u32 = undefined;
 
 const state = struct {
     const upscale = struct {
-        var pip:         sg.Pipeline = .{ };
-        var bind:        sg.Bindings = .{ };
-        var pass:        sg.Pass = .{ };
-        var pass_action: sg.PassAction = .{ };
+        var pip: sg.Pipeline = .{};
+        var bind: sg.Bindings = .{};
+        var pass: sg.Pass = .{};
+        var pass_action: sg.PassAction = .{};
     };
 
     const display = struct {
-        var pip:         sg.Pipeline = .{ };
-        var bind:        sg.Bindings = .{ };
-        var pass_action: sg.PassAction = .{ };
+        var pip: sg.Pipeline = .{};
+        var bind: sg.Bindings = .{};
+        var pass_action: sg.PassAction = .{};
     };
 };
 
@@ -47,7 +47,7 @@ pub fn setup() void {
     });
 
     state.upscale.pass_action.colors[0] = .{ .action = .DONTCARE };
-    state.display.pass_action.colors[0] = .{ .action = .CLEAR, .value = .{ .r=0.05, .g=0.05, .b=0.05, .a=1.0 } };
+    state.display.pass_action.colors[0] = .{ .action = .CLEAR, .value = .{ .r = 0.05, .g = 0.05, .b = 0.05, .a = 1.0 } };
 
     // fullscreen triangle vertices
     const verts = [_]f32{
@@ -55,12 +55,8 @@ pub fn setup() void {
         2.0, 0.0,
         0.0, 2.0,
     };
-    state.upscale.bind.vertex_buffers[0] = sg.makeBuffer(.{
-        .data = sg.asRange(&verts)
-    });
-    state.display.bind.vertex_buffers[0] = sg.makeBuffer(.{
-        .data = sg.asRange(&verts)
-    });
+    state.upscale.bind.vertex_buffers[0] = sg.makeBuffer(.{ .data = sg.asRange(&verts) });
+    state.display.bind.vertex_buffers[0] = sg.makeBuffer(.{ .data = sg.asRange(&verts) });
 
     // 2 pipeline state objects for rendering to display and upscaling
     var pip_desc = sg.PipelineDesc{
@@ -74,30 +70,13 @@ pub fn setup() void {
     state.upscale.pip = sg.makePipeline(pip_desc);
 
     // a texture with the emulator's raw pixel data
-    state.upscale.bind.fs_images[0] = sg.makeImage(.{
-        .width = KC85DisplayWidth,
-        .height = KC85DisplayHeight,
-        .pixel_format = .RGBA8,
-        .usage = .STREAM,
-        .min_filter = .NEAREST,
-        .mag_filter = .NEAREST,
-        .wrap_u = .CLAMP_TO_EDGE,
-        .wrap_v = .CLAMP_TO_EDGE
-    });
+    state.upscale.bind.fs_images[0] = sg.makeImage(.{ .width = KC85DisplayWidth, .height = KC85DisplayHeight, .pixel_format = .RGBA8, .usage = .STREAM, .min_filter = .NEAREST, .mag_filter = .NEAREST, .wrap_u = .CLAMP_TO_EDGE, .wrap_v = .CLAMP_TO_EDGE });
 
     // a 2x upscaled render target texture
-    state.display.bind.fs_images[0] = sg.makeImage(.{
-        .render_target = true,
-        .width = 2 * KC85DisplayWidth,
-        .height = 2 * KC85DisplayHeight,
-        .min_filter = .LINEAR,
-        .mag_filter = .LINEAR,
-        .wrap_u = .CLAMP_TO_EDGE,
-        .wrap_v = .CLAMP_TO_EDGE
-    });
+    state.display.bind.fs_images[0] = sg.makeImage(.{ .render_target = true, .width = 2 * KC85DisplayWidth, .height = 2 * KC85DisplayHeight, .min_filter = .LINEAR, .mag_filter = .LINEAR, .wrap_u = .CLAMP_TO_EDGE, .wrap_v = .CLAMP_TO_EDGE });
 
     // a render pass for 2x upscaling
-    var pass_desc = sg.PassDesc{ };
+    var pass_desc = sg.PassDesc{};
     pass_desc.color_attachments[0].image = state.display.bind.fs_images[0];
     state.upscale.pass = sg.makePass(pass_desc);
 }
@@ -108,7 +87,7 @@ pub fn shutdown() void {
 
 pub fn draw() void {
     // copy emulator pixel data into upscaling source texture
-    var image_data = sg.ImageData{ };
+    var image_data = sg.ImageData{};
     image_data.subimage[0][0] = sg.asRange(&pixel_buffer);
     sg.updateImage(state.upscale.bind.fs_images[0], image_data);
 
@@ -146,8 +125,7 @@ fn applyViewport(canvas_width: f32, canvas_height: f32) void {
         vp_h = canvas_height - (2.0 * frame_y);
         vp_w = (canvas_height * fb_aspect) - (2.0 * frame_x);
         vp_x = (canvas_width - vp_w) / 2.0;
-    }
-    else {
+    } else {
         vp_x = frame_x;
         vp_w = canvas_width - (2.0 * frame_x);
         vp_h = (canvas_width / fb_aspect) - (2.0 * frame_y);

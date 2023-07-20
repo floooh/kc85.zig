@@ -41,8 +41,8 @@ pub fn r16(self: *Memory, addr: u16) u16 {
 
 /// write a 16-bit value to mapped memory
 pub fn w16(self: *Memory, addr: u16, val: u16) void {
-    self.w8(addr, @truncate(u8, val));
-    self.w8(addr +% 1, @truncate(u8, val >> 8));
+    self.w8(addr, @as(u8, @truncate(val)));
+    self.w8(addr +% 1, @as(u8, @truncate(val >> 8)));
 }
 
 /// write a whole range of bytes to mapped memory
@@ -56,7 +56,7 @@ pub fn writeBytes(self: *Memory, addr: u16, bytes: []const u8) void {
 
 /// unmap one memory bank
 pub fn unmapBank(self: *Memory, bank_index: usize) void {
-    for (self.banks[bank_index]) |*page, page_index| {
+    for (self.banks[bank_index], 0..) |*page, page_index| {
         page.read = null;
         page.write = null;
         self.updatePage(page_index);
@@ -71,7 +71,7 @@ pub fn unmapAll(self: *Memory) void {
             page.write = null;
         }
     }
-    for (self.pages) |_, page_index| {
+    for (self.pages, 0..) |_, page_index| {
         self.updatePage(page_index);
     }
 }
@@ -79,7 +79,7 @@ pub fn unmapAll(self: *Memory) void {
 // a memory bank page with optional mappings to host memory
 const BankPage = struct {
     read: ?[]const u8 = null,
-    write: ?[] u8 = null,
+    write: ?[]u8 = null,
 };
 
 // a CPU visible memory page with guaranteed mappings
@@ -88,13 +88,13 @@ const Page = struct {
     write: []u8 = &junk_page,
 };
 
-const page_shift = 10;      // page size is 1 KB
-const page_size = 1<<page_shift;
+const page_shift = 10; // page size is 1 KB
+const page_size = 1 << page_shift;
 const page_mask = page_size - 1;
-const addr_range = 1<<16;
+const addr_range = 1 << 16;
 const addr_mask = addr_range - 1;
 const num_pages = addr_range / page_size;
-const num_banks = 4;        // max number of memory bank layers
+const num_banks = 4; // max number of memory bank layers
 
 // dummy pages for unmapped reads and writes
 const unmapped_page: [page_size]u8 = [_]u8{0xFF} ** page_size;
@@ -102,24 +102,22 @@ var junk_page: [page_size]u8 = [_]u8{0} ** page_size;
 
 // internal memory mapping function for RAM, ROM and separate RW areas
 fn map(self: *Memory, bank_index: usize, addr: u16, size: usize, read: ?[]const u8, write: ?[]u8) void {
-    assert((addr & page_mask) == 0);    // start address must be at page boundary
-    assert((size & page_mask) == 0);    // size must be multiple of page size
+    assert((addr & page_mask) == 0); // start address must be at page boundary
+    assert((size & page_mask) == 0); // size must be multiple of page size
     assert((read != null) or (write != null));
 
     var offset: usize = 0;
-    while (offset < size): (offset += page_size) {
+    while (offset < size) : (offset += page_size) {
         const page_index = ((addr + offset) & addr_mask) >> page_shift;
         const bank = &self.banks[bank_index][page_index];
         if (read) |r| {
-            bank.read = r[offset .. (offset + page_size)];
-        }
-        else {
+            bank.read = r[offset..(offset + page_size)];
+        } else {
             bank.read = null;
         }
         if (write) |w| {
-            bank.write = w[offset .. (offset + page_size)];
-        }
-        else {
+            bank.write = w[offset..(offset + page_size)];
+        } else {
             bank.write = null;
         }
         self.updatePage(page_index);
@@ -138,8 +136,7 @@ fn updatePage(self: *Memory, page_index: usize) void {
             };
             break;
         }
-    }
-    else {
+    } else {
         // fallthrough: no mapped bank page found
         self.pages[page_index] = .{
             .read = &unmapped_page,
@@ -171,7 +168,7 @@ test "RAM mapping" {
 
     // map the first 32 KB of the address range as RAM
     mem.mapRAM(0, 0x0000, ram[0..0x8000]);
-    for (mem.pages) |page, i| {
+    for (mem.pages, 0..) |page, i| {
         if (i < 32) {
             try expect(&page.read[0] == &ram[i * page_size]);
             try expect(&page.write[0] == &ram[i * page_size]);
@@ -180,8 +177,7 @@ test "RAM mapping" {
             try expect(page.read[1023] == 23);
             try expect(page.write[0] == 23);
             try expect(page.write[1023] == 23);
-        }
-        else {
+        } else {
             try expect(&page.read[0] == &unmapped_page[0]);
             try expect(&page.write[0] == &junk_page[0]);
             try expect(page.read[0] == 0xFF);

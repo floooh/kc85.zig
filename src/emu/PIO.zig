@@ -5,9 +5,9 @@ const DaisyChain = @import("DaisyChain.zig");
 const PIO = @This();
 
 ports: [NumPorts]Port = [_]Port{.{}} ** NumPorts,
-reset_active: bool = true,  // reset state sticks until first control word received
-in_func: PortInput,         // port-input callback
-out_func: PortOutput,       // port-output callback
+reset_active: bool = true, // reset state sticks until first control word received
+in_func: PortInput, // port-input callback
+out_func: PortOutput, // port-output callback
 
 // reset the PIO chip
 pub fn reset(self: *PIO) void {
@@ -29,20 +29,18 @@ pub fn reset(self: *PIO) void {
 // perform an IO request
 pub fn iorq(self: *PIO, in_pins: u64) u64 {
     var pins = in_pins;
-    if ((pins & (CE|IORQ|M1)) == (CE|IORQ)) {
-        const port_index = @truncate(u1, (pins & BASEL) >> BASELPinShift);
+    if ((pins & (CE | IORQ | M1)) == (CE | IORQ)) {
+        const port_index = @as(u1, @truncate((pins & BASEL) >> BASELPinShift));
         if (0 != (pins & RD)) {
             // an IO read request
             const data = if (0 != (pins & CDSEL)) self.readCtrl() else self.readData(port_index);
             pins = setData(pins, data);
-        }
-        else {
+        } else {
             // an IO write request
             const data = getData(pins);
             if (0 != (pins & CDSEL)) {
                 self.writeCtrl(port_index, data);
-            }
-            else {
+            } else {
                 self.writeData(port_index, data);
             }
         }
@@ -63,10 +61,15 @@ pub fn writePort(self: *PIO, port_index: u1, data: u8) void {
         val &= mask;
 
         const ictrl = p.int_control & 0x60;
-        if ((ictrl == 0) and (val != mask)) { match = true; }
-        else if ((ictrl == 0x20) and (val != 0)) { match = true; }
-        else if ((ictrl == 0x40) and (val == 0)) { match = true; }
-        else if ((ictrl == 0x60) and (val == mask)) { match = true; }
+        if ((ictrl == 0) and (val != mask)) {
+            match = true;
+        } else if ((ictrl == 0x20) and (val != 0)) {
+            match = true;
+        } else if ((ictrl == 0x40) and (val == 0)) {
+            match = true;
+        } else if ((ictrl == 0x60) and (val == mask)) {
+            match = true;
+        }
         if (!p.bctrl_match and match and (0 != (p.int_control & 0x80))) {
             // request interrupt
             p.intr.irq();
@@ -91,17 +94,17 @@ pub fn setData(pins: u64, data: u8) u64 {
 
 // get data pins in pin mask
 pub fn getData(pins: u64) u8 {
-    return @truncate(u8, pins >> DataPinShift);
+    return @as(u8, @truncate(pins >> DataPinShift));
 }
 
 // set port A pins
 pub fn setPA(pins: u64, data: u8) u64 {
-    return (pins & ~PAPinMask) | ((@as(u64, data)<<PAPinShift) & PAPinMask);
+    return (pins & ~PAPinMask) | ((@as(u64, data) << PAPinShift) & PAPinMask);
 }
 
 // set port B pins
 pub fn setPB(pins: u64, data: u8) u64 {
-    return (pins & ~PBPinMask) | ((@as(u64, data)<<PBPinShift) & PBPinMask);
+    return (pins & ~PBPinMask) | ((@as(u64, data) << PBPinShift) & PBPinMask);
 }
 
 // set both port A and B pins
@@ -110,51 +113,51 @@ pub fn setPAB(pins: u64, pa_data: u8, pb_data: u8) u64 {
 }
 
 // data bus pins shared with CPU
-pub const D0: u64 = 1<<16;
-pub const D1: u64 = 1<<17;
-pub const D2: u64 = 1<<18;
-pub const D3: u64 = 1<<19;
-pub const D4: u64 = 1<<20;
-pub const D5: u64 = 1<<21;
-pub const D6: u64 = 1<<22;
-pub const D7: u64 = 1<<23;
+pub const D0: u64 = 1 << 16;
+pub const D1: u64 = 1 << 17;
+pub const D2: u64 = 1 << 18;
+pub const D3: u64 = 1 << 19;
+pub const D4: u64 = 1 << 20;
+pub const D5: u64 = 1 << 21;
+pub const D6: u64 = 1 << 22;
+pub const D7: u64 = 1 << 23;
 pub const DataPinShift = 16;
 pub const DataPinMask: u64 = 0xFF0000;
 
 // control pins shared with CPU
-pub const M1:       u64 = 1<<24;    // machine cycle 1
-pub const IORQ:     u64 = 1<<26;    // IO request
-pub const RD:       u64 = 1<<27;    // read request
+pub const M1: u64 = 1 << 24; // machine cycle 1
+pub const IORQ: u64 = 1 << 26; // IO request
+pub const RD: u64 = 1 << 27; // read request
 
 // PIO specific pins starting at bit 40
-pub const CE:       u64 = 1<<40;    // chip enable
-pub const BASEL:    u64 = 1<<41;    // port A/B select (0: A, 1: B)
-pub const CDSEL:    u64 = 1<<42;    // control/data select (0: data, 1: control)
-pub const ARDY:     u64 = 1<<43;    // port A ready
-pub const BRDY:     u64 = 1<<44;    // port B ready
-pub const ASTB:     u64 = 1<<45;    // port A strobe
-pub const BSTB:     u64 = 1<<46;    // port B strobe
+pub const CE: u64 = 1 << 40; // chip enable
+pub const BASEL: u64 = 1 << 41; // port A/B select (0: A, 1: B)
+pub const CDSEL: u64 = 1 << 42; // control/data select (0: data, 1: control)
+pub const ARDY: u64 = 1 << 43; // port A ready
+pub const BRDY: u64 = 1 << 44; // port B ready
+pub const ASTB: u64 = 1 << 45; // port A strobe
+pub const BSTB: u64 = 1 << 46; // port B strobe
 
 pub const BASELPinShift = 41;
 
 // port pins
-pub const PA0:      u64 = 1<<48;
-pub const PA1:      u64 = 1<<49;
-pub const PA2:      u64 = 1<<50;
-pub const PA3:      u64 = 1<<51;
-pub const PA4:      u64 = 1<<52;
-pub const PA5:      u64 = 1<<53;
-pub const PA6:      u64 = 1<<54;
-pub const PA7:      u64 = 1<<55;
+pub const PA0: u64 = 1 << 48;
+pub const PA1: u64 = 1 << 49;
+pub const PA2: u64 = 1 << 50;
+pub const PA3: u64 = 1 << 51;
+pub const PA4: u64 = 1 << 52;
+pub const PA5: u64 = 1 << 53;
+pub const PA6: u64 = 1 << 54;
+pub const PA7: u64 = 1 << 55;
 
-pub const PB0:      u64 = 1<<56;
-pub const PB1:      u64 = 1<<57;
-pub const PB2:      u64 = 1<<58;
-pub const PB3:      u64 = 1<<59;
-pub const PB4:      u64 = 1<<60;
-pub const PB5:      u64 = 1<<61;
-pub const PB6:      u64 = 1<<62;
-pub const PB7:      u64 = 1<<63;
+pub const PB0: u64 = 1 << 56;
+pub const PB1: u64 = 1 << 57;
+pub const PB2: u64 = 1 << 58;
+pub const PB3: u64 = 1 << 59;
+pub const PB4: u64 = 1 << 60;
+pub const PB5: u64 = 1 << 61;
+pub const PB6: u64 = 1 << 62;
+pub const PB7: u64 = 1 << 63;
 
 pub const PAPinMask: u64 = 0x00FF_0000_0000_0000;
 pub const PBPinMask: u64 = 0xFF00_0000_0000_0000;
@@ -178,10 +181,10 @@ pub const NumPorts: usize = 2;
 //  D3..D0  set to 1111 to indicate 'Set Mode'
 //
 pub const Mode = struct {
-    pub const OUTPUT:           u2 = 0;
-    pub const INPUT:            u2 = 1;
-    pub const BIDIRECTIONAL:    u2 = 2;
-    pub const BITCONTROL:       u2 = 3;
+    pub const OUTPUT: u2 = 0;
+    pub const INPUT: u2 = 1;
+    pub const BIDIRECTIONAL: u2 = 2;
+    pub const BITCONTROL: u2 = 3;
 };
 
 //  Interrupt control word bits.
@@ -207,37 +210,37 @@ pub const Mode = struct {
 //  |EI| x| x| x| 0| 0| 1| 1|
 //
 pub const IntCtrl = struct {
-    pub const EI:    u8 = 1<<7;
-    pub const ANDOR: u8 = 1<<6;
-    pub const HILO:  u8 = 1<<5;
-    pub const MASK_FOLLOWS: u8 = 1<<4;
+    pub const EI: u8 = 1 << 7;
+    pub const ANDOR: u8 = 1 << 6;
+    pub const HILO: u8 = 1 << 5;
+    pub const MASK_FOLLOWS: u8 = 1 << 4;
 };
 
 //
 //  IO port registers
 //
 pub const Port = struct {
-    input:            u8 = 0,           // data input register
-    output:           u8 = 0,           // data output register
-    port:             u8 = 0,           // current state of the port I/O pins
-    mode:             u2 = Mode.INPUT,  // mode control register (Mode.*)
-    io_select:        u8 = 0,           // input/output select register
-    int_control:      u8 = 0,           // interrupt control word (IntCtrl.*)
-    int_mask:         u8 = 0xFF,        // interrupt control mask
-    int_enabled:      bool = false,     // definitive interrupt enabled flag
-    expect_io_select: bool = false,     // next control word will be io_select
-    expect_int_mask:  bool = false,     // next control word will be int_mask
-    bctrl_match:      bool = false,     // bitcontrol logic equation result
-    intr:             DaisyChain = .{}, // interrupt daisychain state
+    input: u8 = 0, // data input register
+    output: u8 = 0, // data output register
+    port: u8 = 0, // current state of the port I/O pins
+    mode: u2 = Mode.INPUT, // mode control register (Mode.*)
+    io_select: u8 = 0, // input/output select register
+    int_control: u8 = 0, // interrupt control word (IntCtrl.*)
+    int_mask: u8 = 0xFF, // interrupt control mask
+    int_enabled: bool = false, // definitive interrupt enabled flag
+    expect_io_select: bool = false, // next control word will be io_select
+    expect_int_mask: bool = false, // next control word will be int_mask
+    bctrl_match: bool = false, // bitcontrol logic equation result
+    intr: DaisyChain = .{}, // interrupt daisychain state
 };
 
 // Port IO callbacks and userdata
 const PortInput = struct {
-    func: *const fn(port: u1, userdata: usize) u8,
+    func: *const fn (port: u1, userdata: usize) u8,
     userdata: usize = 0,
 };
 const PortOutput = struct {
-    func: *const fn(port: u1, data: u8, userdata: usize) void,
+    func: *const fn (port: u1, data: u8, userdata: usize) void,
     userdata: usize = 0,
 };
 
@@ -250,17 +253,15 @@ fn writeCtrl(self: *PIO, port_index: u1, data: u8) void {
         p.expect_io_select = false;
         p.io_select = data;
         p.int_enabled = 0 != (p.int_control & IntCtrl.EI);
-    }
-    else if (p.expect_int_mask) {
+    } else if (p.expect_int_mask) {
         // followup interrupt mask
         p.expect_int_mask = false;
         p.int_mask = data;
         p.int_enabled = 0 != (p.int_control & IntCtrl.EI);
-    }
-    else switch (data & 0x0F) {
+    } else switch (data & 0x0F) {
         0x0F => {
             // set operating mode (Mode.*)
-            p.mode = @truncate(u2, data >> 6);
+            p.mode = @as(u2, @truncate(data >> 6));
             switch (p.mode) {
                 Mode.OUTPUT => {
                     // make output visible on port pins
@@ -274,7 +275,7 @@ fn writeCtrl(self: *PIO, port_index: u1, data: u8) void {
                     p.int_enabled = false;
                     p.bctrl_match = false;
                 },
-                else => { },
+                else => {},
             }
         },
         0x07 => {
@@ -288,8 +289,7 @@ fn writeCtrl(self: *PIO, port_index: u1, data: u8) void {
                 // reset pending interrupt
                 p.intr.state = 0;
                 p.bctrl_match = false;
-            }
-            else {
+            } else {
                 p.int_enabled = 0 != (p.int_control & IntCtrl.EI);
             }
         },
@@ -306,7 +306,7 @@ fn writeCtrl(self: *PIO, port_index: u1, data: u8) void {
             // be mentioned in the spec
             p.int_control |= IntCtrl.EI;
             p.int_enabled = true;
-        }
+        },
     }
 }
 
@@ -337,7 +337,7 @@ fn writeData(self: *PIO, port_index: u1, data: u8) void {
             p.output = data;
             p.port = p.io_select | (p.output & ~p.io_select);
             self.out_func.func(port_index, p.port, self.out_func.userdata);
-        }
+        },
     }
 }
 
@@ -360,7 +360,7 @@ fn readData(self: *PIO, port_index: u1) u8 {
         },
         else => {
             return 0xFF;
-        }
+        },
     }
 }
 
@@ -381,8 +381,12 @@ fn in_func(port: u1, userdata: usize) u8 {
 fn out_func(port: u1, data: u8, userdata: usize) void {
     _ = userdata;
     switch (port) {
-        PA => { pa_val = data; },
-        PB => { pb_val = data; },
+        PA => {
+            pa_val = data;
+        },
+        PB => {
+            pb_val = data;
+        },
     }
 }
 
@@ -405,19 +409,19 @@ test "read_write_control" {
     try expect(0 != (pio.ports[PB].int_control & IntCtrl.EI));
 
     // set port A to output
-    pio.writeCtrl(PA, (@as(u8, Mode.OUTPUT)<<6)|0x0F);
+    pio.writeCtrl(PA, (@as(u8, Mode.OUTPUT) << 6) | 0x0F);
     try expect(pio.ports[PA].mode == Mode.OUTPUT);
 
     // set port B to input
-    pio.writeCtrl(PB, (@as(u8, Mode.INPUT)<<6)|0x0F);
+    pio.writeCtrl(PB, (@as(u8, Mode.INPUT) << 6) | 0x0F);
     try expect(pio.ports[PB].mode == Mode.INPUT);
 
     // set port A to bidirectional
-    pio.writeCtrl(PA, (@as(u8, Mode.BIDIRECTIONAL)<<6)|0x0F);
+    pio.writeCtrl(PA, (@as(u8, Mode.BIDIRECTIONAL) << 6) | 0x0F);
     try expect(pio.ports[PA].mode == Mode.BIDIRECTIONAL);
 
     // set port A to mode control (plus followup io_select mask)
-    pio.writeCtrl(PA, (@as(u8, Mode.BITCONTROL)<<6)|0x0F);
+    pio.writeCtrl(PA, (@as(u8, Mode.BITCONTROL) << 6) | 0x0F);
     try expect(!pio.ports[PA].int_enabled);
     try expect(pio.ports[PA].mode == Mode.BITCONTROL);
     pio.writeCtrl(PA, 0xAA);
@@ -425,24 +429,24 @@ test "read_write_control" {
     try expect(pio.ports[PA].io_select == 0xAA);
 
     // set port B interrupt control word (with interrupt control mask following)
-    pio.writeCtrl(PB, (IntCtrl.ANDOR|IntCtrl.HILO|IntCtrl.MASK_FOLLOWS)|0x07);
+    pio.writeCtrl(PB, (IntCtrl.ANDOR | IntCtrl.HILO | IntCtrl.MASK_FOLLOWS) | 0x07);
     try expect(!pio.ports[PB].int_enabled);
-    try expect(pio.ports[PB].int_control == (IntCtrl.ANDOR|IntCtrl.HILO|IntCtrl.MASK_FOLLOWS));
+    try expect(pio.ports[PB].int_control == (IntCtrl.ANDOR | IntCtrl.HILO | IntCtrl.MASK_FOLLOWS));
     pio.writeCtrl(PB, 0x23);
     try expect(!pio.ports[PB].int_enabled);
     try expect(pio.ports[PB].int_mask == 0x23);
 
     // enable interrupts on port B
-    pio.writeCtrl(PB, IntCtrl.EI|0x03);
+    pio.writeCtrl(PB, IntCtrl.EI | 0x03);
     try expect(pio.ports[PB].int_enabled);
-    try expect(pio.ports[PB].int_control == (IntCtrl.EI|IntCtrl.ANDOR|IntCtrl.HILO|IntCtrl.MASK_FOLLOWS));
+    try expect(pio.ports[PB].int_control == (IntCtrl.EI | IntCtrl.ANDOR | IntCtrl.HILO | IntCtrl.MASK_FOLLOWS));
 
     // write interrupt control word to A and B,
     // and read the control word back, this does not
     // seem to be documented anywhere, so we're doing
     // the same thing that MAME does.
-    pio.writeCtrl(PA, IntCtrl.ANDOR|IntCtrl.HILO|0x07);
-    pio.writeCtrl(PB, IntCtrl.EI|IntCtrl.ANDOR|0x07);
+    pio.writeCtrl(PA, IntCtrl.ANDOR | IntCtrl.HILO | 0x07);
+    pio.writeCtrl(PB, IntCtrl.EI | IntCtrl.ANDOR | 0x07);
     const data = pio.readCtrl();
     try expect(data == 0x4C);
 }

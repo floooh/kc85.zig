@@ -211,7 +211,7 @@ const CPU = @import("CPU.zig");
 const PIO = @import("PIO.zig");
 const CTC = @import("CTC.zig");
 const Memory = @import("Memory.zig");
-const Clock  = @import("Clock.zig");
+const Clock = @import("Clock.zig");
 const Beeper = @import("Beeper.zig");
 const KeyBuffer = @import("KeyBuffer.zig");
 
@@ -221,13 +221,13 @@ cpu: CPU,
 ctc: CTC,
 pio: PIO,
 
-pio_a: u8,                  // current PIO Port A value, used for bankswitching
-pio_b: u8,                  // current PIO Port B value, used for bankswitching
-io84:  u8,                  // byte latch on port 0x84, only on KC85/4
-io86:  u8,                  // byte latch on port 0x86, only on KC85/4
-blink_flag: bool,           // foreground color blinking flag toggled by CTC
+pio_a: u8, // current PIO Port A value, used for bankswitching
+pio_b: u8, // current PIO Port B value, used for bankswitching
+io84: u8, // byte latch on port 0x84, only on KC85/4
+io86: u8, // byte latch on port 0x86, only on KC85/4
+blink_flag: bool, // foreground color blinking flag toggled by CTC
 
-h_count: usize,             // video timing generator counter
+h_count: usize, // video timing generator counter
 v_count: usize,
 
 clk: Clock,
@@ -237,19 +237,19 @@ beeper_1: Beeper,
 beeper_2: Beeper,
 exp: ExpansionSystem,
 
-pixel_buffer:   []u32,
-audio_func:     ?AudioFunc,
-num_samples:    usize,
-sample_pos:     usize,
-sample_buffer:  [max_audio_samples]f32,
-patch_func:     ?PatchFunc,
+pixel_buffer: []u32,
+audio_func: ?AudioFunc,
+num_samples: usize,
+sample_pos: usize,
+sample_buffer: [max_audio_samples]f32,
+patch_func: ?PatchFunc,
 
-ram:        [max_ram_size]u8,
-irm:        [max_irm_size]u8,
+ram: [max_ram_size]u8,
+irm: [max_irm_size]u8,
 rom_caos_c: [rom_c_size]u8,
 rom_caos_e: [rom_e_size]u8,
-rom_basic:  [rom_basic_size]u8,
-exp_buf:    [expansion_buffer_size]u8,
+rom_basic: [rom_basic_size]u8,
+exp_buf: [expansion_buffer_size]u8,
 
 pub const Model = enum {
     KC85_2,
@@ -260,29 +260,29 @@ pub const Model = enum {
 // expansion system module types
 pub const ModuleType = enum {
     NONE,
-    M006_BASIC,         // BASIC+CAOS 16K ROM module for the KC85/2 (id=0xFC)
-    M011_64KBYTE,       // 64 KB RAM expansion (id=0xF6)
-    M012_TEXOR,         // TEXOR text editing (ix=0xFB)
-    M022_16KBYTE,       // 16 KB RAM expansion (id=0xF4)
-    M026_FORTH,         // FORTH IDE (id=0xFB)
-    M027_DEVELOPMENT,   // Assembler IDE (id=0xFB)
+    M006_BASIC, // BASIC+CAOS 16K ROM module for the KC85/2 (id=0xFC)
+    M011_64KBYTE, // 64 KB RAM expansion (id=0xF6)
+    M012_TEXOR, // TEXOR text editing (ix=0xFB)
+    M022_16KBYTE, // 16 KB RAM expansion (id=0xF4)
+    M026_FORTH, // FORTH IDE (id=0xFB)
+    M027_DEVELOPMENT, // Assembler IDE (id=0xFB)
 };
 
 pub const Desc = struct {
-    pixel_buffer: []u32,    // must have room for 320x256 RGBA8 pixels
+    pixel_buffer: []u32, // must have room for 320x256 RGBA8 pixels
 
-    audio_func:         ?AudioFunc = null,
-    audio_num_samples:  usize = default_num_audio_samples,
-    audio_sample_rate:  u32 = 44100,
-    audio_volume:       f32 = 0.4,
+    audio_func: ?AudioFunc = null,
+    audio_num_samples: usize = default_num_audio_samples,
+    audio_sample_rate: u32 = 44100,
+    audio_volume: f32 = 0.4,
 
     patch_func: ?PatchFunc = null,
 
-    rom_caos22:     ?[]const u8 = null, // CAOS 2.2 ROM image (used in KC85/2)
-    rom_caos31:     ?[]const u8 = null, // CAOS 3.1 ROM image (used in KC85/3)
-    rom_caos42c:    ?[]const u8 = null, // CAOS 4.2 at 0xC000 (KC85/4)
-    rom_caos42e:    ?[]const u8 = null, // CAOS 4.2 at 0xE000 (KC85/4)
-    rom_kcbasic:    ?[]const u8 = null, // same BASIC version for KC85/3 and KC85/4
+    rom_caos22: ?[]const u8 = null, // CAOS 2.2 ROM image (used in KC85/2)
+    rom_caos31: ?[]const u8 = null, // CAOS 3.1 ROM image (used in KC85/3)
+    rom_caos42c: ?[]const u8 = null, // CAOS 4.2 at 0xC000 (KC85/4)
+    rom_caos42e: ?[]const u8 = null, // CAOS 4.2 at 0xE000 (KC85/4)
+    rom_kcbasic: ?[]const u8 = null, // same BASIC version for KC85/3 and KC85/4
 };
 
 // create a KC85 instance on the heap
@@ -290,7 +290,7 @@ pub fn create(allocator: std.mem.Allocator, desc: KC85.Desc) !*KC85 {
     var self = try allocator.create(KC85);
     const freq_hz = switch (model) {
         .KC85_2, .KC85_3 => 1_750_000,
-        .KC85_4          => 1_770_000,
+        .KC85_4 => 1_770_000,
     };
     self.* = .{
         .cpu = .{
@@ -299,8 +299,8 @@ pub fn create(allocator: std.mem.Allocator, desc: KC85.Desc) !*KC85 {
         },
         .ctc = .{},
         .pio = .{
-            .in_func = .{ .func = pioIn, .userdata = @ptrToInt(self) },
-            .out_func = .{ .func = pioOut, .userdata = @ptrToInt(self) },
+            .in_func = .{ .func = pioIn, .userdata = @intFromPtr(self) },
+            .out_func = .{ .func = pioOut, .userdata = @intFromPtr(self) },
         },
         .pio_a = PIOABits.RAM | PIOABits.RAM_RO | PIOABits.IRM | PIOABits.CAOS_ROM, // initial memory map
         .pio_b = 0,
@@ -309,26 +309,16 @@ pub fn create(allocator: std.mem.Allocator, desc: KC85.Desc) !*KC85 {
         .blink_flag = true,
         .h_count = 0,
         .v_count = 0,
-        .mem = .{ },
+        .mem = .{},
         .kbd = .{
             .sticky_duration = 2 * 16667,
         },
-        .beeper_1 = Beeper.init(.{
-            .tick_hz = freq_hz,
-            .sound_hz = desc.audio_sample_rate,
-            .volume = desc.audio_volume
-        }),
-        .beeper_2 = Beeper.init(.{
-            .tick_hz = freq_hz,
-            .sound_hz = desc.audio_sample_rate,
-            .volume = desc.audio_volume
-        }),
-        .exp = .{
-            .slots = .{
-                .{ .addr = 0x08 },
-                .{ .addr = 0x0C },
-            }
-        },
+        .beeper_1 = Beeper.init(.{ .tick_hz = freq_hz, .sound_hz = desc.audio_sample_rate, .volume = desc.audio_volume }),
+        .beeper_2 = Beeper.init(.{ .tick_hz = freq_hz, .sound_hz = desc.audio_sample_rate, .volume = desc.audio_volume }),
+        .exp = .{ .slots = .{
+            .{ .addr = 0x08 },
+            .{ .addr = 0x0C },
+        } },
         .clk = .{ .freq_hz = freq_hz },
         .sample_pos = 0,
         .sample_buffer = [_]f32{0.0} ** max_audio_samples,
@@ -338,16 +328,16 @@ pub fn create(allocator: std.mem.Allocator, desc: KC85.Desc) !*KC85 {
         .patch_func = desc.patch_func,
         .ram = [_]u8{0} ** max_ram_size,
         .irm = [_]u8{0} ** max_irm_size,
-        .rom_caos_c = switch(model) {
+        .rom_caos_c = switch (model) {
             .KC85_4 => desc.rom_caos42c.?[0..rom_c_size].*,
             else => [_]u8{0} ** rom_c_size,
         },
-        .rom_caos_e = switch(model) {
+        .rom_caos_e = switch (model) {
             .KC85_2 => desc.rom_caos22.?[0..rom_e_size].*,
             .KC85_3 => desc.rom_caos31.?[0..rom_e_size].*,
             .KC85_4 => desc.rom_caos42e.?[0..rom_e_size].*,
         },
-        .rom_basic = switch(model) {
+        .rom_basic = switch (model) {
             .KC85_3, .KC85_4 => desc.rom_kcbasic.?[0..rom_basic_size].*,
             else => [_]u8{0} ** rom_basic_size,
         },
@@ -359,11 +349,11 @@ pub fn create(allocator: std.mem.Allocator, desc: KC85.Desc) !*KC85 {
         var r: u32 = 0x6D98302B;
         for (self.ram) |*ptr| {
             r = xorshift32(r);
-            ptr.* = @truncate(u8, r);
+            ptr.* = @as(u8, @truncate(r));
         }
         for (self.irm) |*ptr| {
             r = xorshift32(r);
-            ptr.* = @truncate(u8, r);
+            ptr.* = @as(u8, @truncate(r));
         }
     }
 
@@ -388,7 +378,7 @@ pub fn reset(self: *KC85) void {
 // run emulation for given number of microseconds
 pub fn exec(self: *KC85, micro_secs: u32) void {
     const ticks_to_run = self.clk.ticksToRun(micro_secs);
-    const ticks_executed = self.cpu.exec(ticks_to_run, CPU.TickFunc{ .func=tickFunc, .userdata=@ptrToInt(self) });
+    const ticks_executed = self.cpu.exec(ticks_to_run, CPU.TickFunc{ .func = tickFunc, .userdata = @intFromPtr(self) });
     self.clk.ticksExecuted(ticks_executed);
     self.kbd.update(micro_secs);
     self.handleKeyboard();
@@ -410,8 +400,7 @@ pub fn insertModule(self: *KC85, slot_addr: u8, mod_type: ModuleType, optional_r
 
     if (moduleNeedsROMImage(mod_type) and (optional_rom_image == null)) {
         return error.ModuleTypeExpectsROMImage;
-    }
-    else if (!moduleNeedsROMImage(mod_type) and (optional_rom_image != null)) {
+    } else if (!moduleNeedsROMImage(mod_type) and (optional_rom_image != null)) {
         return error.ModuleTypeDoesNotExpectROMImage;
     }
 
@@ -445,13 +434,13 @@ pub fn insertModule(self: *KC85, slot_addr: u8, mod_type: ModuleType, optional_r
                 .addr_mask = 0xE0,
                 .size = 8 * 1024,
             },
-            else => .{ }
+            else => .{},
         };
 
         // allocate space in expansion buffer
         self.slotAlloc(slot) catch |err| {
             // not enough space left in buffer
-            slot.module = .{ };
+            slot.module = .{};
             return err;
         };
 
@@ -460,23 +449,20 @@ pub fn insertModule(self: *KC85, slot_addr: u8, mod_type: ModuleType, optional_r
             const rom = optional_rom_image.?;
             if (rom.len != slot.module.size) {
                 return error.ModuleRomImageSizeMismatch;
-            }
-            else {
-                for (rom) |byte,i| {
+            } else {
+                for (rom, 0..) |byte, i| {
                     self.exp_buf[slot.buf_offset + i] = byte;
                 }
             }
-        }
-        else {
-            for (self.exp_buf[slot.buf_offset .. slot.buf_offset+slot.module.size]) |*p| {
+        } else {
+            for (self.exp_buf[slot.buf_offset .. slot.buf_offset + slot.module.size]) |*p| {
                 p.* = 0;
             }
         }
 
         // also update memory mapping
         self.updateMemoryMapping();
-    }
-    else |err| {
+    } else |err| {
         return err;
     }
 }
@@ -488,7 +474,7 @@ pub fn removeModule(self: *KC85, slot_addr: u8) !void {
         return;
     }
     self.slotFree(slot);
-    slot.module = .{ };
+    slot.module = .{};
     self.updateMemoryMapping();
 }
 
@@ -496,8 +482,7 @@ pub fn removeModule(self: *KC85, slot_addr: u8) !void {
 pub fn load(self: *KC85, data: []const u8) !void {
     if (checkKCTAPMagic(data)) {
         return self.loadKCTAP(data);
-    }
-    else {
+    } else {
         return self.loadKCC(data);
     }
 }
@@ -508,51 +493,51 @@ const model: Model = switch (@import("build_options").kc85_model) {
     .KC85_4 => .KC85_4,
 };
 
-const max_audio_samples         = 1024;
+const max_audio_samples = 1024;
 const default_num_audio_samples = 128;
-const max_tape_size             = 1024;
-const num_expansion_slots       = 2;            // max number of expansion slots
-const expansion_buffer_size     = num_expansion_slots * 64 * 1024; // expansion system buffer size (64 KB per slot)
-const max_ram_size              = 4 * 0x4000;  // up to 64 KB regular RAM
-const max_irm_size              = 4 * 0x4000;  // up to 64 KB video RAM
-const rom_c_size                = 0x1000;
-const rom_e_size                = 0x2000;
-const rom_basic_size            = 0x2000;
+const max_tape_size = 1024;
+const num_expansion_slots = 2; // max number of expansion slots
+const expansion_buffer_size = num_expansion_slots * 64 * 1024; // expansion system buffer size (64 KB per slot)
+const max_ram_size = 4 * 0x4000; // up to 64 KB regular RAM
+const max_irm_size = 4 * 0x4000; // up to 64 KB video RAM
+const rom_c_size = 0x1000;
+const rom_e_size = 0x2000;
+const rom_basic_size = 0x2000;
 
 // IO bits
 const PIOABits = struct {
-    const CAOS_ROM:     u8 = 1<<0;
-    const RAM:          u8 = 1<<1;
-    const IRM:          u8 = 1<<2;
-    const RAM_RO:       u8 = 1<<3;
-    const UNUSED:       u8 = 1<<4;
-    const TAPE_LED:     u8 = 1<<5;
-    const TAPE_MOTOR:   u8 = 1<<6;
-    const BASIC_ROM:    u8 = 1<<7;
+    const CAOS_ROM: u8 = 1 << 0;
+    const RAM: u8 = 1 << 1;
+    const IRM: u8 = 1 << 2;
+    const RAM_RO: u8 = 1 << 3;
+    const UNUSED: u8 = 1 << 4;
+    const TAPE_LED: u8 = 1 << 5;
+    const TAPE_MOTOR: u8 = 1 << 6;
+    const BASIC_ROM: u8 = 1 << 7;
 };
 
 const PIOBBits = struct {
-    const VOLUME_MASK:      u8 = (1<<5)-1;
-    const RAM8:             u8 = 1<<5;      // KC85/4 only
-    const RAM8_RO:          u8 = 1<<6;      // KC85/4 only
-    const BLINK_ENABLED:    u8 = 1<<7;
+    const VOLUME_MASK: u8 = (1 << 5) - 1;
+    const RAM8: u8 = 1 << 5; // KC85/4 only
+    const RAM8_RO: u8 = 1 << 6; // KC85/4 only
+    const BLINK_ENABLED: u8 = 1 << 7;
 };
 
 // KC85/4 only: 8-bit latch at IO port 0x84
 const IO84Bits = struct {
-    const SEL_VIEW_IMG:     u8 = 1<<0;      // 0: display img0, 1: display img1
-    const SEL_CPU_COLOR:    u8 = 1<<1;      // 0: access pixel plane, 1: access color plane
-    const SEL_CPU_IMG:      u8 = 1<<2;      // 0: access img0, 1: access img1
-    const HICOLOR:          u8 = 1<<3;      // 0: hicolor off, 1: hicolor on
-    const SEL_RAM8:         u8 = 1<<4;      // select RAM8 block 0 or 1
-    const BLOCKSEL_RAM8:    u8 = 1<<5;      // FIXME: ???
+    const SEL_VIEW_IMG: u8 = 1 << 0; // 0: display img0, 1: display img1
+    const SEL_CPU_COLOR: u8 = 1 << 1; // 0: access pixel plane, 1: access color plane
+    const SEL_CPU_IMG: u8 = 1 << 2; // 0: access img0, 1: access img1
+    const HICOLOR: u8 = 1 << 3; // 0: hicolor off, 1: hicolor on
+    const SEL_RAM8: u8 = 1 << 4; // select RAM8 block 0 or 1
+    const BLOCKSEL_RAM8: u8 = 1 << 5; // FIXME: ???
 };
 
 // KC85/4 only: 8-bit latch at IO port 0x86
 const IO86Bits = struct {
-    const RAM4:             u8 = 1<<0;
-    const RAM4_RO:          u8 = 1<<1;
-    const CAOS_ROM_C:       u8 = 1<<7;
+    const RAM4: u8 = 1 << 0;
+    const RAM4_RO: u8 = 1 << 1;
+    const CAOS_ROM_C: u8 = 1 << 7;
 };
 
 // expansion module attributes
@@ -566,42 +551,42 @@ const Module = struct {
 
 // an expansion system slot for inserting modules
 const Slot = struct {
-    addr: u8,               // slot address, 0x0C (left slot) or 0x08 (right slot)
-    ctrl: u8 = 0,           // current control byte
-    buf_offset: u32 = 0,    // byte offset in expansion system data buffer
-    module: Module = .{},   // attributes of currently inserted module
+    addr: u8, // slot address, 0x0C (left slot) or 0x08 (right slot)
+    ctrl: u8 = 0, // current control byte
+    buf_offset: u32 = 0, // byte offset in expansion system data buffer
+    module: Module = .{}, // attributes of currently inserted module
 };
 
 // expansion system state
 const ExpansionSystem = struct {
-    slots: [num_expansion_slots]Slot,    // KC85 main unit has 2 expansion slots builtin
-    buf_top: u32 = 0,   // top of buffer index in KC85.exp_buf
+    slots: [num_expansion_slots]Slot, // KC85 main unit has 2 expansion slots builtin
+    buf_top: u32 = 0, // top of buffer index in KC85.exp_buf
 };
 
 // audio output callback, called to push samples into host audio backend
 const AudioFunc = struct {
-    func: *const fn(samples: []const f32, userdata: usize) void,
+    func: *const fn (samples: []const f32, userdata: usize) void,
     userdata: usize = 0,
 };
 
 // callback to apply patches after a snapshot is loaded
 const PatchFunc = struct {
-    func: *const fn(snapshot_name: []const u8, userdata: usize) void,
+    func: *const fn (snapshot_name: []const u8, userdata: usize) void,
     userdata: usize = 0,
 };
 
 // pseudo-rand helper function
 fn xorshift32(r: u32) u32 {
     var x = r;
-    x ^= x<<13;
-    x ^= x>>17;
-    x ^= x<<5;
+    x ^= x << 13;
+    x ^= x >> 17;
+    x ^= x << 5;
     return x;
 }
 
 // the system tick function is called from within the CPU emulation
 fn tickFunc(num_ticks: u64, pins_in: u64, userdata: usize) u64 {
-    var self = @intToPtr(*KC85, userdata);
+    var self = @as(*KC85, @ptrFromInt(userdata));
     var pins = pins_in;
 
     // memory and IO requests
@@ -610,12 +595,10 @@ fn tickFunc(num_ticks: u64, pins_in: u64, userdata: usize) u64 {
         const addr = CPU.getAddr(pins);
         if (0 != (pins & CPU.RD)) {
             pins = CPU.setData(pins, self.mem.r8(addr));
-        }
-        else if (0 != (pins & CPU.WR)) {
+        } else if (0 != (pins & CPU.WR)) {
             self.mem.w8(addr, CPU.getData(pins));
         }
-    }
-    else if (0 != (pins & CPU.IORQ)) {
+    } else if (0 != (pins & CPU.IORQ)) {
         // IO request machine cycle
         //
         // on the KC85/3, the chips-select signals for the CTC and PIO
@@ -639,7 +622,7 @@ fn tickFunc(num_ticks: u64, pins_in: u64, userdata: usize) u64 {
         //      0x86:   (KC85/4 only) control RAM block at 0x4000 and ROM switching
 
         // check if any of the valid port number if addressed (0x80..0x8F)
-        if (CPU.A7 == (pins & (CPU.A7|CPU.A6|CPU.A5|CPU.A4))) {
+        if (CPU.A7 == (pins & (CPU.A7 | CPU.A6 | CPU.A5 | CPU.A4))) {
             // check if the PIO or CTC is addressed (0x88..0x8F)
             if (0 != (pins & CPU.A3)) {
                 pins &= CPU.PinMask;
@@ -647,32 +630,37 @@ fn tickFunc(num_ticks: u64, pins_in: u64, userdata: usize) u64 {
                 if (0 != (pins & CPU.A2)) {
                     // a CTC IO request
                     pins |= CTC.CE;
-                    if (0 != (pins & CPU.A0)) { pins |= CTC.CS0; }
-                    if (0 != (pins & CPU.A1)) { pins |= CTC.CS1; }
+                    if (0 != (pins & CPU.A0)) {
+                        pins |= CTC.CS0;
+                    }
+                    if (0 != (pins & CPU.A1)) {
+                        pins |= CTC.CS1;
+                    }
                     pins = self.ctc.iorq(pins) & CPU.PinMask;
-                }
-                else {
+                } else {
                     // a PIO IO request
                     pins |= PIO.CE;
-                    if (0 != (pins & CPU.A0)) { pins |= PIO.BASEL; }
-                    if (0 != (pins & CPU.A1)) { pins |= PIO.CDSEL; }
+                    if (0 != (pins & CPU.A0)) {
+                        pins |= PIO.BASEL;
+                    }
+                    if (0 != (pins & CPU.A1)) {
+                        pins |= PIO.CDSEL;
+                    }
                     pins = self.pio.iorq(pins) & CPU.PinMask;
                 }
-            }
-            else {
+            } else {
                 // we're in IO port range 0x80..0x87
                 const data = CPU.getData(pins);
-                switch (pins & (CPU.A2|CPU.A1|CPU.A0)) {
+                switch (pins & (CPU.A2 | CPU.A1 | CPU.A0)) {
                     0x00 => {
                         // port 0x80: expansion system control
-                        const slot_addr = @truncate(u8, CPU.getAddr(pins) >> 8);
+                        const slot_addr = @as(u8, @truncate(CPU.getAddr(pins) >> 8));
                         if (0 != (pins & CPU.WR)) {
                             // write new module control byte and update memory mapping
                             if (self.slotWriteCtrlByte(slot_addr, data)) {
                                 self.updateMemoryMapping();
                             }
-                        }
-                        else {
+                        } else {
                             // read module id in slot
                             pins = CPU.setData(pins, self.slotModuleId(slot_addr));
                         }
@@ -691,7 +679,7 @@ fn tickFunc(num_ticks: u64, pins_in: u64, userdata: usize) u64 {
                             self.updateMemoryMapping();
                         }
                     },
-                    else => { }
+                    else => {},
                 }
             }
         }
@@ -700,7 +688,7 @@ fn tickFunc(num_ticks: u64, pins_in: u64, userdata: usize) u64 {
     pins = self.tickVideo(num_ticks, pins);
 
     var tick: u64 = 0;
-    while (tick < num_ticks): (tick += 1) {
+    while (tick < num_ticks) : (tick += 1) {
         // tick the CTC
         pins = self.ctc.tick(pins);
         // CTC channels 0 and 1 control audio frequency
@@ -751,8 +739,7 @@ fn updateMemoryMapping(self: *KC85) void {
         const ram0 = self.ram[0..0x4000];
         if (0 != (self.pio_a & PIOABits.RAM_RO)) {
             self.mem.mapRAM(0, 0x0000, ram0);
-        }
-        else {
+        } else {
             self.mem.mapROM(0, 0x0000, ram0);
         }
     }
@@ -772,8 +759,7 @@ fn updateMemoryMapping(self: *KC85) void {
         if (0 != (self.pio_a & PIOABits.IRM)) {
             self.mem.mapRAM(0, 0x8000, self.irm[0x0000..0x4000]);
         }
-    }
-    else {
+    } else {
         // KC85/4 has a much more complex memory map
 
         // 16 KB RAM at 0x4000, may be write-protected
@@ -781,8 +767,7 @@ fn updateMemoryMapping(self: *KC85) void {
             const ram4 = self.ram[0x4000..0x8000];
             if (0 != (self.io86 & IO86Bits.RAM4_RO)) {
                 self.mem.mapRAM(0, 0x4000, ram4);
-            }
-            else {
+            } else {
                 self.mem.mapROM(0, 0x4000, ram4);
             }
         }
@@ -791,11 +776,10 @@ fn updateMemoryMapping(self: *KC85) void {
         if (0 != (self.pio_b & PIOBBits.RAM8)) {
             const ram8_start: usize = if (0 != (self.io84 & IO84Bits.SEL_RAM8)) 0xC000 else 0x8000;
             const ram8_end = ram8_start + 0x4000;
-            const ram8 = self.ram[ram8_start .. ram8_end];
+            const ram8 = self.ram[ram8_start..ram8_end];
             if (0 != (self.pio_b & PIOBBits.RAM8_RO)) {
                 self.mem.mapRAM(0, 0x8000, ram8);
-            }
-            else {
+            } else {
                 self.mem.mapROM(0, 0x8000, ram8);
             }
         }
@@ -816,7 +800,7 @@ fn updateMemoryMapping(self: *KC85) void {
     }
 
     // expansion system memory mapping
-    for (self.exp.slots) |*slot, slot_index| {
+    for (self.exp.slots, 0..) |*slot, slot_index| {
 
         // nothing to do if no module in slot
         if (slot.module.type == .NONE) {
@@ -834,14 +818,13 @@ fn updateMemoryMapping(self: *KC85) void {
             const addr: u16 = @as(u16, (slot.ctrl & slot.module.addr_mask)) << 8;
             const host_start = slot.buf_offset;
             const host_end = host_start + slot.module.size;
-            const host_slice = self.exp_buf[host_start .. host_end];
+            const host_slice = self.exp_buf[host_start..host_end];
 
             // RAM modules are only writable if bit 1 in control byte is set
             const writable = (0 != (slot.ctrl & 2)) and slot.module.writable;
             if (writable) {
                 self.mem.mapRAM(bank_index, addr, host_slice);
-            }
-            else {
+            } else {
                 self.mem.mapROM(bank_index, addr, host_slice);
             }
         }
@@ -856,7 +839,7 @@ fn pioIn(port: u1, userdata: usize) u8 {
 }
 
 fn pioOut(port: u1, data: u8, userdata: usize) void {
-    var self = @intToPtr(*KC85, userdata);
+    var self = @as(*KC85, @ptrFromInt(userdata));
     switch (port) {
         PIO.PA => self.pio_a = data,
         PIO.PB => self.pio_b = data,
@@ -865,35 +848,35 @@ fn pioOut(port: u1, data: u8, userdata: usize) void {
 }
 
 // foreground colors
-const fg_pal = [16]u32 {
-    0xFF000000,     // black
-    0xFFFF0000,     // blue
-    0xFF0000FF,     // red
-    0xFFFF00FF,     // magenta
-    0xFF00FF00,     // green
-    0xFFFFFF00,     // cyan
-    0xFF00FFFF,     // yellow
-    0xFFFFFFFF,     // white
-    0xFF000000,     // black #2
-    0xFFFF00A0,     // violet
-    0xFF00A0FF,     // orange
-    0xFFA000FF,     // purple
-    0xFFA0FF00,     // blueish green
-    0xFFFFA000,     // greenish blue
-    0xFF00FFA0,     // yellow-green
-    0xFFFFFFFF,     // white #2
+const fg_pal = [16]u32{
+    0xFF000000, // black
+    0xFFFF0000, // blue
+    0xFF0000FF, // red
+    0xFFFF00FF, // magenta
+    0xFF00FF00, // green
+    0xFFFFFF00, // cyan
+    0xFF00FFFF, // yellow
+    0xFFFFFFFF, // white
+    0xFF000000, // black #2
+    0xFFFF00A0, // violet
+    0xFF00A0FF, // orange
+    0xFFA000FF, // purple
+    0xFFA0FF00, // blueish green
+    0xFFFFA000, // greenish blue
+    0xFF00FFA0, // yellow-green
+    0xFFFFFFFF, // white #2
 };
 
 // background colors
-const bg_pal = [8]u32 {
-    0xFF000000,      // black
-    0xFFA00000,      // dark-blue
-    0xFF0000A0,      // dark-red
-    0xFFA000A0,      // dark-magenta
-    0xFF00A000,      // dark-green
-    0xFFA0A000,      // dark-cyan
-    0xFF00A0A0,      // dark-yellow
-    0xFFA0A0A0,      // gray
+const bg_pal = [8]u32{
+    0xFF000000, // black
+    0xFFA00000, // dark-blue
+    0xFF0000A0, // dark-red
+    0xFFA000A0, // dark-magenta
+    0xFF00A000, // dark-green
+    0xFFA0A000, // dark-cyan
+    0xFF00A0A0, // dark-yellow
+    0xFFA0A0A0, // gray
 };
 
 fn decode8Pixels(dst: []u32, pixel_bits: u8, color_bits: u8, force_bg: bool) void {
@@ -938,7 +921,7 @@ fn tickVideoKC8523(self: *KC85, num_ticks: u64, in_pins: u64) u64 {
     var pins = in_pins;
     const blink_bg = self.blink_flag and (0 != (self.pio_b & PIOBBits.BLINK_ENABLED));
     var tick: u64 = 0;
-    while (tick < num_ticks): (tick += 1) {
+    while (tick < num_ticks) : (tick += 1) {
         // every 2 ticks 8 pixels are decoded
         if (0 != (self.h_count & 1)) {
             // decode visible 8-pixel group
@@ -946,18 +929,17 @@ fn tickVideoKC8523(self: *KC85, num_ticks: u64, in_pins: u64) u64 {
             const y = self.v_count;
             if ((y < 256) and (x < 40)) {
                 const dst_index = y * 320 + x * 8;
-                const dst = self.pixel_buffer[dst_index .. dst_index+8];
+                const dst = self.pixel_buffer[dst_index .. dst_index + 8];
                 var pixel_offset: usize = undefined;
                 var color_offset: usize = undefined;
                 if (x < 0x20) {
                     // left 256x256 area
-                    pixel_offset = x | (((y>>2)&0x3)<<5) | ((y&0x3)<<7) | (((y>>4)&0xF)<<9);
-                    color_offset = x | (((y>>2)&0x3f)<<5);
-                }
-                else {
+                    pixel_offset = x | (((y >> 2) & 0x3) << 5) | ((y & 0x3) << 7) | (((y >> 4) & 0xF) << 9);
+                    color_offset = x | (((y >> 2) & 0x3f) << 5);
+                } else {
                     // right 64x256 area
-                    pixel_offset = 0x2000 + ((x&0x7) | (((y>>4)&0x3)<<3) | (((y>>2)&0x3)<<5) | ((y&0x3)<<7) | (((y>>6)&0x3)<<9));
-                    color_offset = 0x0800 + ((x&0x7) | (((y>>4)&0x3)<<3) | (((y>>2)&0x3)<<5) | (((y>>6)&0x3)<<7));
+                    pixel_offset = 0x2000 + ((x & 0x7) | (((y >> 4) & 0x3) << 3) | (((y >> 2) & 0x3) << 5) | ((y & 0x3) << 7) | (((y >> 6) & 0x3) << 9));
+                    color_offset = 0x0800 + ((x & 0x7) | (((y >> 4) & 0x3) << 3) | (((y >> 2) & 0x3) << 5) | (((y >> 6) & 0x3) << 7));
                 }
                 const pixel_bits = self.irm[pixel_offset];
                 const color_bits = self.irm[0x2800 + color_offset];
@@ -974,13 +956,13 @@ fn tickVideoKC854Std(self: *KC85, num_ticks: u64, in_pins: u64) u64 {
     var pins = in_pins;
     const blink_bg = self.blink_flag and (0 != (self.pio_b & PIOBBits.BLINK_ENABLED));
     var tick: u64 = 0;
-    while (tick < num_ticks): (tick += 1) {
+    while (tick < num_ticks) : (tick += 1) {
         if (0 != (self.h_count & 1)) {
             const x = self.h_count / 2;
             const y = self.v_count;
             if ((y < 256) and (x < 40)) {
                 const dst_index = y * 320 + x * 8;
-                const dst = self.pixel_buffer[dst_index .. dst_index+8];
+                const dst = self.pixel_buffer[dst_index .. dst_index + 8];
                 const irm_bank_index: usize = (self.io84 & IO84Bits.SEL_VIEW_IMG) * 2;
                 const irm_offset: usize = irm_bank_index * 0x4000 + x * 256 + y;
                 const pixel_bits = self.irm[irm_offset];
@@ -1004,8 +986,7 @@ fn tickVideoKC854HiColor(self: *KC85, num_ticks: u64, pins: u64) u64 {
 fn tickVideoKC854(self: *KC85, num_ticks: u64, pins: u64) u64 {
     if (0 != (self.io84 & IO84Bits.HICOLOR)) {
         return self.tickVideoKC854Std(num_ticks, pins);
-    }
-    else {
+    } else {
         return self.tickVideoKC854HiColor(num_ticks, pins);
     }
 }
@@ -1037,9 +1018,9 @@ fn handleKeyboard(self: *KC85) void {
     // we ignore the whole tricky serial decoding and patch the
     // keycode directly into the right memory locations
     //
-    const ready_bit:    u8 = (1<<0);
-    const timeout_bit:  u8 = (1<<3);
-    const repeat_bit:   u8 = (1<<4);
+    const ready_bit: u8 = (1 << 0);
+    const timeout_bit: u8 = (1 << 3);
+    const repeat_bit: u8 = (1 << 4);
     const short_repeat_count: u8 = 8;
     const long_repeat_count: u8 = 60;
 
@@ -1056,7 +1037,7 @@ fn handleKeyboard(self: *KC85) void {
     // (like the currently pressed key)
     const ix = self.cpu.IX;
     const addr_keystatus = ix +% 0x8;
-    const addr_keycode   = ix +% 0xD;
+    const addr_keycode = ix +% 0xD;
     const addr_keyrepeat = ix +% 0xA;
 
     if (0 == key_code) {
@@ -1064,8 +1045,7 @@ fn handleKeyboard(self: *KC85) void {
         self.setBits(addr_keystatus, timeout_bit);
         // clear current key code
         self.mem.w8(addr_keycode, 0);
-    }
-    else {
+    } else {
         // a valid keycode has been received, clear the timeout bit
         self.clearBits(addr_keystatus, timeout_bit);
 
@@ -1078,8 +1058,7 @@ fn handleKeyboard(self: *KC85) void {
             self.setBits(addr_keystatus, ready_bit);
             // clear the repeat counter
             self.mem.w8(addr_keyrepeat, 0);
-        }
-        else {
+        } else {
             // handle key repeat
             // increment repeat-pause counter
             self.mem.w8(addr_keyrepeat, self.mem.r8(addr_keyrepeat) +% 1);
@@ -1089,14 +1068,12 @@ fn handleKeyboard(self: *KC85) void {
                     // wait some more...
                     return;
                 }
-            }
-            else {
+            } else {
                 // this is the first, long key repeat
                 if (self.mem.r8(addr_keyrepeat) < long_repeat_count) {
                     // wait some more...
                     return;
-                }
-                else {
+                } else {
                     // first key repeat pause over, set first-key-repeat flag
                     self.setBits(addr_keystatus, repeat_bit);
                 }
@@ -1113,8 +1090,7 @@ fn slotByAddr(self: *KC85, addr: u8) !*Slot {
         if (addr == slot.addr) {
             return slot;
         }
-    }
-    else {
+    } else {
         return error.InvalidSlotAddress;
     }
 }
@@ -1163,9 +1139,9 @@ fn slotFree(self: *KC85, free_slot: *Slot) void {
         if (slot.buf_offset > free_slot.buf_offset) {
             // move data backward to close the hole
             const src_start = slot.buf_offset;
-            const src_end   = slot.buf_offset + bytes_to_free;
+            const src_end = slot.buf_offset + bytes_to_free;
             const dst_start = slot.buf_offset - bytes_to_free;
-            for (self.exp_buf[src_start..src_end]) |byte,i| {
+            for (self.exp_buf[src_start..src_end], 0..) |byte, i| {
                 self.exp_buf[dst_start + i] = byte;
             }
             slot.buf_offset -= bytes_to_free;
@@ -1193,16 +1169,15 @@ fn loadStart(self: *KC85, exec_addr: u16) void {
     self.cpu.ex[CPU.HL] = 0;
     self.cpu.ex[CPU.FA] = 0;
     var addr: u16 = 0xB200;
-    while (addr < 0xB700): (addr += 1) {
+    while (addr < 0xB700) : (addr += 1) {
         self.mem.w8(addr, 0);
     }
     self.mem.w8(0xB7A0, 0);
     if (model == .KC85_3) {
-        _ = tickFunc(1, CPU.setAddrData(CPU.IORQ|CPU.WR, 0x0089, 0x9F), @ptrToInt(self));
+        _ = tickFunc(1, CPU.setAddrData(CPU.IORQ | CPU.WR, 0x0089, 0x9F), @intFromPtr(self));
         self.mem.w16(self.cpu.SP, 0xF15C);
-    }
-    else if (model == .KC85_4) {
-        _ = tickFunc(1, CPU.setAddrData(CPU.IORQ|CPU.WR, 0x0089, 0xFF), @ptrToInt(self));
+    } else if (model == .KC85_4) {
+        _ = tickFunc(1, CPU.setAddrData(CPU.IORQ | CPU.WR, 0x0089, 0xFF), @intFromPtr(self));
         self.mem.w16(self.cpu.SP, 0xF17E);
     }
     self.cpu.PC = exec_addr;
@@ -1211,21 +1186,21 @@ fn loadStart(self: *KC85, exec_addr: u16) void {
 // FIXME: this should "packed struct", but this results in a struct size
 // of 135 bytes for some reason
 const KCCHeader = extern struct {
-    name:           [16]u8,
-    num_addr:       u8,
-    load_addr_l:    u8,
-    load_addr_h:    u8,
-    end_addr_l:     u8,
-    end_addr_h:     u8,
-    exec_addr_l:    u8,
-    exec_addr_h:    u8,
-    pad:            [105]u8, // pads to 128 byte
+    name: [16]u8,
+    num_addr: u8,
+    load_addr_l: u8,
+    load_addr_h: u8,
+    end_addr_l: u8,
+    end_addr_h: u8,
+    exec_addr_l: u8,
+    exec_addr_h: u8,
+    pad: [105]u8, // pads to 128 byte
 };
 
 const KCTAPHeader = extern struct {
-    magic:  [16]u8, // "\xC3KC-TAPE by AF. "
-    type:   u8,     // 00: KCTAP_Z9001, 01: KCTAP_KC85, else KCTAP_SYS
-    kcc:    KCCHeader,
+    magic: [16]u8, // "\xC3KC-TAPE by AF. "
+    type: u8, // 00: KCTAP_Z9001, 01: KCTAP_KC85, else KCTAP_SYS
+    kcc: KCCHeader,
 };
 
 // invoke the post-loading patch callback function
@@ -1243,12 +1218,12 @@ fn validateKCC(data: []const u8) !void {
     if (data.len < @sizeOf(KCCHeader)) {
         return error.KCCWrongHeaderSize;
     }
-    const hdr = @ptrCast(*const KCCHeader, data);
+    const hdr = @as(*const KCCHeader, @ptrCast(data));
     if (hdr.num_addr > 3) {
         return error.KCCNumAddrTooBig;
     }
     const load_addr = makeU16(hdr.load_addr_h, hdr.load_addr_l);
-    const end_addr  = makeU16(hdr.end_addr_h, hdr.end_addr_l);
+    const end_addr = makeU16(hdr.end_addr_h, hdr.end_addr_l);
     if (end_addr <= load_addr) {
         return error.KCCEndAddrBeforeLoadAddr;
     }
@@ -1266,7 +1241,7 @@ fn validateKCC(data: []const u8) !void {
 
 fn loadKCC(self: *KC85, data: []const u8) !void {
     try validateKCC(data);
-    const hdr = @ptrCast(*const KCCHeader, data);
+    const hdr = @as(*const KCCHeader, @ptrCast(data));
     var addr = makeU16(hdr.load_addr_h, hdr.load_addr_l);
     const end_addr = makeU16(hdr.end_addr_h, hdr.end_addr_l);
     const payload = data[@sizeOf(KCCHeader)..];
@@ -1289,8 +1264,8 @@ fn checkKCTAPMagic(data: []const u8) bool {
     if (data.len <= @sizeOf(KCTAPHeader)) {
         return false;
     }
-    const hdr = @ptrCast(*const KCTAPHeader, data);
-    const magic = [16]u8 { 0xC3,'K','C','-','T','A','P','E',0x20,'b','y',0x20,'A','F','.',0x20 };
+    const hdr = @as(*const KCTAPHeader, @ptrCast(data));
+    const magic = [16]u8{ 0xC3, 'K', 'C', '-', 'T', 'A', 'P', 'E', 0x20, 'b', 'y', 0x20, 'A', 'F', '.', 0x20 };
     return std.mem.eql(u8, magic[0..], hdr.magic[0..]);
 }
 
@@ -1298,12 +1273,12 @@ fn validateKCTAP(data: []const u8) !void {
     if (!checkKCTAPMagic(data)) {
         return error.NoKCTAPMagicNumber;
     }
-    const hdr = @ptrCast(*const KCTAPHeader, data);
+    const hdr = @as(*const KCTAPHeader, @ptrCast(data));
     if (hdr.kcc.num_addr > 3) {
         return error.KCTAPNumAddrTooBig;
     }
     const load_addr = makeU16(hdr.kcc.load_addr_h, hdr.kcc.load_addr_l);
-    const end_addr  = makeU16(hdr.kcc.end_addr_h, hdr.kcc.end_addr_l);
+    const end_addr = makeU16(hdr.kcc.end_addr_h, hdr.kcc.end_addr_l);
     if (end_addr <= load_addr) {
         return error.KCTAPEndAddrBeforeLoadAddr;
     }
@@ -1321,11 +1296,11 @@ fn validateKCTAP(data: []const u8) !void {
 
 fn loadKCTAP(self: *KC85, data: []const u8) !void {
     try validateKCTAP(data);
-    const hdr = @ptrCast(*const KCTAPHeader, data);
+    const hdr = @as(*const KCTAPHeader, @ptrCast(data));
     var addr = makeU16(hdr.kcc.load_addr_h, hdr.kcc.load_addr_l);
     const end_addr = makeU16(hdr.kcc.end_addr_h, hdr.kcc.end_addr_l);
     const payload = data[@sizeOf(KCTAPHeader)..];
-    for (payload) |byte, i| {
+    for (payload, 0..) |byte, i| {
         // each block is one lead byte and 128 byte data
         if ((i % 129) != 0) {
             if (addr < end_addr) {

@@ -12,10 +12,10 @@ pub fn shutdown() void {
 }
 
 pub fn sampleRate() u32 {
-    return @intCast(u32, saudio.sampleRate());
+    return @as(u32, @intCast(saudio.sampleRate()));
 }
 
 pub fn push(samples: []const f32, userdata: usize) void {
     _ = userdata;
-    _ = saudio.push(&samples[0], @intCast(i32, samples.len));
+    _ = saudio.push(&samples[0], @as(i32, @intCast(samples.len)));
 }
