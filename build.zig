@@ -149,6 +149,7 @@ fn buildSokol(b: *Builder, target: CrossTarget, optimize: Mode, comptime prefix_
         "sokol_gfx.c",
         "sokol_time.c",
         "sokol_audio.c",
+        "sokol_log.c",
     };
     if (lib.target.isDarwin()) {
         inline for (csources) |csrc| {

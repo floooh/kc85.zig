@@ -8,6 +8,7 @@ const warn = std.log.warn;
 const mem = std.mem;
 const fs = std.fs;
 const sapp = @import("sokol").app;
+const slog = @import("sokol").log;
 const host = @import("host");
 const gfx = host.gfx;
 const audio = host.audio;
@@ -64,6 +65,9 @@ pub fn main() !void {
             .KC85_2 => "KC85/2",
             .KC85_3 => "KC85/3",
             .KC85_4 => "KC85/4",
+        },
+        .logger = .{
+            .func = slog.func,
         },
     });
 }

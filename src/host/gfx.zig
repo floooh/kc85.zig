@@ -4,6 +4,7 @@
 const sokol = @import("sokol");
 const sg = sokol.gfx;
 const sapp = sokol.app;
+const slog = sokol.log;
 const sgapp = sokol.app_gfx_glue;
 const shd = @import("shaders/shaders.glsl.zig");
 
@@ -44,10 +45,11 @@ pub fn setup() void {
         .pipeline_pool_size = 8,
         .context_pool_size = 1,
         .context = sgapp.context(),
+        .logger = .{ .func = slog.func },
     });
 
-    state.upscale.pass_action.colors[0] = .{ .action = .DONTCARE };
-    state.display.pass_action.colors[0] = .{ .action = .CLEAR, .value = .{ .r = 0.05, .g = 0.05, .b = 0.05, .a = 1.0 } };
+    state.upscale.pass_action.colors[0] = .{ .load_action = .DONTCARE };
+    state.display.pass_action.colors[0] = .{ .load_action = .CLEAR, .clear_value = .{ .r = 0.05, .g = 0.05, .b = 0.05, .a = 1.0 } };
 
     // fullscreen triangle vertices
     const verts = [_]f32{
@@ -70,14 +72,39 @@ pub fn setup() void {
     state.upscale.pip = sg.makePipeline(pip_desc);
 
     // a texture with the emulator's raw pixel data
-    state.upscale.bind.fs_images[0] = sg.makeImage(.{ .width = KC85DisplayWidth, .height = KC85DisplayHeight, .pixel_format = .RGBA8, .usage = .STREAM, .min_filter = .NEAREST, .mag_filter = .NEAREST, .wrap_u = .CLAMP_TO_EDGE, .wrap_v = .CLAMP_TO_EDGE });
+    state.upscale.bind.fs.images[0] = sg.makeImage(.{
+        .width = KC85DisplayWidth,
+        .height = KC85DisplayHeight,
+        .pixel_format = .RGBA8,
+        .usage = .STREAM,
+    });
+
+    // and a sampler to sample the raw pixel data
+    state.upscale.bind.fs.samplers[0] = sg.makeSampler(.{
+        .min_filter = .NEAREST,
+        .mag_filter = .NEAREST,
+        .wrap_u = .CLAMP_TO_EDGE,
+        .wrap_v = .CLAMP_TO_EDGE,
+    });
 
     // a 2x upscaled render target texture
-    state.display.bind.fs_images[0] = sg.makeImage(.{ .render_target = true, .width = 2 * KC85DisplayWidth, .height = 2 * KC85DisplayHeight, .min_filter = .LINEAR, .mag_filter = .LINEAR, .wrap_u = .CLAMP_TO_EDGE, .wrap_v = .CLAMP_TO_EDGE });
+    state.display.bind.fs.images[0] = sg.makeImage(.{
+        .render_target = true,
+        .width = 2 * KC85DisplayWidth,
+        .height = 2 * KC85DisplayHeight,
+    });
+
+    // and a sampler to sample the render target texture
+    state.display.bind.fs.samplers[0] = sg.makeSampler(.{
+        .min_filter = .LINEAR,
+        .mag_filter = .LINEAR,
+        .wrap_u = .CLAMP_TO_EDGE,
+        .wrap_v = .CLAMP_TO_EDGE,
+    });
 
     // a render pass for 2x upscaling
     var pass_desc = sg.PassDesc{};
-    pass_desc.color_attachments[0].image = state.display.bind.fs_images[0];
+    pass_desc.color_attachments[0].image = state.display.bind.fs.images[0];
     state.upscale.pass = sg.makePass(pass_desc);
 }
 
@@ -89,7 +116,7 @@ pub fn draw() void {
     // copy emulator pixel data into upscaling source texture
     var image_data = sg.ImageData{};
     image_data.subimage[0][0] = sg.asRange(&pixel_buffer);
-    sg.updateImage(state.upscale.bind.fs_images[0], image_data);
+    sg.updateImage(state.upscale.bind.fs.images[0], image_data);
 
     // upscale the source texture 2x with nearest filtering
     sg.beginPass(state.upscale.pass, state.upscale.pass_action);
