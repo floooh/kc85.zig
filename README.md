@@ -14,14 +14,12 @@ With Zig version 0.11.0-dev, on Windows, macOS or Linux:
 ```
 zig build
 ```
-The default debug version will ~~usually be fast enough~~ (looks like the debug
-and release-safe mode took quite a performance hit in the stage2 compiler,
-so ```release-fast``` is recommended for now), to build with optimizations use any of:
+The default debug version will usually be fast enough. To build with optimizations use any of:
 
 ```
-zig build -Drelease-fast=true
-zig build -Drelease-small=true
-zig build -Drelease-safe=true
+zig build -Doptimize=ReleaseFast
+zig build -Doptimize=ReleaseSmall
+zig build -Doptimize=ReleaseSafe
 ```
 NOTE: On Linux you also need to install the ALSA, X11 and GL development packages.
 
