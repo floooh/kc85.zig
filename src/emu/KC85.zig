@@ -347,11 +347,11 @@ pub fn create(allocator: std.mem.Allocator, desc: KC85.Desc) !*KC85 {
     // on KC85/2 and KC85/3, memory is initially filled with random noise
     if (model != .KC85_4) {
         var r: u32 = 0x6D98302B;
-        for (self.ram) |*ptr| {
+        for (&self.ram) |*ptr| {
             r = xorshift32(r);
             ptr.* = @as(u8, @truncate(r));
         }
-        for (self.irm) |*ptr| {
+        for (&self.irm) |*ptr| {
             r = xorshift32(r);
             ptr.* = @as(u8, @truncate(r));
         }
@@ -800,7 +800,7 @@ fn updateMemoryMapping(self: *KC85) void {
     }
 
     // expansion system memory mapping
-    for (self.exp.slots, 0..) |*slot, slot_index| {
+    for (&self.exp.slots, 0..) |*slot, slot_index| {
 
         // nothing to do if no module in slot
         if (slot.module.type == .NONE) {
@@ -1086,7 +1086,7 @@ fn handleKeyboard(self: *KC85) void {
 }
 
 fn slotByAddr(self: *KC85, addr: u8) !*Slot {
-    for (self.exp.slots) |*slot| {
+    for (&self.exp.slots) |*slot| {
         if (addr == slot.addr) {
             return slot;
         }
@@ -1130,7 +1130,7 @@ fn slotFree(self: *KC85, free_slot: *Slot) void {
     std.debug.assert(free_slot.module.size > 0);
     const bytes_to_free = free_slot.module.size;
     self.exp.buf_top -= bytes_to_free;
-    for (self.exp.slots) |*slot| {
+    for (&self.exp.slots) |*slot| {
         // skip empty slots
         if (slot.module.type == .NONE) {
             continue;

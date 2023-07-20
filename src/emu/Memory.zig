@@ -56,7 +56,7 @@ pub fn writeBytes(self: *Memory, addr: u16, bytes: []const u8) void {
 
 /// unmap one memory bank
 pub fn unmapBank(self: *Memory, bank_index: usize) void {
-    for (self.banks[bank_index], 0..) |*page, page_index| {
+    for (&self.banks[bank_index], 0..) |*page, page_index| {
         page.read = null;
         page.write = null;
         self.updatePage(page_index);
@@ -65,7 +65,7 @@ pub fn unmapBank(self: *Memory, bank_index: usize) void {
 
 /// unmap all memory banks
 pub fn unmapAll(self: *Memory) void {
-    for (self.banks) |*bank| {
+    for (&self.banks) |*bank| {
         for (bank) |*page| {
             page.read = null;
             page.write = null;
@@ -127,7 +127,7 @@ fn map(self: *Memory, bank_index: usize, addr: u16, size: usize, read: ?[]const 
 // helper function to update the CPU-visible page table for one memory page
 fn updatePage(self: *Memory, page_index: usize) void {
     // find highest priority bank page with valid mapping
-    for (self.banks) |*bank| {
+    for (&self.banks) |*bank| {
         if (bank[page_index].read) |_| {
             // highest priority mapped bank page found
             self.pages[page_index] = .{

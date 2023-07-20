@@ -5,7 +5,7 @@ const sg = @import("gfx.zig");
 
 // helper function to convert a C string to a Zig string slice
 fn cStrToZig(c_str: [*c]const u8) [:0]const u8 {
-  return @import("std").mem.span(c_str);
+    return @import("std").mem.span(c_str);
 }
 pub const Pipeline = extern struct {
     id: u32 = 0,
@@ -30,12 +30,12 @@ pub const ContextDesc = extern struct {
     sample_count: i32 = 0,
 };
 pub const Allocator = extern struct {
-    alloc: ?*const fn(usize, ?*anyopaque) callconv(.C) ?*anyopaque = null,
-    free: ?*const fn(?*anyopaque, ?*anyopaque) callconv(.C) void = null,
+    alloc: ?*const fn (usize, ?*anyopaque) callconv(.C) ?*anyopaque = null,
+    free: ?*const fn (?*anyopaque, ?*anyopaque) callconv(.C) void = null,
     user_data: ?*anyopaque = null,
 };
 pub const Logger = extern struct {
-    log_cb: ?*const fn([*c]const u8, ?*anyopaque) callconv(.C) void = null,
+    log_cb: ?*const fn ([*c]const u8, ?*anyopaque) callconv(.C) void = null,
     user_data: ?*anyopaque = null,
 };
 pub const Desc = extern struct {
@@ -47,8 +47,8 @@ pub const Desc = extern struct {
     depth_format: sg.PixelFormat = .DEFAULT,
     sample_count: i32 = 0,
     face_winding: sg.FaceWinding = .DEFAULT,
-    allocator: Allocator = .{ },
-    logger: Logger = .{ },
+    allocator: Allocator = .{},
+    logger: Logger = .{},
 };
 pub extern fn sgl_setup([*c]const Desc) void;
 pub fn setup(desc: Desc) void {

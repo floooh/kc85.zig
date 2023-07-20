@@ -81,7 +81,7 @@ pub fn writePort(self: *PIO, port_index: u1, data: u8) void {
 // call once per CPU machine cycle for interrupt handling
 pub fn int(self: *PIO, in_pins: u64) u64 {
     var pins = in_pins;
-    for (self.ports) |*p| {
+    for (&self.ports) |*p| {
         pins = p.intr.tick(pins);
     }
     return pins;

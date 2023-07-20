@@ -39,7 +39,7 @@ pub fn iorq(self: *CTC, in_pins: u64) u64 {
 // execute one clock tick
 pub fn tick(self: *CTC, in_pins: u64) u64 {
     var pins = in_pins & ~(ZCTO0 | ZCTO1 | ZCTO2);
-    for (self.channels, 0..) |*chn, i| {
+    for (&self.channels, 0..) |*chn, i| {
         const chn_index = @as(u2, @truncate(i));
         // check if externally triggered
         if (chn.waiting_for_trigger or ((chn.control & Ctrl.MODE) == Ctrl.MODE_COUNTER)) {
@@ -69,7 +69,7 @@ pub fn tick(self: *CTC, in_pins: u64) u64 {
 // call once per CPU machine cycle to handle interrupts
 pub fn int(self: *CTC, in_pins: u64) u64 {
     var pins = in_pins;
-    for (self.channels) |*chn| {
+    for (&self.channels) |*chn| {
         pins = chn.intr.tick(pins);
     }
     return pins;
@@ -200,7 +200,7 @@ fn ioWrite(self: *CTC, chn_index: u2, in_pins: u64) u64 {
         // are then computed from the base vector plus 2 bytes per channel
         //
         if (0 == chn_index) {
-            for (self.channels, 0..) |*c, i| {
+            for (&self.channels, 0..) |*c, i| {
                 c.intr.vector = (data & 0xF8) +% 2 * @as(u8, @truncate(i));
             }
         }
