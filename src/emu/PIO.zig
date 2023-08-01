@@ -94,7 +94,7 @@ pub fn setData(pins: u64, data: u8) u64 {
 
 // get data pins in pin mask
 pub fn getData(pins: u64) u8 {
-    return @as(u8, @truncate(pins >> DataPinShift));
+    return @truncate(pins >> DataPinShift);
 }
 
 // set port A pins
@@ -261,7 +261,7 @@ fn writeCtrl(self: *PIO, port_index: u1, data: u8) void {
     } else switch (data & 0x0F) {
         0x0F => {
             // set operating mode (Mode.*)
-            p.mode = @as(u2, @truncate(data >> 6));
+            p.mode = @truncate(data >> 6);
             switch (p.mode) {
                 Mode.OUTPUT => {
                     // make output visible on port pins

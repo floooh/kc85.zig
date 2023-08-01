@@ -24,7 +24,7 @@ pub fn iorq(self: *CTC, in_pins: u64) u64 {
     var pins = in_pins;
     // check for chip-enabled and IO requested
     if ((pins & (CE | IORQ | M1)) == (CE | IORQ)) {
-        const chn_index: u2 = @as(u2, @truncate(pins >> CS0PinShift));
+        const chn_index: u2 = @truncate(pins >> CS0PinShift);
         if (0 != (pins & RD)) {
             // an IO read request
             pins = self.ioRead(chn_index, pins);
@@ -40,7 +40,7 @@ pub fn iorq(self: *CTC, in_pins: u64) u64 {
 pub fn tick(self: *CTC, in_pins: u64) u64 {
     var pins = in_pins & ~(ZCTO0 | ZCTO1 | ZCTO2);
     for (&self.channels, 0..) |*chn, i| {
-        const chn_index = @as(u2, @truncate(i));
+        const chn_index: u2 = @truncate(i);
         // check if externally triggered
         if (chn.waiting_for_trigger or ((chn.control & Ctrl.MODE) == Ctrl.MODE_COUNTER)) {
             const trg: bool = (0 != (pins & (CLKTRG0 << chn_index)));
@@ -82,7 +82,7 @@ pub fn setData(pins: u64, data: u8) u64 {
 
 // get data pins in pin mask
 pub fn getData(pins: u64) u8 {
-    return @as(u8, @truncate(pins >> DataPinShift));
+    return @truncate(pins >> DataPinShift);
 }
 
 // data bus pins shared with CPU

@@ -18,11 +18,11 @@ pub fn ticksToRun(self: *Clock, micro_seconds: u32) u64 {
     if (self.ticks_to_run < 1) {
         self.ticks_to_run = 1;
     }
-    return @as(u64, @intCast(self.ticks_to_run));
+    return @intCast(self.ticks_to_run);
 }
 
 pub fn ticksExecuted(self: *Clock, ticks_executed: u64) void {
-    const ticks: i64 = @as(i64, @intCast(ticks_executed));
+    const ticks: i64 = @intCast(ticks_executed);
     if (ticks > self.ticks_to_run) {
         self.overrun_ticks = ticks - self.ticks_to_run;
     } else {

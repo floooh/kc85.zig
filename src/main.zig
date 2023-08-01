@@ -156,7 +156,7 @@ export fn input(event: ?*const sapp.Event) void {
                 } else if ((char >= 'a') and (char <= 'z')) {
                     char &= ~@as(u8, 0x20);
                 }
-                const key = @as(u8, @truncate(char));
+                const key: u8 = @truncate(char);
                 state.kc.keyDown(key);
                 state.kc.keyUp(key);
             }

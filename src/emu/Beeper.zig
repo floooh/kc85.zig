@@ -23,7 +23,7 @@ pub const Desc = struct {
 
 // return an initialized Beeper instance
 pub fn init(desc: Beeper.Desc) Beeper {
-    const p = @as(i32, @intCast((desc.tick_hz * fixedpoint_scale) / desc.sound_hz));
+    const p: i32 = @intCast((desc.tick_hz * fixedpoint_scale) / desc.sound_hz);
     return .{
         .state = 0,
         .period = p,
@@ -53,7 +53,7 @@ pub fn tick(self: *Beeper) bool {
     self.counter -= fixedpoint_scale;
     if (self.counter <= 0) {
         self.counter += self.period;
-        self.sample = self.dcadjust(@as(f32, @floatFromInt(self.state))) * self.magnitude;
+        self.sample = self.dcadjust(@floatFromInt(self.state)) * self.magnitude;
         return true;
     } else {
         return false;

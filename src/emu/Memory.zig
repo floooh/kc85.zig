@@ -41,8 +41,8 @@ pub fn r16(self: *Memory, addr: u16) u16 {
 
 /// write a 16-bit value to mapped memory
 pub fn w16(self: *Memory, addr: u16, val: u16) void {
-    self.w8(addr, @as(u8, @truncate(val)));
-    self.w8(addr +% 1, @as(u8, @truncate(val >> 8)));
+    self.w8(addr, @truncate(val));
+    self.w8(addr +% 1, @truncate(val >> 8));
 }
 
 /// write a whole range of bytes to mapped memory

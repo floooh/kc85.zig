@@ -349,11 +349,11 @@ pub fn create(allocator: std.mem.Allocator, desc: KC85.Desc) !*KC85 {
         var r: u32 = 0x6D98302B;
         for (&self.ram) |*ptr| {
             r = xorshift32(r);
-            ptr.* = @as(u8, @truncate(r));
+            ptr.* = @truncate(r);
         }
         for (&self.irm) |*ptr| {
             r = xorshift32(r);
-            ptr.* = @as(u8, @truncate(r));
+            ptr.* = @truncate(r);
         }
     }
 
@@ -586,7 +586,7 @@ fn xorshift32(r: u32) u32 {
 
 // the system tick function is called from within the CPU emulation
 fn tickFunc(num_ticks: u64, pins_in: u64, userdata: usize) u64 {
-    var self = @as(*KC85, @ptrFromInt(userdata));
+    var self: *KC85 = @ptrFromInt(userdata);
     var pins = pins_in;
 
     // memory and IO requests
@@ -654,7 +654,7 @@ fn tickFunc(num_ticks: u64, pins_in: u64, userdata: usize) u64 {
                 switch (pins & (CPU.A2 | CPU.A1 | CPU.A0)) {
                     0x00 => {
                         // port 0x80: expansion system control
-                        const slot_addr = @as(u8, @truncate(CPU.getAddr(pins) >> 8));
+                        const slot_addr: u8 = @truncate(CPU.getAddr(pins) >> 8);
                         if (0 != (pins & CPU.WR)) {
                             // write new module control byte and update memory mapping
                             if (self.slotWriteCtrlByte(slot_addr, data)) {
@@ -839,7 +839,7 @@ fn pioIn(port: u1, userdata: usize) u8 {
 }
 
 fn pioOut(port: u1, data: u8, userdata: usize) void {
-    var self = @as(*KC85, @ptrFromInt(userdata));
+    var self: *KC85 = @ptrFromInt(userdata);
     switch (port) {
         PIO.PA => self.pio_a = data,
         PIO.PB => self.pio_b = data,
@@ -1218,7 +1218,7 @@ fn validateKCC(data: []const u8) !void {
     if (data.len < @sizeOf(KCCHeader)) {
         return error.KCCWrongHeaderSize;
     }
-    const hdr = @as(*const KCCHeader, @ptrCast(data));
+    const hdr: *const KCCHeader = @ptrCast(data);
     if (hdr.num_addr > 3) {
         return error.KCCNumAddrTooBig;
     }
@@ -1241,7 +1241,7 @@ fn validateKCC(data: []const u8) !void {
 
 fn loadKCC(self: *KC85, data: []const u8) !void {
     try validateKCC(data);
-    const hdr = @as(*const KCCHeader, @ptrCast(data));
+    const hdr: *const KCCHeader = @ptrCast(data);
     var addr = makeU16(hdr.load_addr_h, hdr.load_addr_l);
     const end_addr = makeU16(hdr.end_addr_h, hdr.end_addr_l);
     const payload = data[@sizeOf(KCCHeader)..];
@@ -1264,7 +1264,7 @@ fn checkKCTAPMagic(data: []const u8) bool {
     if (data.len <= @sizeOf(KCTAPHeader)) {
         return false;
     }
-    const hdr = @as(*const KCTAPHeader, @ptrCast(data));
+    const hdr: *const KCTAPHeader = @ptrCast(data);
     const magic = [16]u8{ 0xC3, 'K', 'C', '-', 'T', 'A', 'P', 'E', 0x20, 'b', 'y', 0x20, 'A', 'F', '.', 0x20 };
     return std.mem.eql(u8, magic[0..], hdr.magic[0..]);
 }
@@ -1273,7 +1273,7 @@ fn validateKCTAP(data: []const u8) !void {
     if (!checkKCTAPMagic(data)) {
         return error.NoKCTAPMagicNumber;
     }
-    const hdr = @as(*const KCTAPHeader, @ptrCast(data));
+    const hdr: *const KCTAPHeader = @ptrCast(data);
     if (hdr.kcc.num_addr > 3) {
         return error.KCTAPNumAddrTooBig;
     }
@@ -1296,7 +1296,7 @@ fn validateKCTAP(data: []const u8) !void {
 
 fn loadKCTAP(self: *KC85, data: []const u8) !void {
     try validateKCTAP(data);
-    const hdr = @as(*const KCTAPHeader, @ptrCast(data));
+    const hdr: *const KCTAPHeader = @ptrCast(data);
     var addr = makeU16(hdr.kcc.load_addr_h, hdr.kcc.load_addr_l);
     const end_addr = makeU16(hdr.kcc.end_addr_h, hdr.kcc.end_addr_l);
     const payload = data[@sizeOf(KCTAPHeader)..];

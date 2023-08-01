@@ -139,8 +139,8 @@ pub fn draw() void {
 fn applyViewport(canvas_width: f32, canvas_height: f32) void {
     const canvas_aspect = canvas_width / canvas_height;
     const fb_aspect = @as(f32, KC85DisplayWidth) / @as(f32, KC85DisplayHeight);
-    const frame_x = @as(f32, BorderWidth);
-    const frame_y = @as(f32, BorderHeight);
+    const frame_x: f32 = BorderWidth;
+    const frame_y: f32 = BorderHeight;
     var vp_x: f32 = 0.0;
     var vp_y: f32 = 0.0;
     var vp_w: f32 = 0.0;

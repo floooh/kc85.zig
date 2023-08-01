@@ -205,11 +205,11 @@ pub fn exec(self: *CPU, num_ticks: u64, tick_func: TickFunc) u64 {
 
         // decode opcode (see http://www.z80.info/decoding.htm)
         // |xx|yyy|zzz|
-        const x = @as(u2, @truncate(op >> 6));
-        const y = @as(u3, @truncate(op >> 3));
-        const z = @as(u3, @truncate(op & 7));
-        const p = @as(u2, @truncate(y >> 1));
-        const q = @as(u1, @truncate(y));
+        const x: u2 = @truncate(op >> 6);
+        const y: u3 = @truncate(op >> 3);
+        const z: u3 = @truncate(op & 7);
+        const p: u2 = @truncate(y >> 1);
+        const q: u1 = @truncate(y);
 
         switch (x) {
             0 => switch (z) {
@@ -354,8 +354,8 @@ pub const FA = 3;
 pub const NumRegs16 = 4;
 
 pub fn setR16(self: *CPU, reg: u2, val: u16) void {
-    self.regs[@as(u3, reg) * 2 + 0] = @as(u8, @truncate(val >> 8));
-    self.regs[@as(u3, reg) * 2 + 1] = @as(u8, @truncate(val));
+    self.regs[@as(u3, reg) * 2 + 0] = @truncate(val >> 8);
+    self.regs[@as(u3, reg) * 2 + 1] = @truncate(val);
 }
 
 pub fn r16(self: *CPU, reg: u2) u16 {
@@ -366,11 +366,11 @@ pub fn r16(self: *CPU, reg: u2) u16 {
 
 // set/get wait ticks on pin mask
 pub fn setWait(pins: u64, wait_ticks: u3) u64 {
-    return (pins & ~WaitPinMask) | @as(u64, wait_ticks) << WaitPinShift;
+    return (pins & ~WaitPinMask) | (wait_ticks << WaitPinShift);
 }
 
 pub fn getWait(pins: u64) u3 {
-    return @as(u3, @truncate(pins >> WaitPinShift));
+    return @truncate(pins >> WaitPinShift);
 }
 
 // set/get address pins in pin mask
@@ -379,7 +379,7 @@ pub fn setAddr(pins: u64, a: u16) u64 {
 }
 
 pub fn getAddr(pins: u64) u16 {
-    return @as(u16, @truncate(pins));
+    return @truncate(pins);
 }
 
 // set/get data pins in pin mask
@@ -388,7 +388,7 @@ pub fn setData(pins: u64, data: u8) u64 {
 }
 
 pub fn getData(pins: u64) u8 {
-    return @as(u8, @truncate(pins >> DataPinShift));
+    return @truncate(pins >> DataPinShift);
 }
 
 // set address and data pins in pin mask
@@ -473,11 +473,11 @@ fn opED_prefix(self: *CPU, tick_func: TickFunc) void {
     self.ixiy = 0;
 
     const op = self.fetch(tick_func);
-    const x = @as(u2, @truncate(op >> 6));
-    const y = @as(u3, @truncate(op >> 3));
-    const z = @as(u3, @truncate(op & 7));
-    const p = @as(u2, @truncate(y >> 1));
-    const q = @as(u1, @truncate(y));
+    const x: u2 = @truncate(op >> 6);
+    const y: u3 = @truncate(op >> 3);
+    const z: u3 = @truncate(op & 7);
+    const p: u2 = @truncate(y >> 1);
+    const q: u1 = @truncate(y);
 
     switch (x) {
         1 => switch (z) {
@@ -547,9 +547,9 @@ fn opCB_prefix(self: *CPU, tick_func: TickFunc) void {
 
     // special opcode fetch without memory refresh and bumpR()
     const op = self.fetchCB(tick_func);
-    const x = @as(u2, @truncate(op >> 6));
-    const y = @as(u3, @truncate(op >> 3));
-    const z = @as(u3, @truncate(op & 7));
+    const x: u2 = @truncate(op >> 6);
+    const y: u3 = @truncate(op >> 3);
+    const z: u3 = @truncate(op & 7);
 
     // load operand (for indexed ops always from memory)
     const d8: u8 = if ((z == 6) or (self.ixiy != 0)) blk: {
@@ -686,15 +686,15 @@ fn imm8(self: *CPU, tick_func: TickFunc) u8 {
 
 // read the signed 8-bit address offset for IX/IX+d ops extended to unsigned 16-bit
 fn dimm8(self: *CPU, tick_func: TickFunc) u16 {
-    return @as(u16, @bitCast(@as(i16, @as(i8, @bitCast(self.imm8(tick_func))))));
+    return @bitCast(@as(i16, @as(i8, @bitCast(self.imm8(tick_func)))));
 }
 
 // helper function to push 16 bit value on stack
 fn push16(self: *CPU, val: u16, tick_func: TickFunc) void {
     self.SP -%= 1;
-    self.memWrite(self.SP, @as(u8, @truncate(val >> 8)), tick_func);
+    self.memWrite(self.SP, @truncate(val >> 8), tick_func);
     self.SP -%= 1;
-    self.memWrite(self.SP, @as(u8, @truncate(val)), tick_func);
+    self.memWrite(self.SP, @truncate(val), tick_func);
 }
 
 // helper function pop 16 bit value from stack
@@ -752,14 +752,14 @@ fn load8(self: *CPU, z: u3, tick_func: TickFunc) u8 {
         B, C, D, E, A => self.regs[z],
         H => switch (self.ixiy) {
             0 => self.regs[H],
-            UseIX => @as(u8, @truncate(self.IX >> 8)),
-            UseIY => @as(u8, @truncate(self.IY >> 8)),
+            UseIX => @truncate(self.IX >> 8),
+            UseIY => @truncate(self.IY >> 8),
             else => unreachable,
         },
         L => switch (self.ixiy) {
             0 => self.regs[L],
-            UseIX => @as(u8, @truncate(self.IX)),
-            UseIY => @as(u8, @truncate(self.IY)),
+            UseIX => @truncate(self.IX),
+            UseIY => @truncate(self.IY),
             else => unreachable,
         },
         F => self.memRead(self.WZ, tick_func),
@@ -845,8 +845,8 @@ fn store16AF(self: *CPU, reg: u2, val: u16) void {
         DE => self.setR16(DE, val),
         HL => self.storeHLIXIY(val),
         FA => {
-            self.regs[F] = @as(u8, @truncate(val));
-            self.regs[A] = @as(u8, @truncate(val >> 8));
+            self.regs[F] = @truncate(val);
+            self.regs[A] = @truncate(val >> 8);
         },
     }
 }
@@ -989,9 +989,9 @@ fn opLD_A_iBCDE(self: *CPU, r: u2, tick_func: TickFunc) void {
 fn opLD_inn_HL(self: *CPU, tick_func: TickFunc) void {
     self.WZ = self.imm16(tick_func);
     const val = self.loadHLIXIY();
-    self.memWrite(self.WZ, @as(u8, @truncate(val)), tick_func);
+    self.memWrite(self.WZ, @truncate(val), tick_func);
     self.WZ +%= 1;
-    self.memWrite(self.WZ, @as(u8, @truncate(val >> 8)), tick_func);
+    self.memWrite(self.WZ, @truncate(val >> 8), tick_func);
 }
 
 // LD HL,(nn)
@@ -1022,9 +1022,9 @@ fn opLD_A_inn(self: *CPU, tick_func: TickFunc) void {
 fn opLD_inn_rp(self: *CPU, p: u2, tick_func: TickFunc) void {
     self.WZ = self.imm16(tick_func);
     const val = self.load16SP(p);
-    self.memWrite(self.WZ, @as(u8, @truncate(val)), tick_func);
+    self.memWrite(self.WZ, @truncate(val), tick_func);
     self.WZ +%= 1;
-    self.memWrite(self.WZ, @as(u8, @truncate(val >> 8)), tick_func);
+    self.memWrite(self.WZ, @truncate(val >> 8), tick_func);
 }
 
 // LD BC/DE/HL/SP,(nn)
@@ -1120,8 +1120,8 @@ fn opEX_iSP_HL(self: *CPU, tick_func: TickFunc) void {
     const l: u16 = self.memRead(self.SP, tick_func);
     const h: u16 = self.memRead(self.SP +% 1, tick_func);
     const val = self.loadHLIXIY();
-    self.memWrite(self.SP, @as(u8, @truncate(val)), tick_func);
-    self.memWrite(self.SP +% 1, @as(u8, @truncate(val >> 8)), tick_func);
+    self.memWrite(self.SP, @truncate(val), tick_func);
+    self.memWrite(self.SP +% 1, @truncate(val >> 8), tick_func);
     self.WZ = (h << 8) | l;
     self.storeHLIXIY(self.WZ);
 }
@@ -1420,11 +1420,11 @@ fn opADD_HL_rp(self: *CPU, p: u2, tick_func: TickFunc) void {
     self.WZ = acc +% 1;
     const val = self.load16SP(p);
     const res: u17 = @as(u17, acc) +% val;
-    self.storeHLIXIY(@as(u16, @truncate(res)));
+    self.storeHLIXIY(@truncate(res));
     var f: u17 = self.regs[F] & (SF | ZF | VF);
     f |= ((acc ^ res ^ val) >> 8) & HF;
     f |= ((res >> 16) & CF) | ((res >> 8) & (YF | XF));
-    self.regs[F] = @as(u8, @truncate(f));
+    self.regs[F] = @truncate(f);
     self.tick(7, 0, tick_func); // filler ticks
 }
 
@@ -1434,13 +1434,13 @@ fn opADC_HL_rp(self: *CPU, p: u2, tick_func: TickFunc) void {
     self.WZ = acc +% 1;
     const val = self.load16SP(p);
     const res: u17 = @as(u17, acc) +% val +% (self.regs[F] & CF);
-    self.setR16(HL, @as(u16, @truncate(res)));
+    self.setR16(HL, @truncate(res));
     var f: u17 = ((val ^ acc ^ 0x8000) & (val ^ res) & 0x8000) >> 13;
     f |= ((acc ^ res ^ val) >> 8) & HF;
     f |= (res >> 16) & CF;
     f |= (res >> 8) & (SF | YF | XF);
     f |= if (0 == (res & 0xFFFF)) ZF else 0;
-    self.regs[F] = @as(u8, @truncate(f));
+    self.regs[F] = @truncate(f);
     self.tick(7, 0, tick_func); // filler ticks
 }
 
@@ -1450,13 +1450,13 @@ fn opSBC_HL_rp(self: *CPU, p: u2, tick_func: TickFunc) void {
     self.WZ = acc +% 1;
     const val = self.load16SP(p);
     const res: u17 = @as(u17, acc) -% val -% (self.regs[F] & CF);
-    self.setR16(HL, @as(u16, @truncate(res)));
+    self.setR16(HL, @truncate(res));
     var f: u17 = NF | (((val ^ acc) & (acc ^ res) & 0x8000) >> 13);
     f |= ((acc ^ res ^ val) >> 8) & HF;
     f |= (res >> 16) & CF;
     f |= (res >> 8) & (SF | YF | XF);
     f |= if (0 == (res & 0xFFFF)) ZF else 0;
-    self.regs[F] = @as(u8, @truncate(f));
+    self.regs[F] = @truncate(f);
     self.tick(7, 0, tick_func); // filler ticks
 }
 
@@ -1625,28 +1625,28 @@ fn add8(r: *Regs, val: u8) void {
     const acc: u9 = r[A];
     const res: u9 = acc + val;
     r[F] = addFlags(acc, val, res);
-    r[A] = @as(u8, @truncate(res));
+    r[A] = @truncate(res);
 }
 
 fn adc8(r: *Regs, val: u8) void {
     const acc: u9 = r[A];
     const res: u9 = acc + val + (r[F] & CF);
     r[F] = addFlags(acc, val, res);
-    r[A] = @as(u8, @truncate(res));
+    r[A] = @truncate(res);
 }
 
 fn sub8(r: *Regs, val: u8) void {
     const acc: u9 = r[A];
     const res: u9 = acc -% val;
     r[F] = subFlags(acc, val, res);
-    r[A] = @as(u8, @truncate(res));
+    r[A] = @truncate(res);
 }
 
 fn sbc8(r: *Regs, val: u8) void {
     const acc: u9 = r[A];
     const res: u9 = acc -% val -% (r[F] & CF);
     r[F] = subFlags(acc, val, res);
-    r[A] = @as(u8, @truncate(res));
+    r[A] = @truncate(res);
 }
 
 fn and8(r: *Regs, val: u8) void {

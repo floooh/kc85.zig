@@ -93,8 +93,8 @@ fn mem16(addr: u16) u16 {
 }
 
 fn w16(addr: u16, data: u16) void {
-    mem[addr] = @as(u8, @truncate(data));
-    mem[addr +% 1] = @as(u8, @truncate(data >> 8));
+    mem[addr] = @truncate(data);
+    mem[addr +% 1] = @truncate(data >> 8);
 }
 
 fn makeCPU() CPU {
