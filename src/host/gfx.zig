@@ -36,8 +36,6 @@ const state = struct {
 };
 
 pub fn setup() void {
-
-    // setup sokol-gfx and sokol-text
     sg.setup(.{
         .buffer_pool_size = 8,
         .image_pool_size = 8,
