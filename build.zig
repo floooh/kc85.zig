@@ -1,6 +1,6 @@
 const std = @import("std");
 const Builder = std.build.Builder;
-const LibExeObjStep = std.build.LibExeObjStep;
+const CompileStep = std.build.CompileStep;
 const CrossTarget = std.zig.CrossTarget;
 const Mode = std.builtin.Mode;
 
@@ -23,7 +23,7 @@ pub fn build(b: *Builder) void {
     addTests(b);
 }
 
-fn addKC85(b: *Builder, sokol: *LibExeObjStep, target: CrossTarget, optimize: Mode, comptime kc85_model: KC85Model) void {
+fn addKC85(b: *Builder, sokol: *CompileStep, target: CrossTarget, optimize: Mode, comptime kc85_model: KC85Model) void {
     const name = switch (kc85_model) {
         .KC85_2 => "kc852",
         .KC85_3 => "kc853",
@@ -136,7 +136,7 @@ fn addZ80ZEXALL(b: *Builder, target: CrossTarget, optimize: Mode) void {
     b.step("z80zexall", "Run the Z80 ZEXALL test").dependOn(&run.step);
 }
 
-fn buildSokol(b: *Builder, target: CrossTarget, optimize: Mode, comptime prefix_path: []const u8) *LibExeObjStep {
+fn buildSokol(b: *Builder, target: CrossTarget, optimize: Mode, comptime prefix_path: []const u8) *CompileStep {
     const lib = b.addStaticLibrary(.{
         .name = "sokol",
         .target = target,
