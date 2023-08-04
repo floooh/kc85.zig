@@ -153,7 +153,10 @@ fn buildSokol(b: *Builder, target: CrossTarget, optimize: Mode, comptime prefix_
     };
     if (lib.target.isDarwin()) {
         inline for (csources) |csrc| {
-            lib.addCSourceFile(sokol_path ++ csrc, &[_][]const u8{ "-ObjC", "-DIMPL" });
+            lib.addCSourceFile(.{
+                .file = .{ .path = sokol_path ++ csrc },
+                .flags = &[_][]const u8{ "-ObjC", "-DIMPL" },
+            });
         }
         lib.linkFramework("MetalKit");
         lib.linkFramework("Metal");
@@ -162,7 +165,10 @@ fn buildSokol(b: *Builder, target: CrossTarget, optimize: Mode, comptime prefix_
         lib.linkFramework("AudioToolbox");
     } else {
         inline for (csources) |csrc| {
-            lib.addCSourceFile(sokol_path ++ csrc, &[_][]const u8{"-DIMPL"});
+            lib.addCSourceFile(.{
+                .file = .{ .path = sokol_path ++ csrc },
+                .flags = &[_][]const u8{"-DIMPL"},
+            });
         }
         if (lib.target.isLinux()) {
             lib.linkSystemLibrary("X11");
