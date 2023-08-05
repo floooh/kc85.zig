@@ -2,7 +2,7 @@ const std = @import("std");
 const Builder = std.build.Builder;
 const CompileStep = std.build.CompileStep;
 const CrossTarget = std.zig.CrossTarget;
-const Mode = std.builtin.Mode;
+const OptimizeMode = std.builtin.OptimizeMode;
 
 const KC85Model = enum {
     KC85_2,
@@ -23,7 +23,7 @@ pub fn build(b: *Builder) void {
     addTests(b);
 }
 
-fn addKC85(b: *Builder, sokol: *CompileStep, target: CrossTarget, optimize: Mode, comptime kc85_model: KC85Model) void {
+fn addKC85(b: *Builder, sokol: *CompileStep, target: CrossTarget, optimize: OptimizeMode, comptime kc85_model: KC85Model) void {
     const name = switch (kc85_model) {
         .KC85_2 => "kc852",
         .KC85_3 => "kc853",
@@ -77,7 +77,7 @@ fn addTests(b: *Builder) void {
     test_step.dependOn(&tests.step);
 }
 
-fn addZ80Test(b: *Builder, target: CrossTarget, optimize: Mode) void {
+fn addZ80Test(b: *Builder, target: CrossTarget, optimize: OptimizeMode) void {
     const exe = b.addExecutable(.{
         .name = "z80test",
         .target = target,
@@ -94,7 +94,7 @@ fn addZ80Test(b: *Builder, target: CrossTarget, optimize: Mode) void {
     b.step("z80test", "Run the Z80 CPU test").dependOn(&run.step);
 }
 
-fn addZ80ZEXDOC(b: *Builder, target: CrossTarget, optimize: Mode) void {
+fn addZ80ZEXDOC(b: *Builder, target: CrossTarget, optimize: OptimizeMode) void {
     const exe = b.addExecutable(.{
         .name = "z80zexdoc",
         .target = target,
@@ -115,7 +115,7 @@ fn addZ80ZEXDOC(b: *Builder, target: CrossTarget, optimize: Mode) void {
     b.step("z80zexdoc", "Run the Z80 ZEXDOC test").dependOn(&run.step);
 }
 
-fn addZ80ZEXALL(b: *Builder, target: CrossTarget, optimize: Mode) void {
+fn addZ80ZEXALL(b: *Builder, target: CrossTarget, optimize: OptimizeMode) void {
     const exe = b.addExecutable(.{
         .name = "z80zexall",
         .target = target,
@@ -136,7 +136,7 @@ fn addZ80ZEXALL(b: *Builder, target: CrossTarget, optimize: Mode) void {
     b.step("z80zexall", "Run the Z80 ZEXALL test").dependOn(&run.step);
 }
 
-fn buildSokol(b: *Builder, target: CrossTarget, optimize: Mode, comptime prefix_path: []const u8) *CompileStep {
+fn buildSokol(b: *Builder, target: CrossTarget, optimize: OptimizeMode, comptime prefix_path: []const u8) *CompileStep {
     const lib = b.addStaticLibrary(.{
         .name = "sokol",
         .target = target,
