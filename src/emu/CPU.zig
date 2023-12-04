@@ -1493,7 +1493,7 @@ fn opIN_ry_iC(self: *CPU, y: u3, tick_func: TickFunc) void {
 fn opOUT_iC_ry(self: *CPU, y: u3, tick_func: TickFunc) void {
     const bc = self.r16(BC);
     // undocumented special case for OUT (C),(HL): output 0 instead
-    var val = if (y == 6) 0 else self.load8(y, tick_func);
+    const val = if (y == 6) 0 else self.load8(y, tick_func);
     self.ioWrite(bc, val, tick_func);
     self.WZ = bc +% 1;
 }

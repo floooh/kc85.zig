@@ -1,5 +1,6 @@
-#define SOKOL_ZIG_BINDINGS
-#define SOKOL_NO_ENTRY
+#if !defined(__ANDROID__)
+    #define SOKOL_NO_ENTRY
+#endif
 #if defined(_WIN32)
     #define SOKOL_WIN32_FORCE_MAIN
     #define SOKOL_D3D11

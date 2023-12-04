@@ -20,7 +20,7 @@ const sg = @import("sokol").gfx;
 //                  Multisampled: false
 //                  Bind slot: SLOT_tex = 0
 //              Sampler 'smp':
-//                  Type: .SAMPLE
+//                  Type: .FILTERING
 //                  Bind slot: SLOT_smp = 0
 //              Image Sampler Pair 'tex_smp':
 //                  Image: tex
@@ -38,7 +38,7 @@ const sg = @import("sokol").gfx;
 //                  Multisampled: false
 //                  Bind slot: SLOT_tex = 0
 //              Sampler 'smp':
-//                  Type: .SAMPLE
+//                  Type: .FILTERING
 //                  Bind slot: SLOT_smp = 0
 //              Image Sampler Pair 'tex_smp':
 //                  Image: tex
@@ -653,7 +653,7 @@ pub fn displayShaderDesc(backend: sg.Backend) sg.ShaderDesc {
             desc.fs.images[0].image_type = ._2D;
             desc.fs.images[0].sample_type = .FLOAT;
             desc.fs.samplers[0].used = true;
-            desc.fs.samplers[0].sampler_type = .SAMPLE;
+            desc.fs.samplers[0].sampler_type = .FILTERING;
             desc.fs.image_sampler_pairs[0].used = true;
             desc.fs.image_sampler_pairs[0].image_slot = 0;
             desc.fs.image_sampler_pairs[0].sampler_slot = 0;
@@ -674,7 +674,7 @@ pub fn displayShaderDesc(backend: sg.Backend) sg.ShaderDesc {
             desc.fs.images[0].image_type = ._2D;
             desc.fs.images[0].sample_type = .FLOAT;
             desc.fs.samplers[0].used = true;
-            desc.fs.samplers[0].sampler_type = .SAMPLE;
+            desc.fs.samplers[0].sampler_type = .FILTERING;
             desc.fs.image_sampler_pairs[0].used = true;
             desc.fs.image_sampler_pairs[0].image_slot = 0;
             desc.fs.image_sampler_pairs[0].sampler_slot = 0;
@@ -690,7 +690,7 @@ pub fn displayShaderDesc(backend: sg.Backend) sg.ShaderDesc {
             desc.fs.images[0].image_type = ._2D;
             desc.fs.images[0].sample_type = .FLOAT;
             desc.fs.samplers[0].used = true;
-            desc.fs.samplers[0].sampler_type = .SAMPLE;
+            desc.fs.samplers[0].sampler_type = .FILTERING;
             desc.fs.image_sampler_pairs[0].used = true;
             desc.fs.image_sampler_pairs[0].image_slot = 0;
             desc.fs.image_sampler_pairs[0].sampler_slot = 0;
@@ -714,7 +714,7 @@ pub fn upscaleShaderDesc(backend: sg.Backend) sg.ShaderDesc {
             desc.fs.images[0].image_type = ._2D;
             desc.fs.images[0].sample_type = .FLOAT;
             desc.fs.samplers[0].used = true;
-            desc.fs.samplers[0].sampler_type = .SAMPLE;
+            desc.fs.samplers[0].sampler_type = .FILTERING;
             desc.fs.image_sampler_pairs[0].used = true;
             desc.fs.image_sampler_pairs[0].image_slot = 0;
             desc.fs.image_sampler_pairs[0].sampler_slot = 0;
@@ -735,7 +735,7 @@ pub fn upscaleShaderDesc(backend: sg.Backend) sg.ShaderDesc {
             desc.fs.images[0].image_type = ._2D;
             desc.fs.images[0].sample_type = .FLOAT;
             desc.fs.samplers[0].used = true;
-            desc.fs.samplers[0].sampler_type = .SAMPLE;
+            desc.fs.samplers[0].sampler_type = .FILTERING;
             desc.fs.image_sampler_pairs[0].used = true;
             desc.fs.image_sampler_pairs[0].image_slot = 0;
             desc.fs.image_sampler_pairs[0].sampler_slot = 0;
@@ -751,7 +751,7 @@ pub fn upscaleShaderDesc(backend: sg.Backend) sg.ShaderDesc {
             desc.fs.images[0].image_type = ._2D;
             desc.fs.images[0].sample_type = .FLOAT;
             desc.fs.samplers[0].used = true;
-            desc.fs.samplers[0].sampler_type = .SAMPLE;
+            desc.fs.samplers[0].sampler_type = .FILTERING;
             desc.fs.image_sampler_pairs[0].used = true;
             desc.fs.image_sampler_pairs[0].image_slot = 0;
             desc.fs.image_sampler_pairs[0].sampler_slot = 0;
