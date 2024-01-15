@@ -57,7 +57,7 @@ fn addKC85(b: *Build, target: Build.ResolvedTarget, optimize: OptimizeMode, dep_
         }
         b.step("run-" ++ name, "Run " ++ name).dependOn(&run.step);
     } else {
-        // web build
+        // web build, compile the Zig code into a static library, and link with the Emscripten linker
         const kc85 = b.addStaticLibrary(.{
             .name = name,
             .target = target,
