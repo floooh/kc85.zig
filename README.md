@@ -78,6 +78,20 @@ forth[Enter]
 
 ![FORTH Screenshot](screenshots/forth.webp)
 
+## Run in web browsers
+
+Currently only running the 'plain' emulator is supported, it's not possible
+to load files into the emulator (because command line parsing doesn't work
+in browsers, and the entire Zig stdlib filesystem code doesn't work in
+`wasm32-emscripten`:
+
+```bash
+zig build -Dtarget=wasm32-emscripten -Doptimize=ReleaseFast run-kc854
+```
+
+On the first build, the Emscripten SDK will be downloaded and installed into
+the global Zig cache, this might take a couple of minutes.
+
 ## Misc Stuff
 
 For an instant nostalgia kick, start the KC85/4:
