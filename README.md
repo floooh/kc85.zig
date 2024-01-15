@@ -84,8 +84,8 @@ forth[Enter]
 
 Currently only running the 'plain' emulator is supported, it's not possible
 to load files into the emulator (because command line parsing doesn't work
-in browsers, and the entire Zig stdlib filesystem code doesn't work in
-`wasm32-emscripten`:
+in browsers, and the Zig stdlib filesystem code doesn't work in
+`wasm32-emscripten`):
 
 ```bash
 zig build -Dtarget=wasm32-emscripten -Doptimize=ReleaseFast run-kc854
