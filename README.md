@@ -1,3 +1,5 @@
+[![build](https://github.com/floooh/kc85.zig/actions/workflows/main.yml/badge.svg)](https://github.com/floooh/kc85.zig/actions/workflows/main.yml)
+
 A simple KC85/2, /3 and /4 emulator for Windows, macOS and Linux, written in Zig. Uses the [sokol headers](https://github.com/floooh/sokol) for platform abstraction.
 
 Read more about the KC85 computer series here:
