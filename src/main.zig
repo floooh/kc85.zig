@@ -95,32 +95,34 @@ export fn init() void {
     };
 
     // insert any modules defined on the command line
-    for (state.args.slots) |slot| {
-        if (slot.mod_name) |mod_name| {
-            var mod_type = moduleNameToType(mod_name);
-            var rom_image: ?[]const u8 = null;
-            if (slot.mod_path) |path| {
-                rom_image = fs.cwd().readFileAlloc(state.arena.allocator(), path, max_file_size) catch |err| blk: {
-                    warn("Failed to load ROM file '{s}' with: {}\n", .{ path, err });
-                    mod_type = .NONE;
-                    break :blk null;
+    if (!build_options.no_fs) {
+        for (state.args.slots) |slot| {
+            if (slot.mod_name) |mod_name| {
+                var mod_type = moduleNameToType(mod_name);
+                var rom_image: ?[]const u8 = null;
+                if (slot.mod_path) |path| {
+                    rom_image = fs.cwd().readFileAlloc(state.arena.allocator(), path, max_file_size) catch |err| blk: {
+                        warn("Failed to load ROM file '{s}' with: {}\n", .{ path, err });
+                        mod_type = .NONE;
+                        break :blk null;
+                    };
+                }
+                state.kc.insertModule(slot.addr, mod_type, rom_image) catch |err| {
+                    warn("Failed to insert module '{s}' with: {}\n", .{ mod_name, err });
                 };
             }
-            state.kc.insertModule(slot.addr, mod_type, rom_image) catch |err| {
-                warn("Failed to insert module '{s}' with: {}\n", .{ mod_name, err });
-            };
         }
-    }
 
-    // preload the KCC or TAP file image, this will be loaded later when the
-    // system has finished booting
-    if (state.args.file) |path| {
-        state.file_data = fs.cwd().readFileAlloc(state.arena.allocator(), path, max_file_size) catch |err| blk: {
-            warn("Failed to load snapshot file '{s}' with: {}\n", .{ path, err });
-            break :blk null;
-        };
-    } else {
-        state.file_data = null;
+        // preload the KCC or TAP file image, this will be loaded later when the
+        // system has finished booting
+        if (state.args.file) |path| {
+            state.file_data = fs.cwd().readFileAlloc(state.arena.allocator(), path, max_file_size) catch |err| blk: {
+                warn("Failed to load snapshot file '{s}' with: {}\n", .{ path, err });
+                break :blk null;
+            };
+        } else {
+            state.file_data = null;
+        }
     }
 }
 
