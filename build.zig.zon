@@ -1,0 +1,20 @@
+.{
+    .name = "kc85",
+    .version = "0.1.0",
+    .paths = .{
+        "data",
+        "screenshots",
+        "src",
+        "tests",
+        "build.zig",
+        "build.zig.zon",
+        "LICENSE",
+        "README.md",
+    },
+    .dependencies = .{
+        .sokol = .{
+            .url = "git+https://github.com/floooh/sokol-zig.git#e5104b47e714ade1148aa1c82d40531ea76a5d08",
+            .hash = "12200b3da5851ed1927479661a7f96e81d22231852aa5d5acbec1d42ae26ebb21c22",
+        },
+    },
+}

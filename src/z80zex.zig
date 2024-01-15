@@ -2,8 +2,8 @@
 /// Runs the ZEXDOC and ZEXALL tests in a minimal CP/M environment.
 ///
 const build_options = @import("build_options");
-const print  = @import("std").debug.print;
-const CPU = @import("emu").CPU;
+const print = @import("std").debug.print;
+const CPU = @import("emu/emu.zig").CPU;
 
 var mem: [0x10000]u8 = undefined;
 
@@ -16,8 +16,7 @@ fn tick(num_ticks: usize, pins: usize, userdata: usize) u64 {
         if (0 != (pins & CPU.RD)) {
             // a memory read access
             return CPU.setData(pins, mem[CPU.getAddr(pins)]);
-        }
-        else if (0 != (pins & CPU.WR)) {
+        } else if (0 != (pins & CPU.WR)) {
             // a memory write access
             mem[CPU.getAddr(pins)] = CPU.getData(pins);
         }
@@ -49,34 +48,38 @@ fn cpmBDOS(cpu: *CPU) bool {
         9 => {
             // output $-terminated string pointed to by register DE
             var addr = cpu.r16(CPU.DE);
-            while (mem[addr] != '$'): (addr +%= 1) {
+            while (mem[addr] != '$') : (addr +%= 1) {
                 putChar(mem[addr]);
             }
         },
         else => {
-            print("Unhandled CP/M system call: {X}\n", .{ cpu.regs[CPU.C] });
+            print("Unhandled CP/M system call: {X}\n", .{cpu.regs[CPU.C]});
             retval = false;
-        }
+        },
     }
-    
+
     // emulate a RET
-    const z: u16 = mem[cpu.SP]; cpu.SP +%= 1;
-    const w: u16 = mem[cpu.SP]; cpu.SP +%= 1;
-    cpu.WZ = (w<<8) | z;
+    const z: u16 = mem[cpu.SP];
+    cpu.SP +%= 1;
+    const w: u16 = mem[cpu.SP];
+    cpu.SP +%= 1;
+    cpu.WZ = (w << 8) | z;
     cpu.PC = cpu.WZ;
     return retval;
 }
 
 // run the currently configured test
 fn runTest(cpu: *CPU, name: []const u8) void {
-    print("Running {s}:\n\n", .{ name });
+    print("Running {s}:\n\n", .{name});
     var ticks: usize = 0;
     while (true) {
-        ticks += cpu.exec(0, .{ .func=tick, .userdata=0 });
+        ticks += cpu.exec(1, .{ .func = tick, .userdata = 0 });
         switch (cpu.PC) {
             0 => break, // done
-            5 => { if (!cpmBDOS(cpu)) break; },
-            else => { }
+            5 => {
+                if (!cpmBDOS(cpu)) break;
+            },
+            else => {},
         }
     }
     print("\n\n", .{});

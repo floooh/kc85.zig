@@ -549,9 +549,9 @@ of helper functions in testing code, [like here](https://github.com/floooh/kc85.
 
 ```zig
 fn step(cpu: *CPU) usize {
-    var ticks = cpu.exec(0, .{ .func=tick, .userdata=0 });
+    var ticks = cpu.exec(1, .{ .func=tick, .userdata=0 });
     while (!cpu.opdone()) {
-        ticks += cpu.exec(0, .{ .func=tick, .userdata=0 });
+        ticks += cpu.exec(1, .{ .func=tick, .userdata=0 });
     }
     return ticks;
 }

@@ -5,9 +5,10 @@
 //  https://github.com/floooh/chips-test/blob/master/tests/z80-test.c
 //------------------------------------------------------------------------------
 
-const print = @import("std").debug.print;
-const assert = @import("std").debug.assert;
-const CPU = @import("emu").CPU;
+const std = @import("std");
+const print = std.debug.print;
+const assert = std.debug.assert;
+const CPU = @import("emu/emu.zig").CPU;
 
 const MREQ = CPU.MREQ;
 const IORQ = CPU.IORQ;
@@ -114,9 +115,9 @@ fn copy(start_addr: u16, bytes: []const u8) void {
 }
 
 fn step(cpu: *CPU) usize {
-    var ticks = cpu.exec(0, .{ .func = tick, .userdata = 0 });
+    var ticks = cpu.exec(1, .{ .func = tick, .userdata = 0 });
     while (!cpu.opdone()) {
-        ticks += cpu.exec(0, .{ .func = tick, .userdata = 0 });
+        ticks += cpu.exec(1, .{ .func = tick, .userdata = 0 });
     }
     return ticks;
 }
@@ -3841,9 +3842,9 @@ fn IRQ() void {
             return pins;
         }
         fn step(cpu: *CPU) usize {
-            var ticks = cpu.exec(0, .{ .func = inner_tick, .userdata = 0 });
+            var ticks = cpu.exec(1, .{ .func = inner_tick, .userdata = 0 });
             while (!cpu.opdone()) {
-                ticks += cpu.exec(0, .{ .func = inner_tick, .userdata = 0 });
+                ticks += cpu.exec(1, .{ .func = inner_tick, .userdata = 0 });
             }
             return ticks;
         }

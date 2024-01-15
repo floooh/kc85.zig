@@ -40,7 +40,7 @@ Run ```zig build --help``` to see the remaining build targets.
 ```
 zig build run-kc853 -- -slot8 m022 -file data/digger3.tap
 ```
-![Digger Screenshot](screenshots/digger.png)
+![Digger Screenshot](screenshots/digger.webp)
 
 Press [Enter] to start a new game round, and [Esc] to continue
 after you died. Use the arrows keys to navigate.
@@ -49,7 +49,7 @@ after you died. Use the arrows keys to navigate.
 ```
 zig build run-kc853 -- -slot8 m022 -file data/jungle.kcc
 ```
-![Jungle Screenshot](screenshots/jungle.png)
+![Jungle Screenshot](screenshots/jungle.webp)
 
 Navigate with arrow keys, jump with [Space].
 
@@ -57,7 +57,7 @@ Navigate with arrow keys, jump with [Space].
 ```
 zig build run-kc853 -- -file data/pengo.kcc
 ```
-![Pengo Screenshot](screenshots/pengo.png)
+![Pengo Screenshot](screenshots/pengo.webp)
 
 Navigate with the arrow keys, continue running against
 an ice block to push or destroy the block.
@@ -76,7 +76,7 @@ forth[Enter]
 ```
 (the characters will appear uppercase, don't worry, that's normal)
 
-![FORTH Screenshot](screenshots/forth.png)
+![FORTH Screenshot](screenshots/forth.webp)
 
 ## Misc Stuff
 
