@@ -3,6 +3,7 @@
 //
 
 const build_options = @import("build_options");
+const builtin = @import("builtin");
 const std = @import("std");
 const warn = std.log.warn;
 const mem = std.mem;
@@ -23,7 +24,7 @@ const state = struct {
     var kc: *KC85 = undefined;
     var args: Args = undefined;
     var file_data: ?[]const u8 = null;
-    var arena: std.heap.ArenaAllocator = undefined;
+    const allocator = std.heap.c_allocator;
 };
 
 const kc85_model: Model = switch (build_options.kc85_model) {
@@ -38,11 +39,8 @@ const load_delay_us = switch (build_options.kc85_model) {
 const max_file_size = 64 * 1024;
 
 pub fn main() !void {
-    state.arena = std.heap.ArenaAllocator.init(std.heap.c_allocator);
-    defer state.arena.deinit();
-
     // parse arguments
-    state.args = Args.parse(state.arena.allocator()) catch {
+    state.args = Args.parse(state.allocator) catch {
         warn("Failed to parse arguments\n", .{});
         std.process.exit(5);
     };
@@ -79,7 +77,7 @@ export fn init() void {
     time.setup();
 
     // setup KC85 emulator instance
-    state.kc = KC85.create(state.arena.allocator(), .{
+    state.kc = KC85.create(state.allocator, .{
         .pixel_buffer = gfx.pixel_buffer[0..],
         .audio_func = .{ .func = audio.push },
         .audio_sample_rate = audio.sampleRate(),
@@ -95,13 +93,13 @@ export fn init() void {
     };
 
     // insert any modules defined on the command line
-    if (!build_options.no_fs) {
+    if (!builtin.target.isWasm()) {
         for (state.args.slots) |slot| {
             if (slot.mod_name) |mod_name| {
                 var mod_type = moduleNameToType(mod_name);
                 var rom_image: ?[]const u8 = null;
                 if (slot.mod_path) |path| {
-                    rom_image = fs.cwd().readFileAlloc(state.arena.allocator(), path, max_file_size) catch |err| blk: {
+                    rom_image = fs.cwd().readFileAlloc(state.allocator, path, max_file_size) catch |err| blk: {
                         warn("Failed to load ROM file '{s}' with: {}\n", .{ path, err });
                         mod_type = .NONE;
                         break :blk null;
@@ -116,12 +114,10 @@ export fn init() void {
         // preload the KCC or TAP file image, this will be loaded later when the
         // system has finished booting
         if (state.args.file) |path| {
-            state.file_data = fs.cwd().readFileAlloc(state.arena.allocator(), path, max_file_size) catch |err| blk: {
+            state.file_data = fs.cwd().readFileAlloc(state.allocator, path, max_file_size) catch |err| blk: {
                 warn("Failed to load snapshot file '{s}' with: {}\n", .{ path, err });
                 break :blk null;
             };
-        } else {
-            state.file_data = null;
         }
     }
 }
@@ -136,13 +132,13 @@ export fn frame() void {
         state.kc.load(state.file_data.?) catch |err| {
             warn("Failed to load snapshot file '{s}' with: {}\n", .{ state.args.file.?, err });
         };
-        // arena allocator takes care of deallocation
+        state.allocator.free(state.file_data.?);
         state.file_data = null;
     }
 }
 
 export fn cleanup() void {
-    state.kc.destroy(state.arena.allocator());
+    state.kc.destroy(state.allocator);
     audio.shutdown();
     gfx.shutdown();
 }

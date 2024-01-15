@@ -36,7 +36,6 @@ fn addKC85(b: *Build, target: Build.ResolvedTarget, optimize: OptimizeMode, dep_
     };
     const options = b.addOptions();
     options.addOption(KC85Model, "kc85_model", kc85_model);
-    options.addOption(bool, "no_fs", target.result.isWasm());
 
     if (!target.result.isWasm()) {
         // native build
@@ -77,7 +76,10 @@ fn addKC85(b: *Build, target: Build.ResolvedTarget, optimize: OptimizeMode, dep_
             .use_emmalloc = true,
             .use_filesystem = false,
             .shell_file_path = dep_sokol.path("src/sokol/web/shell.html").getPath(b),
-            // NOTE: this is needed because there's a runtime error in the browser:
+            // NOTE: This is required to make the Zig @returnAddress() builtin work,
+            // which is used heavily in the stdlib allocator code (not just
+            // the GeneralPurposeAllocator).
+            // The Emscripten runtime error message when the option is missing is:
             // Cannot use convertFrameToPC (needed by __builtin_return_address) without -sUSE_OFFSET_CONVERTER
             .extra_args = &.{"-sUSE_OFFSET_CONVERTER=1"},
         });
