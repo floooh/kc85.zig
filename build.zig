@@ -19,6 +19,7 @@ pub fn build(b: *Build) !void {
     try addKC85(b, target, optimize, dep_sokol, .KC85_2);
     try addKC85(b, target, optimize, dep_sokol, .KC85_3);
     try addKC85(b, target, optimize, dep_sokol, .KC85_4);
+    // don't bother with making the tests run in wasm
     if (!target.result.isWasm()) {
         addZ80Test(b, target, optimize);
         addZ80ZEXDOC(b, target, optimize);
