@@ -1,3 +1,5 @@
+[![build](https://github.com/floooh/kc85.zig/actions/workflows/main.yml/badge.svg)](https://github.com/floooh/kc85.zig/actions/workflows/main.yml)
+
 A simple KC85/2, /3 and /4 emulator for Windows, macOS and Linux, written in Zig. Uses the [sokol headers](https://github.com/floooh/sokol) for platform abstraction.
 
 Read more about the KC85 computer series here:
@@ -10,7 +12,7 @@ Some [implementation notes](https://github.com/floooh/kc85.zig/blob/main/IMPLEME
 
 ## Build
 
-With Zig version 0.11.0, on Windows, macOS or Linux:
+With Zig the 0.12.0 dev version, on Windows, macOS or Linux:
 ```
 zig build
 ```
@@ -40,7 +42,7 @@ Run ```zig build --help``` to see the remaining build targets.
 ```
 zig build run-kc853 -- -slot8 m022 -file data/digger3.tap
 ```
-![Digger Screenshot](screenshots/digger.png)
+![Digger Screenshot](screenshots/digger.webp)
 
 Press [Enter] to start a new game round, and [Esc] to continue
 after you died. Use the arrows keys to navigate.
@@ -49,7 +51,7 @@ after you died. Use the arrows keys to navigate.
 ```
 zig build run-kc853 -- -slot8 m022 -file data/jungle.kcc
 ```
-![Jungle Screenshot](screenshots/jungle.png)
+![Jungle Screenshot](screenshots/jungle.webp)
 
 Navigate with arrow keys, jump with [Space].
 
@@ -57,7 +59,7 @@ Navigate with arrow keys, jump with [Space].
 ```
 zig build run-kc853 -- -file data/pengo.kcc
 ```
-![Pengo Screenshot](screenshots/pengo.png)
+![Pengo Screenshot](screenshots/pengo.webp)
 
 Navigate with the arrow keys, continue running against
 an ice block to push or destroy the block.
@@ -76,7 +78,21 @@ forth[Enter]
 ```
 (the characters will appear uppercase, don't worry, that's normal)
 
-![FORTH Screenshot](screenshots/forth.png)
+![FORTH Screenshot](screenshots/forth.webp)
+
+## Run in web browsers
+
+Currently only running the 'plain' emulator is supported, it's not possible
+to load files into the emulator (because command line parsing doesn't work
+in browsers, and the Zig stdlib filesystem code doesn't work in
+`wasm32-emscripten`):
+
+```bash
+zig build -Dtarget=wasm32-emscripten -Doptimize=ReleaseFast run-kc854
+```
+
+On the first build, the Emscripten SDK will be downloaded and installed into
+the global Zig cache, this might take a couple of minutes.
 
 ## Misc Stuff
 

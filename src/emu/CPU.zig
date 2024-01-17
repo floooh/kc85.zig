@@ -169,8 +169,8 @@ pub const WAIT1: u64 = 1 << 35;
 pub const WAIT2: u64 = 1 << 36;
 pub const IEIO: u64 = 1 << 37; // interrupt daisy chain: interrupt-enable-I/O
 pub const RETI: u64 = 1 << 38; // interrupt daisy chain: RETI decoded
-pub const WaitPinShift = 34;
-pub const WaitPinMask = WAIT0 | WAIT1 | WAIT2;
+pub const WaitPinShift: u64 = 34;
+pub const WaitPinMask: u64 = WAIT0 | WAIT1 | WAIT2;
 
 // all pins mask
 pub const PinMask: u64 = (1 << 40) - 1;
@@ -366,7 +366,7 @@ pub fn r16(self: *CPU, reg: u2) u16 {
 
 // set/get wait ticks on pin mask
 pub fn setWait(pins: u64, wait_ticks: u3) u64 {
-    return (pins & ~WaitPinMask) | (wait_ticks << WaitPinShift);
+    return (pins & ~WaitPinMask) | (@as(u64, wait_ticks) << WaitPinShift);
 }
 
 pub fn getWait(pins: u64) u3 {
