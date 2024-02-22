@@ -5,7 +5,7 @@ const sokol = @import("sokol");
 const sg = sokol.gfx;
 const sapp = sokol.app;
 const slog = sokol.log;
-const sgapp = sokol.app_gfx_glue;
+const sglue = sokol.glue;
 const shd = @import("shaders/shaders.glsl.zig");
 
 const KC85DisplayWidth = 320;
@@ -24,7 +24,7 @@ const state = struct {
     const upscale = struct {
         var pip: sg.Pipeline = .{};
         var bind: sg.Bindings = .{};
-        var pass: sg.Pass = .{};
+        var attachments: sg.Attachments = .{};
         var pass_action: sg.PassAction = .{};
     };
 
@@ -41,8 +41,7 @@ pub fn setup() void {
         .image_pool_size = 8,
         .shader_pool_size = 8,
         .pipeline_pool_size = 8,
-        .context_pool_size = 1,
-        .context = sgapp.context(),
+        .environment = sglue.environment(),
         .logger = .{ .func = slog.func },
     });
 
@@ -101,9 +100,9 @@ pub fn setup() void {
     });
 
     // a render pass for 2x upscaling
-    var pass_desc = sg.PassDesc{};
-    pass_desc.color_attachments[0].image = state.display.bind.fs.images[0];
-    state.upscale.pass = sg.makePass(pass_desc);
+    var atts_desc = sg.AttachmentsDesc{};
+    atts_desc.colors[0].image = state.display.bind.fs.images[0];
+    state.upscale.attachments = sg.makeAttachments(atts_desc);
 }
 
 pub fn shutdown() void {
@@ -117,7 +116,7 @@ pub fn draw() void {
     sg.updateImage(state.upscale.bind.fs.images[0], image_data);
 
     // upscale the source texture 2x with nearest filtering
-    sg.beginPass(state.upscale.pass, state.upscale.pass_action);
+    sg.beginPass(.{ .action = state.upscale.pass_action, .attachments = state.upscale.attachments });
     sg.applyPipeline(state.upscale.pip);
     sg.applyBindings(state.upscale.bind);
     sg.draw(0, 3, 1);
@@ -126,7 +125,7 @@ pub fn draw() void {
     // draw the display pass with linear filtering
     const w = sapp.widthf();
     const h = sapp.heightf();
-    sg.beginDefaultPassf(state.display.pass_action, w, h);
+    sg.beginPass(.{ .action = state.display.pass_action, .swapchain = sglue.swapchain() });
     applyViewport(w, h);
     sg.applyPipeline(state.display.pip);
     sg.applyBindings(state.display.bind);
