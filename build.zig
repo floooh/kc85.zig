@@ -43,7 +43,7 @@ fn addKC85(b: *Build, target: Build.ResolvedTarget, optimize: OptimizeMode, dep_
             .name = name,
             .target = target,
             .optimize = optimize,
-            .root_source_file = .{ .path = "src/main.zig" },
+            .root_source_file = b.path("src/main.zig"),
         });
         kc85.root_module.addOptions("build_options", options);
         kc85.root_module.addImport("sokol", dep_sokol.module("sokol"));
@@ -61,7 +61,7 @@ fn addKC85(b: *Build, target: Build.ResolvedTarget, optimize: OptimizeMode, dep_
             .name = name,
             .target = target,
             .optimize = optimize,
-            .root_source_file = .{ .path = "src/main.zig" },
+            .root_source_file = b.path("src/main.zig"),
         });
         kc85.root_module.addOptions("build_options", options);
         kc85.root_module.addImport("sokol", dep_sokol.module("sokol"));
@@ -91,7 +91,7 @@ fn addKC85(b: *Build, target: Build.ResolvedTarget, optimize: OptimizeMode, dep_
 
 fn addTests(b: *Build) void {
     const tests_exe = b.addTest(.{
-        .root_source_file = .{ .path = "src/tests.zig" },
+        .root_source_file = b.path("src/tests.zig"),
     });
     const run = b.addRunArtifact(tests_exe);
     b.step("tests", "Run all tests").dependOn(&run.step);
@@ -102,7 +102,7 @@ fn addZ80Test(b: *Build, target: Build.ResolvedTarget, optimize: OptimizeMode) v
         .name = "z80test",
         .target = target,
         .optimize = optimize,
-        .root_source_file = .{ .path = "src/z80test.zig" },
+        .root_source_file = b.path("src/z80test.zig"),
     });
     b.installArtifact(exe);
     const run = b.addRunArtifact(exe);
@@ -118,7 +118,7 @@ fn addZ80ZEXDOC(b: *Build, target: Build.ResolvedTarget, optimize: OptimizeMode)
         .name = "z80zexdoc",
         .target = target,
         .optimize = optimize,
-        .root_source_file = .{ .path = "src/z80zex.zig" },
+        .root_source_file = b.path("src/z80zex.zig"),
     });
     const options = b.addOptions();
     exe.root_module.addOptions("build_options", options);
@@ -139,7 +139,7 @@ fn addZ80ZEXALL(b: *Build, target: Build.ResolvedTarget, optimize: OptimizeMode)
         .name = "z80zexall",
         .target = target,
         .optimize = optimize,
-        .root_source_file = .{ .path = "src/z80zex.zig" },
+        .root_source_file = b.path("src/z80zex.zig"),
     });
     const options = b.addOptions();
     exe.root_module.addOptions("build_options", options);
