@@ -19,9 +19,9 @@ zig build
 The default debug version will usually be fast enough. To build with optimizations use any of:
 
 ```
-zig build -Doptimize=ReleaseFast
-zig build -Doptimize=ReleaseSmall
-zig build -Doptimize=ReleaseSafe
+zig build --release=fast
+zig build --release=small
+zig build --release=safe
 ```
 NOTE: On Linux you also need to install the ALSA, X11 and GL development packages.
 
@@ -88,7 +88,7 @@ in browsers, and the Zig stdlib filesystem code doesn't work in
 `wasm32-emscripten`):
 
 ```bash
-zig build -Dtarget=wasm32-emscripten -Doptimize=ReleaseFast run-kc854
+zig build -Dtarget=wasm32-emscripten --release=fast run-kc854
 ```
 
 On the first build, the Emscripten SDK will be downloaded and installed into
