@@ -143,8 +143,8 @@ fn addZ80ZEXALL(b: *Build, target: Build.ResolvedTarget, optimize: OptimizeMode)
     });
     const options = b.addOptions();
     exe.root_module.addOptions("build_options", options);
-    options.addOption(bool, "zexdoc", true);
-    options.addOption(bool, "zexall", false);
+    options.addOption(bool, "zexdoc", false);
+    options.addOption(bool, "zexall", true);
 
     b.installArtifact(exe);
     const run = b.addRunArtifact(exe);
