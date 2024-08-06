@@ -28,10 +28,11 @@ pub fn parse(a: std.mem.Allocator) !Args {
             printHelp();
             res.help = true;
         } else if (mem.eql(u8, arg, "-slot8")) {
-            res.slots[0].mod_name = arg_iter.next() orelse {
+            const next = arg_iter.next() orelse {
                 warn("Expected module name after '-slot8'\n", .{});
                 return error.InvalidArgs;
             };
+            res.slots[0].mod_name = try a.dupe(u8, next);
             if (!validateModuleName(res.slots[0].mod_name.?)) {
                 warn("Didn't recognize module name: {s}\n", .{res.slots[0].mod_name.?});
                 return error.InvalidArgs;
@@ -43,10 +44,11 @@ pub fn parse(a: std.mem.Allocator) !Args {
                 };
             }
         } else if (mem.eql(u8, arg, "-slotc")) {
-            res.slots[1].mod_name = arg_iter.next() orelse {
+            const next = arg_iter.next() orelse {
                 warn("Expected module name after '-slotC'\n", .{});
                 return error.InvalidArgs;
             };
+            res.slots[1].mod_name = try a.dupe(u8, next);
             if (!validateModuleName(res.slots[1].mod_name.?)) {
                 warn("Didn't recognize module name: {s}\n", .{res.slots[1].mod_name.?});
                 return error.InvalidArgs;
@@ -58,10 +60,11 @@ pub fn parse(a: std.mem.Allocator) !Args {
                 };
             }
         } else if (mem.eql(u8, arg, "-file")) {
-            res.file = arg_iter.next() orelse {
+            const next = arg_iter.next() orelse {
                 warn("Expected path to .kcc or .tap file after '-load'\n", .{});
                 return error.InvalidArgs;
             };
+            res.file = try a.dupe(u8, next);
         } else {
             warn("Unknown argument: {s} (run with '-help' to show valid args)\n", .{arg});
             return error.InvalidArgs;
