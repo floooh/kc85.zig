@@ -1160,7 +1160,7 @@ fn moduleNeedsROMImage(mod_type: ModuleType) bool {
 fn loadStart(self: *KC85, exec_addr: u16) void {
     // reset register values
     self.cpu.setR8(CPU.A, 0);
-    self.cpu.setR8(CPU.A, 0x10);
+    self.cpu.setR8(CPU.F, 0x10);
     self.cpu.setR16(CPU.BC, 0);
     self.cpu.setR16(CPU.DE, 0);
     self.cpu.setR16(CPU.HL, 0);
