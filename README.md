@@ -1,4 +1,4 @@
-| NOTE: this project has been superseded by https://github.com/floooh/chipz and has been archived
+> NOTE: this project has been superseded by https://github.com/floooh/chipz and has been archived
 
 [![build](https://github.com/floooh/kc85.zig/actions/workflows/main.yml/badge.svg)](https://github.com/floooh/kc85.zig/actions/workflows/main.yml)
 
